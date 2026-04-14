@@ -15,7 +15,11 @@ PDF_DIR = Path("data/program_books")
 NAME_RE = re.compile(r"^[A-Z][A-Z &'\.\-]{4,60}$")
 
 
-def run_all() -> list[dict]:
+def run_all(auto_fetch: bool = True) -> list[dict]:
+    if auto_fetch:
+        # Download fresh PDFs from BSO / H&H / Celebrity Series before parsing
+        from sources import program_books_fetcher
+        program_books_fetcher.fetch_all()
     if not PDF_DIR.exists():
         print(f"[program_books] {PDF_DIR} not found; skipping")
         return []

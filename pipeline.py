@@ -79,6 +79,9 @@ def collect(dry: bool) -> list[dict]:
     rows += chambers.run_all()
     rows += best_of_boston.run_all()
     rows += program_books.run_all()
+    # Huntington has no program PDFs — scrape their sponsor page directly
+    from sources.program_books_fetcher import huntington_sponsors
+    rows += huntington_sponsors()
     if not dry:
         rows += bbb.run_all()
     return rows

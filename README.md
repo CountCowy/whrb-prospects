@@ -21,13 +21,18 @@ Yelp Fusion stays (free tier, 500 calls/day, no billing required).
 
 - **OpenStreetMap Overpass** — local businesses by category + bbox
 - **Yelp Fusion API** — restaurants, personal services
-- **MA Home Improvement Contractor registry** — CSV download, ~5k Tier C leads
+- **MA Home Improvement Contractor registry** — no CSV dump exists; scraped via the legacy OCA ASP.NET portal (viewstate POST, city-by-city), with a Playwright fallback to `contractorhub.mass.gov` if the legacy endpoint is down
 - **Cambridge / Somerville / Boston open data portals** — business licenses (Socrata API, free)
 - **MA Secretary of State corporate search** — officer / registered agent names (Playwright scrape)
 - **Harvard Square Business Association, Cambridge/Somerville Chambers, ArtsBoston** — HTML member lists
 - **BBB Eastern MA** — accredited businesses (Playwright)
 - **Boston Magazine "Best of Boston"** — annual winners (HTML)
-- **BSO / A.R.T. / Huntington program book PDFs** — existing arts sponsors (`pdfplumber`)
+- **Arts-org program books** — auto-downloaded by `program_books_fetcher.py` from:
+  - BSO season brochures (`cdn.bso.org`)
+  - Handel & Haydn Society Preservica archive (1818–2016, richest PDF source)
+  - Celebrity Series / Vivo (S3-hosted PDFs)
+  - Huntington sponsor page (HTML → rows directly; no PDFs published)
+  - A.R.T. / Boston Lyric Opera publish only via Issuu (gated) — skipped unless `ENABLE_ISSUU=True`
 - **Company websites themselves** — `/contact`, `/about`, `/team` pages scraped for emails + names (primary free enrichment path)
 
 ## Output
