@@ -68,6 +68,6 @@ def enrich_rows(rows: list[dict], budget: int = 25) -> None:
             for k, v in res.items():
                 if v and not row.get(k):
                     row[k] = v
-            row.setdefault("notes", "")
-            row["notes"] += " hunter;"
+            row.setdefault("pipeline_notes", "")
+            row["pipeline_notes"] += " hunter;"
     print(f"[hunter] used {spent}/{budget}")

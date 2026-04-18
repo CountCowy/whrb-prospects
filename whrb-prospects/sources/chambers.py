@@ -105,7 +105,7 @@ def _scrape_hsba() -> list[dict]:
                 "tier": "B",
                 "company_name": name,
                 "_detail_url": a.get("href"),
-                "notes": "member:hsba",
+                "pipeline_notes": "member:hsba",
             })
     # Dedup by name
     seen, unique = set(), []
@@ -163,7 +163,7 @@ def _scrape_artsboston() -> list[dict]:
             "tier": "A",
             "company_name": name,
             "website": href,
-            "notes": "member:artsboston",
+            "pipeline_notes": "member:artsboston",
         })
     # Dedup
     seen, out = set(), []

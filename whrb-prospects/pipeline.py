@@ -48,7 +48,7 @@ CSV_COLUMNS = [
     "company_name", "website", "company_phone", "company_email", "sales_email",
     "contact_name", "contact_title", "contact_email", "contact_phone", "contact_linkedin",
     "address", "zip", "tier", "category", "rating", "review_count",
-    "source", "priority_score", "seasonality_window", "notes",
+    "source", "priority_score", "seasonality_window", "pipeline_notes",
 ]
 
 SEASONALITY = {
@@ -68,7 +68,7 @@ def score(row: dict) -> int:
     if row.get("website"): s += w["has_website"]
     if row.get("company_phone") or row.get("contact_phone"): s += w["has_phone"]
     if row.get("contact_name"): s += w["has_contact_name"]
-    if row.get("notes") and "member" in row["notes"]: s += w["in_chamber"]
+    if row.get("pipeline_notes") and "member" in row["pipeline_notes"]: s += w["in_chamber"]
     if row.get("review_count"):
         s += int(w["review_count_log"] * math.log10(max(1, int(row["review_count"]))))
     s += w.get(f"tier_{row.get('tier', '')}", 0)

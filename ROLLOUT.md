@@ -111,3 +111,29 @@ Plan: `/Users/countcowy/.claude/plans/soft-crafting-tulip.md`.
 - No throwaway auth.users rows remain (verified by invite-trigger test teardown).
 
 **Stage 1 exit gate: GREEN. Stage 2 (pipeline sync + logging) may proceed.**
+
+---
+
+## Pre-Stage-2 prep (2026-04-17, post-Stage-1)
+
+Captured per plan round-6 clarifications addendum. Logged here so the Stage 2
+entry state is explicit.
+
+- **`notes` → `pipeline_notes` rename completed.** `pipeline.py::CSV_COLUMNS`,
+  `pipeline.py::score()`, and every `"notes"` dict-key write in
+  `sources/{chambers,city_licenses,ma_hic,bbb,program_books,program_books_fetcher,ma_sos}.py`
+  and `enrich/{apollo_free,hunter_free}.py` now write `pipeline_notes`. Grep
+  confirms zero remaining scraped-field `"notes"` references. The DB's
+  `public.prospect_notes` table is unrelated and untouched.
+- **Stage 1 integrity tests NOT re-run** before Stage 2 — Stage 1 just exited
+  green and nothing in the DB tree changed since.
+- **No intermediate pipeline dry run.** Stage 2's `python pipeline.py --fresh
+  --with-hic` will be the first ingest against `WHRB dev`.
+- **Stage 2 will seed `public.source_config`** with one row per scraper
+  (`osm`, `yelp`, `ma_hic`, `city_licenses`, `chambers`, `best_of_boston`,
+  `program_books`, `huntington`, `bbb`), all `enabled=true`, idempotent.
+- **Stage 2 network-kill test will be simulated**, not a manual wifi toggle
+  (plan deviation — reason + method will be documented in the Stage 2 entry
+  when it is written).
+- **Stage 2 target**: `WHRB dev` project (`kolfijjavwruwzctmnlx`) directly, no
+  staging table.

@@ -124,7 +124,7 @@ def run_all(auto_fetch: bool = True) -> list[dict]:
                             "source": f"program_book:{pdf_path.stem}",
                             "tier": "A",
                             "company_name": line.title(),
-                            "notes": "prints_in_program_book",
+                            "pipeline_notes": "prints_in_program_book",
                         })
         except Exception as e:
             print(f"[program_books] {pdf_path.name}: {e}")

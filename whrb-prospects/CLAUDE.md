@@ -391,16 +391,29 @@ Spot-check criteria for `output/whrb_prospects.csv` after any pipeline rerun:
 - ✅ Phase 1 work: `util/http.py`, `enrich/contact_scraper.py`, `enrich/hunter_free.py`, `sources/{osm_overpass,yelp_fusion,ma_hic,program_books_fetcher,ma_sos,best_of_boston}.py`.
 - ✅ Phase 2 work: `util/checkpoint.py`, `util/normalize.py`, `pipeline.py` (checkpoint + caching integration).
 
-**Phase 4 — to be created (per plan):**
-- 📋 `db/__init__.py`, `db/supabase_sync.py`, `db/nonprofit_bmf.py`, `db/schema.sql`
-- 📋 `util/event_log.py`
-- 📋 `scripts/rls_check.py`, `scripts/stage7_lock_matrix.py`, `scripts/postrun_check.py`
-- 📋 `requirements.txt` — add `supabase`, `postgrest`
-- 📋 `pipeline.py` — add phase `08_supabase_sync` to `PHASE_ORDER`, read `source_config`, emit run_start/run_finish events, accept `--no-supabase`
-- 📋 `util/http.py` — emit scrape_4xx / scrape_http events
-- 📋 entire `whrb-web/` directory (Next.js 15 app) as a sibling to `whrb-prospects/` in the monorepo
-- 📋 `.github/workflows/run-pipeline.yml` — Actions worker for `repository_dispatch` + monthly cron
-- 📋 `supabase/migrations/000_init.sql` — 10-table schema + RLS + 5 triggers
-- 📋 `supabase/seed.sql` — admin promotion (`update profiles set role='admin' where email='kingyareh@gmail.com'`)
+**Phase 4 — Stage 1 complete (2026-04-17), Stage 2 pending:**
+- ✅ `db/__init__.py`, `db/schema.sql` — created (mirror of `whrb-web/supabase/migrations/000_init.sql`)
+- ✅ `scripts/apply_migration.py`, `scripts/rls_check.py`, `scripts/stage1_integrity.py` — created and green (Stage 1 integrity = 10/10, RLS = 20/20)
+- ✅ `whrb-web/supabase/migrations/000_init.sql` + `whrb-web/supabase/seed.sql` — created; applied to `WHRB dev`
+- ✅ `requirements.txt` — added `supabase>=2.28` + `psycopg2-binary>=2.9` (`postgrest` comes transitively through `supabase`, no separate add needed)
+- ✅ `.env` — Supabase dev creds populated (gitignored)
+- ✅ Monorepo restructure: `Listing/.git` root with `whrb-prospects/` + `whrb-web/` siblings; `Listing/.gitignore` covers secrets + build artifacts
+- ✅ **`notes` → `pipeline_notes` rename** (pre-Stage-2 prep, plan round-6). Touched: `pipeline.py` (`CSV_COLUMNS`, `score()`), `sources/{chambers,city_licenses,ma_hic,bbb,program_books,program_books_fetcher,ma_sos}.py`, `enrich/{apollo_free,hunter_free}.py`. Zero remaining scraped-field `"notes"` dict keys (grep-clean).
 
-All prior Phase 1–3 changes are committed to the working tree.
+- 📋 `db/supabase_sync.py` — Stage 2; upsert-with-edit-lock, seeds `source_config` idempotently at run start
+- 📋 `util/event_log.py` — Stage 2; batched `log(level, category, message, **context)` → `event_log` table
+- 📋 `pipeline.py` — Stage 2; add phase `08_supabase_sync` to `PHASE_ORDER`, read `source_config`, emit `run_start`/`run_finish` events, accept `--no-supabase`
+- 📋 `util/http.py` — Stage 2; emit `scrape_4xx` / `scrape_http` events
+- 📋 `db/nonprofit_bmf.py` — Stage 4
+- 📋 `scripts/stage7_lock_matrix.py` — Stage 7
+- 📋 `scripts/postrun_check.py` — Stage 8
+- 📋 entire `whrb-web/` app source (Next.js 15) — Stage 5 onward (only `whrb-web/supabase/` exists today)
+- 📋 `.github/workflows/run-pipeline.yml` — Stage 10
+
+**Plan round-6 clarifications (Stage 2 entry decisions)** — see `/Users/countcowy/.claude/plans/soft-crafting-tulip.md` round-6 addendum and `ROLLOUT.md` "Pre-Stage-2 prep" section for the full list. Key points:
+- No Stage 1 regression rerun, no intermediate pipeline dry run.
+- `source_config` seeded during Stage 2 (one row per scraper, `enabled=true`, idempotent).
+- Network-kill integrity test is simulated (monkey-patch one `upsert` to raise `ConnectionError`), not a manual wifi toggle. Deviation will be documented in `ROLLOUT.md` Stage 2 entry.
+- Stage 2 target is `WHRB dev` (`kolfijjavwruwzctmnlx`) directly.
+
+All prior Phase 1–3 changes + Phase 4 Stage 1 are committed (cc4e7f4). The `pipeline_notes` rename is uncommitted at the time of this note — will be folded into the Stage 2 commit.

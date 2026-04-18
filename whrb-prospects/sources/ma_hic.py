@@ -100,7 +100,7 @@ def _parse_results(html: str, city: str) -> list[dict]:
             "address": rec.get("address") or None,
             "zip": (rec.get("zip") or "")[:5] or None,
             "category": "home_improvement_contractor",
-            "notes": f"hic_reg:{reg}" if reg else "hic_legacy",
+            "pipeline_notes": f"hic_reg:{reg}" if reg else "hic_legacy",
         })
     return [r for r in rows if r["company_name"]]
 
@@ -166,7 +166,7 @@ def _modern_fetch() -> list[dict]:
                         "company_name": lines[0],
                         "address": " ".join(lines[1:3]),
                         "category": "home_improvement_contractor",
-                        "notes": "hic_modern",
+                        "pipeline_notes": "hic_modern",
                     })
                 print(f"[ma_hic modern] {city}: done")
             except Exception as e:

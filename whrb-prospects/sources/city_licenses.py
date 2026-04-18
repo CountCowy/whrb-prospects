@@ -63,7 +63,7 @@ def _fetch_cambridge_diversity() -> list[dict]:
             "address": _pick(r, "address", "location_address"),
             "category": _pick(r, "bus_category", "business_category", "category"),
             "contact_name": _pick(r, "owner", "owner_name"),
-            "notes": "cambridge_diversity_directory",
+            "pipeline_notes": "cambridge_diversity_directory",
         })
     return rows
 
@@ -94,7 +94,7 @@ def _fetch_somerville_permits() -> list[dict]:
             "address": _pick(r, "address", "location_address"),
             "zip": (_pick(r, "zip", "zipcode") or "")[:5] or None,
             "category": _pick(r, "application_type", "permit_type"),
-            "notes": "somerville_permit",
+            "pipeline_notes": "somerville_permit",
         })
     return rows
 
@@ -140,7 +140,7 @@ def _fetch_boston_food() -> list[dict]:
             "address": _pick(r, "address", "licaddr"),
             "zip": (_pick(r, "zip", "licenseezipcode") or "")[:5] or None,
             "category": "food_establishment",
-            "notes": "boston_food_license",
+            "pipeline_notes": "boston_food_license",
         })
         if len(rows) >= BOSTON_FOOD_MAX_ROWS:
             break

@@ -37,7 +37,7 @@ def run_all(max_pages: int = 20) -> list[dict]:
                     "company_phone": phone_el.inner_text().strip() if phone_el else None,
                     "address": addr_el.inner_text().strip() if addr_el else None,
                     "website": site_el.get_attribute("href") if site_el else None,
-                    "notes": "bbb_accredited",
+                    "pipeline_notes": "bbb_accredited",
                 })
         browser.close()
     rows = [r for r in rows if r.get("company_name")]
