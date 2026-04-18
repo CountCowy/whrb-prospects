@@ -167,7 +167,7 @@ def huntington_sponsors() -> list[dict]:
                 "source": "huntington_sponsors",
                 "tier": "A",
                 "company_name": alt,
-                "notes": "huntington_sponsor",
+                "pipeline_notes": "huntington_sponsor",
             })
     # Dedup
     seen, out = set(), []

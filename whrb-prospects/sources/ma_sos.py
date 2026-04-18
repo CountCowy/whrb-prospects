@@ -70,7 +70,7 @@ def enrich_rows(rows: list[dict], limit: int = 25) -> None:
                 if res and res.get("officers"):
                     row["contact_name"] = res["officers"][0]["name"]
                     row["contact_title"] = res["officers"][0]["title"]
-                    row.setdefault("notes", "")
-                    row["notes"] += " ma_sos;"
+                    row.setdefault("pipeline_notes", "")
+                    row["pipeline_notes"] += " ma_sos;"
         finally:
             browser.close()
