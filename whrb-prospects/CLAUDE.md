@@ -416,4 +416,15 @@ Spot-check criteria for `output/whrb_prospects.csv` after any pipeline rerun:
 - Network-kill integrity test is simulated (monkey-patch one `upsert` to raise `ConnectionError`), not a manual wifi toggle. Deviation will be documented in `ROLLOUT.md` Stage 2 entry.
 - Stage 2 target is `WHRB dev` (`kolfijjavwruwzctmnlx`) directly.
 
+**Plan round-7 clarifications (Stage 2 implementation decisions, 2026-04-18)** — see plan round-7 addendum for full text. Key points:
+- Every pipeline run (CLI + web) inserts a `pipeline_runs` row and stamps every `event_log` row with the resulting `pipeline_run_id`. CLI runs set `triggered_by=null`; `args` captures the argv string (e.g. `"--fresh --with-hic"`).
+- `--no-supabase` CLI flag added (skips only phase `08_supabase_sync`); composes with existing `--dry`.
+- Per-batch retry lives inside `db/supabase_sync.py` (tenacity, max 3 attempts, reuses `util/http.py::RETRYABLE_EXCEPTIONS`). A failed batch logs `category='supabase_upsert' level='error'` and sync continues with the next batch.
+- `priority_score` is authoritative-from-pipeline (always refreshed on upsert) but respects `user_overrides["priority_score"]` if set.
+- `util/http.py` logs: `scrape_4xx` at `level='warn'`, `scrape_http` (retry exhaustion) at `level='error'`. Log emission is fire-and-forget and must never raise.
+- Centralized integrity script: `scripts/stage2_integrity.py` with `--simulate-network-kill` flag; exits non-zero on failure.
+- Stage 2 branch: `stage2/pipeline-sync` off `main`. Commit + push only when all integrity tests green; reuses existing remote.
+- `--fresh` intentionally leaves `cache/http_cache.sqlite` alone (phase/source checkpoints cleared, HTTP cache preserved).
+- Pipeline hand-off: Claude launches `python pipeline.py --fresh --with-hic` via Bash `run_in_background=true`.
+
 All prior Phase 1–3 changes + Phase 4 Stage 1 are committed (cc4e7f4). The `pipeline_notes` rename is uncommitted at the time of this note — will be folded into the Stage 2 commit.

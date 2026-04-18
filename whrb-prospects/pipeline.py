@@ -30,7 +30,7 @@ from sources import (
     program_books,
     yelp_fusion,
 )
-from util import checkpoint
+from util import checkpoint, event_log
 
 PHASE_ORDER = [
     "01_collected",
@@ -40,6 +40,7 @@ PHASE_ORDER = [
     "05_apollo",
     "06_ma_sos",
     "07_validated",
+    "08_supabase_sync",
 ]
 
 OUTPUT = Path("output/whrb_prospects.csv")
@@ -93,24 +94,35 @@ def _safe_cached(label: str, fn) -> list[dict]:
         rows = fn()
     except Exception as e:
         print(f"[{label}] FAILED: {type(e).__name__}: {e}")
+        event_log.error(
+            "source_failed",
+            f"source {label} failed: {type(e).__name__}: {e}",
+            context={"source": label, "exception": type(e).__name__, "detail": str(e)[:500]},
+        )
         return []
     checkpoint.save_source(label, rows)
     return rows
 
 
-def collect(with_hic: bool, with_bbb: bool) -> list[dict]:
+def collect(with_hic: bool, with_bbb: bool, enabled: set[str] | None = None) -> list[dict]:
+    """Run each source scraper. ``enabled`` filters by source_key — ``None``
+    means every scraper runs (no DB filter applied)."""
+    def _on(key: str) -> bool:
+        return enabled is None or key in enabled
+
     rows: list[dict] = []
-    rows += _safe_cached("osm",            osm_overpass.run_all)
-    rows += _safe_cached("yelp",           yelp_fusion.run_all)
-    if with_hic:
+    if _on("osm"):            rows += _safe_cached("osm",            osm_overpass.run_all)
+    if _on("yelp"):           rows += _safe_cached("yelp",           yelp_fusion.run_all)
+    if with_hic and _on("ma_hic"):
         rows += _safe_cached("ma_hic",     ma_hic.run_all)
-    rows += _safe_cached("city_licenses",  city_licenses.run_all)
-    rows += _safe_cached("chambers",       chambers.run_all)
-    rows += _safe_cached("best_of_boston", best_of_boston.run_all)
-    rows += _safe_cached("program_books",  program_books.run_all)
-    from sources.program_books_fetcher import huntington_sponsors
-    rows += _safe_cached("huntington",     huntington_sponsors)
-    if with_bbb:
+    if _on("city_licenses"):  rows += _safe_cached("city_licenses",  city_licenses.run_all)
+    if _on("chambers"):       rows += _safe_cached("chambers",       chambers.run_all)
+    if _on("best_of_boston"): rows += _safe_cached("best_of_boston", best_of_boston.run_all)
+    if _on("program_books"):  rows += _safe_cached("program_books",  program_books.run_all)
+    if _on("huntington"):
+        from sources.program_books_fetcher import huntington_sponsors
+        rows += _safe_cached("huntington", huntington_sponsors)
+    if with_bbb and _on("bbb"):
         rows += _safe_cached("bbb",        bbb.run_all)
     return rows
 
@@ -142,6 +154,67 @@ def _install_http_cache() -> None:
     print("[cache] requests-cache installed (24h, sqlite)")
 
 
+def _start_pipeline_run(argv: list[str]) -> str | None:
+    """Insert a `pipeline_runs` row, stamp the logger, return the id.
+
+    Round-7: required for every run (CLI + web). CLI runs have
+    ``triggered_by=null``; ``args`` captures the argv string.
+
+    Returns ``None`` if the DB is unreachable — the pipeline still runs to
+    produce a CSV; events just won't be correlated.
+    """
+    try:
+        from datetime import datetime, timezone
+        import os
+
+        from dotenv import load_dotenv
+        from supabase import create_client
+
+        load_dotenv(Path(__file__).resolve().parent / ".env")
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if not url or not key:
+            print("[pipeline_runs] no Supabase creds; skipping run record")
+            return None
+        client = create_client(url, key)
+        row = {
+            "status": "running",
+            "started_at": datetime.now(tz=timezone.utc).isoformat(),
+            "args": " ".join(argv) if argv else "",
+        }
+        res = client.table("pipeline_runs").insert(row).execute()
+        run_id = (res.data[0] if res.data else {}).get("id")
+        event_log.set_pipeline_run_id(run_id)
+        print(f"[pipeline_runs] run_id={run_id}")
+        return run_id
+    except Exception as e:  # noqa: BLE001
+        print(f"[pipeline_runs] failed to create run row: {type(e).__name__}: {e}")
+        return None
+
+
+def _finish_pipeline_run(run_id: str | None, *, status: str, rows_upserted: int | None, error: str | None) -> None:
+    if not run_id:
+        return
+    try:
+        from datetime import datetime, timezone
+        import os
+
+        from supabase import create_client
+
+        client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
+        patch: dict = {
+            "status": status,
+            "finished_at": datetime.now(tz=timezone.utc).isoformat(),
+        }
+        if rows_upserted is not None:
+            patch["rows_upserted"] = rows_upserted
+        if error:
+            patch["error"] = error[:4000]
+        client.table("pipeline_runs").update(patch).eq("id", run_id).execute()
+    except Exception as e:  # noqa: BLE001
+        print(f"[pipeline_runs] failed to finalize: {type(e).__name__}: {e}")
+
+
 def main(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="pipeline")
     parser.add_argument("--dry", action="store_true",
@@ -154,10 +227,36 @@ def main(argv: list[str]) -> None:
                         help="ignore existing checkpoints and restart from source fetch")
     parser.add_argument("--no-resume", dest="fresh", action="store_true",
                         help="alias for --fresh")
+    parser.add_argument("--no-supabase", action="store_true",
+                        help="skip phase 08_supabase_sync (still writes CSV)")
     args = parser.parse_args(argv)
 
     print("== WHRB prospect pipeline ==")
     _install_http_cache()
+
+    # Round-7: every run gets a pipeline_runs row. CLI path uses triggered_by=null.
+    run_id = None if args.no_supabase else _start_pipeline_run(argv)
+    event_log.info(
+        "run_start",
+        "pipeline run started",
+        context={"argv": argv, "no_supabase": args.no_supabase},
+    )
+
+    enabled_sources: set[str] | None = None
+    if not args.no_supabase:
+        try:
+            from db import supabase_sync
+            supabase_sync.seed_source_config()
+            enabled_sources = supabase_sync.read_enabled_sources()
+            print(f"[source_config] enabled scrapers: {sorted(enabled_sources)}")
+        except Exception as e:  # noqa: BLE001
+            print(f"[source_config] skipped due to error: {type(e).__name__}: {e}")
+            event_log.error(
+                "source_config_bootstrap_failed",
+                f"source_config bootstrap failed: {type(e).__name__}: {e}",
+                context={"exception": type(e).__name__},
+            )
+            enabled_sources = None
 
     if args.fresh:
         checkpoint.clear_all()
@@ -171,7 +270,11 @@ def main(argv: list[str]) -> None:
 
     # Phase 01 — collect raw rows from every source
     if resume_idx < 0:
-        rows = collect(with_hic=args.with_hic, with_bbb=args.with_bbb)
+        rows = collect(
+            with_hic=args.with_hic,
+            with_bbb=args.with_bbb,
+            enabled=enabled_sources,
+        )
         print(f"collected {len(rows)} raw rows")
         checkpoint.save_phase("01_collected", rows)
 
@@ -226,6 +329,52 @@ def main(argv: list[str]) -> None:
     OUTPUT.parent.mkdir(exist_ok=True)
     df.to_csv(OUTPUT, index=False)
     print(f"wrote {len(df)} rows -> {OUTPUT}")
+
+    # Phase 08 — Supabase sync. Wrapped so a sync failure never loses the CSV.
+    sync_summary: dict | None = None
+    sync_error: str | None = None
+    if not args.no_supabase:
+        try:
+            from db import supabase_sync
+            print("-- supabase sync --")
+            sync_summary = supabase_sync.sync(df.to_dict(orient="records"))
+            print(f"[supabase_sync] {sync_summary}")
+            checkpoint.save_phase("08_supabase_sync", rows)
+        except Exception as e:  # noqa: BLE001
+            sync_error = f"{type(e).__name__}: {e}"
+            print(f"[supabase_sync] FAILED: {sync_error}")
+            event_log.error(
+                "supabase_sync_aborted",
+                f"sync phase aborted: {sync_error}",
+                context={"exception": type(e).__name__, "detail": str(e)[:500]},
+            )
+
+    # run_finish event + pipeline_runs row update
+    rows_upserted = None
+    if sync_summary:
+        rows_upserted = sync_summary.get("inserted", 0) + sync_summary.get("updated", 0)
+    status = "success"
+    if sync_error:
+        status = "failed"
+    elif sync_summary and sync_summary.get("failed", 0) > 0:
+        status = "failed"
+    event_log.info(
+        "run_finish",
+        f"pipeline run finished ({status})",
+        context={
+            "rows_written": len(df),
+            "sync_summary": sync_summary,
+            "status": status,
+            "sync_error": sync_error,
+        },
+    )
+    event_log.flush()
+    _finish_pipeline_run(
+        run_id,
+        status=status,
+        rows_upserted=rows_upserted,
+        error=sync_error,
+    )
 
 
 if __name__ == "__main__":
