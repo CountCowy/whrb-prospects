@@ -20,7 +20,8 @@ import time
 
 import requests
 from bs4 import BeautifulSoup
-from tenacity import retry, stop_after_attempt, wait_exponential
+
+from util.http import raise_for_smart_status, smart_retry
 
 LEGACY_URL = "https://services.oca.state.ma.us/hic/licenseelist.aspx"
 MODERN_URL = "https://contractorhub.mass.gov/s/hic-contractor-search"
@@ -48,14 +49,14 @@ def _parse_viewstate(html: str) -> dict:
     return fields
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=3, max=30))
+@smart_retry(wait_min=3, wait_max=30)
 def _get_form(session: requests.Session) -> dict:
     r = session.get(LEGACY_URL, headers=HEADERS, timeout=30)
-    r.raise_for_status()
+    raise_for_smart_status(r)
     return _parse_viewstate(r.text)
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=3, max=30))
+@smart_retry(wait_min=3, wait_max=30)
 def _post_city(session: requests.Session, state: dict, city: str) -> str:
     # Field names are best-effort — ASP.NET page was built ~2005 and
     # historically used txtCity / btnSearch. Adjust if the live page differs.
@@ -68,7 +69,7 @@ def _post_city(session: requests.Session, state: dict, city: str) -> str:
         "btnSearch": "Search",
     }
     r = session.post(LEGACY_URL, data=payload, headers=HEADERS, timeout=60)
-    r.raise_for_status()
+    raise_for_smart_status(r)
     return r.text
 
 

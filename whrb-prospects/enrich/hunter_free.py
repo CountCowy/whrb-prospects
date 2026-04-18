@@ -10,6 +10,8 @@ import os
 import requests
 from dotenv import load_dotenv
 
+from util.normalize import normalize_website
+
 load_dotenv()
 _KEY = os.getenv("HUNTER_API_KEY")
 
@@ -42,17 +44,22 @@ def domain_search(domain: str) -> dict | None:
 
 
 def enrich_rows(rows: list[dict], budget: int = 25) -> None:
+    from urllib.parse import urlparse
     spent = 0
     for row in rows:
         if spent >= budget:
             return
-        if row.get("contact_email") or not row.get("website"):
+        if row.get("contact_email"):
             continue
         if row.get("tier") not in ("A", "B"):
             continue
-        from urllib.parse import urlparse
-        domain = urlparse(row["website"] if row["website"].startswith("http") else "https://" + row["website"]).netloc
-        domain = domain.removeprefix("www.")
+        website = normalize_website(row.get("website"))
+        if not website:
+            continue
+        # Heal any stale checkpoint rows that still carry a dict/junk website.
+        row["website"] = website
+        url = website if website.startswith("http") else "https://" + website
+        domain = urlparse(url).netloc.removeprefix("www.")
         if not domain:
             continue
         res = domain_search(domain)

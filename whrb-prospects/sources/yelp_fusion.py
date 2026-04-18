@@ -4,10 +4,10 @@ from __future__ import annotations
 import os
 
 from dotenv import load_dotenv
-from tenacity import retry, stop_after_attempt, wait_exponential
 from yelpapi import YelpAPI
 
 from config import MIN_RATING, MIN_REVIEW_COUNT, YELP_SEARCHES
+from util.http import smart_retry
 
 load_dotenv()
 _KEY = os.getenv("YELP_API_KEY")
@@ -20,7 +20,7 @@ def _client() -> YelpAPI | None:
     return YelpAPI(_KEY)
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30))
+@smart_retry()
 def _search(yelp: YelpAPI, term: str, location: str, offset: int) -> dict:
     return yelp.search_query(term=term, location=location, limit=50, offset=offset)
 
@@ -33,8 +33,13 @@ def run_all() -> list[dict]:
     for term, location in YELP_SEARCHES:
         print(f"[yelp] {term} in {location}")
         offset = 0
-        while offset < 240:  # free tier courtesy cap
-            data = _search(yelp, term, location, offset)
+        # Yelp hard-caps offset + limit at 240; with limit=50 the last legal offset is 190
+        while offset <= 190:
+            try:
+                data = _search(yelp, term, location, offset)
+            except Exception as e:
+                print(f"[yelp] {term}@{offset} failed: {e}")
+                break
             biz = data.get("businesses", [])
             if not biz:
                 break

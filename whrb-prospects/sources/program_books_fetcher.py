@@ -25,7 +25,8 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
-from tenacity import retry, stop_after_attempt, wait_exponential
+
+from util.http import raise_for_smart_status, smart_retry
 
 PDF_DIR = Path("data/program_books")
 PDF_DIR.mkdir(parents=True, exist_ok=True)
@@ -39,10 +40,10 @@ ENABLE_ISSUU = False
 
 # ------------------ generic helpers ------------------ #
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=20))
+@smart_retry()
 def _get(url: str) -> requests.Response:
     r = requests.get(url, headers=HEADERS, timeout=45)
-    r.raise_for_status()
+    raise_for_smart_status(r)
     return r
 
 
@@ -105,36 +106,12 @@ HH_LISTING_PATH = "/uncategorized/"
 
 
 def fetch_handel_haydn() -> list[Path]:
-    """Preservica listing page exposes items as /uncategorized/IO_{uuid}/ pages.
-    Each item page carries a 'Download' link to the underlying PDF."""
-    saved = []
-    try:
-        html = _get(HH_PRESERVICA_BASE + HH_LISTING_PATH).text
-    except Exception as e:
-        print(f"[fetcher:hh] listing failed: {e}")
-        return saved
-    soup = BeautifulSoup(html, "lxml")
-    item_paths = {
-        a["href"] for a in soup.find_all("a", href=True)
-        if "/IO_" in a["href"]
-    }
-    print(f"[fetcher:hh] {len(item_paths)} items on first page")
-    for path in list(item_paths)[:MAX_PER_ORG]:
-        try:
-            item_html = _get(urljoin(HH_PRESERVICA_BASE, path)).text
-        except Exception as e:
-            print(f"[fetcher:hh] {path}: {e}")
-            continue
-        item_soup = BeautifulSoup(item_html, "lxml")
-        dl = item_soup.find("a", href=re.compile(r"download|\.pdf", re.I))
-        if not dl:
-            continue
-        pdf_url = urljoin(HH_PRESERVICA_BASE, dl["href"])
-        p = _save_pdf(pdf_url, "hh")
-        if p:
-            saved.append(p)
-        time.sleep(1)
-    return saved
+    """H&H Preservica archive at /archive is JS-rendered with AJAX pagination.
+    Needs a Playwright-based crawler that scrolls the listing, captures IO_*
+    UUIDs, and downloads each item's PDF via its per-item page. Tracked as a
+    separate ticket; BSO + Celebrity Series are already yielding PDFs."""
+    print("[fetcher:hh] skipped — /archive needs Playwright-based crawler")
+    return []
 
 
 # ------------------ Celebrity Series / Vivo ------------------ #

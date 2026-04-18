@@ -9,9 +9,9 @@ import time
 from typing import Iterable
 
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from config import OSM_QUERIES, WHRB_BBOX
+from util.http import raise_for_smart_status, smart_retry
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
@@ -25,10 +25,10 @@ def _build_query(tag_filters: Iterable[str], bbox: tuple) -> str:
     return f"[out:json][timeout:60];({''.join(parts)});out center tags;"
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=5, max=60))
+@smart_retry(wait_min=5, wait_max=60)
 def _post(query: str) -> dict:
     r = requests.post(OVERPASS_URL, data={"data": query}, timeout=120)
-    r.raise_for_status()
+    raise_for_smart_status(r)
     return r.json()
 
 

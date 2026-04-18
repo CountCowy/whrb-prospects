@@ -1,11 +1,30 @@
-.venv/
-__pycache__/
-*.pyc
-.env
-cache/
-data/*.csv
-data/*.pdf
-output/*.csv
+# Monorepo-wide ignores. Per-project .gitignore files (e.g. whrb-prospects/.gitignore)
+# still apply inside their own trees.
+
+# OS / editor noise
 .DS_Store
 .idea/
 .vscode/
+
+# Env files — never commit secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Node / Next.js (whrb-web/ will populate these at Stage 5)
+node_modules/
+.next/
+out/
+.vercel/
+*.tsbuildinfo
+
+# Pipeline artifacts — regenerable, keep out of git
+cache/
+whrb-prospects/output/
+whrb-prospects/data/
