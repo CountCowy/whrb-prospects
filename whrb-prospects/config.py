@@ -80,3 +80,63 @@ SCORE_WEIGHTS = {
     "tier_B": 15,
     "tier_C": 5,
 }
+
+# ---------------------------------------------------------------------------
+# Operational constants
+#
+# Keep every non-trivial numeric literal here so tuning is a one-file change
+# and pytest can import the same values the pipeline does.
+# ---------------------------------------------------------------------------
+
+# Socrata open-data page limit (Cambridge / Somerville) — 5000 is the API cap
+# for a single request without pagination.
+SOCRATA_PAGE_LIMIT = 5000
+
+# Boston CKAN food-license pagination: page size + how far we walk before
+# we stop. The dataset is ~30k rows; we only ever need the first few pages
+# once BOSTON_FOOD_MAX_ROWS is hit.
+BOSTON_FOOD_PAGE_SIZE = 1000
+BOSTON_FOOD_OFFSET_CEILING = 5000
+
+# Boston food licenses dominate raw volume and have low actionable signal
+# without a phone. Cap per the Phase-3 data-quality fix.
+BOSTON_FOOD_MAX_ROWS = 500
+
+# Supabase upsert batch size for public.prospects.
+SUPABASE_UPSERT_BATCH_SIZE = 500
+
+# Supabase retry bounds (tenacity wait_exponential, seconds).
+SUPABASE_RETRY_MIN_S = 2
+SUPABASE_RETRY_MAX_S = 20
+SUPABASE_RETRY_MAX_ATTEMPTS = 3
+
+# A normalized US phone number is always 10 digits.
+PHONE_DIGIT_COUNT = 10
+
+# Checkpoint and cache TTLs.
+CHECKPOINT_TTL_SECONDS = 24 * 60 * 60
+NONPROFIT_BMF_CACHE_TTL_SECONDS = 30 * 24 * 60 * 60
+
+# Event-log batching: flush the buffer every N events (plus atexit).
+EVENT_LOG_FLUSH_EVERY = 50
+
+# Scrapers eligible for /admin/sources toggling. Kept in pipeline-call order
+# so `source_config` seeding and `pipeline.collect` iterate consistently.
+SOURCE_KEYS: tuple[str, ...] = (
+    "osm",
+    "yelp",
+    "ma_hic",
+    "city_licenses",
+    "chambers",
+    "best_of_boston",
+    "program_books",
+    "huntington",
+    "bbb",
+)
+
+# Sources that `pipeline.collect` should invoke by default (when the DB
+# source_config filter is unavailable). `best_of_boston` is kept in the
+# registry but excluded here because bostonmagazine.com blocks scraping.
+ENABLED_SOURCES_DEFAULT: tuple[str, ...] = tuple(
+    s for s in SOURCE_KEYS if s != "best_of_boston"
+)

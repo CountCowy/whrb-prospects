@@ -22,11 +22,11 @@ reading ``source_config.enabled`` flags; it is idempotent.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-import requests
 from dotenv import load_dotenv
 from tenacity import (
     retry,
@@ -35,6 +35,15 @@ from tenacity import (
     wait_exponential,
 )
 
+from config import (
+    PHONE_DIGIT_COUNT,
+    SOURCE_KEYS,
+    SUPABASE_RETRY_MAX_ATTEMPTS,
+    SUPABASE_RETRY_MAX_S,
+    SUPABASE_RETRY_MIN_S,
+    SUPABASE_UPSERT_BATCH_SIZE,
+)
+from db.validators import validate_ein, validate_phone
 from enrich.dedupe import _norm_name, _norm_phone
 from util import event_log
 from util.http import RETRYABLE_EXCEPTIONS
@@ -81,20 +90,13 @@ COMPOSITE_LOCKS: dict[str, tuple[str, ...]] = {
 # Integer columns in public.prospects — pandas floats must be int-coerced.
 INT_FIELDS = ("review_count",)
 
-# Scrapers that can be toggled from /admin/sources (Stage 9). Seeded idempotently.
-SOURCE_KEYS = (
-    "osm",
-    "yelp",
-    "ma_hic",
-    "city_licenses",
-    "chambers",
-    "best_of_boston",
-    "program_books",
-    "huntington",
-    "bbb",
-)
+# Fields validated before every upsert. Invalid values become SQL NULL + emit
+# a warn event on `event_log`. Counted into SyncSummary["validation_warnings"].
+PHONE_FIELDS = ("company_phone", "contact_phone")
 
-BATCH_SIZE = 500
+# Re-exported for backwards compatibility with scripts that imported it directly.
+BATCH_SIZE = SUPABASE_UPSERT_BATCH_SIZE
+
 _CLIENT = None
 
 
@@ -126,7 +128,7 @@ def business_key(row: dict) -> str | None:
     """
     phone_raw = _as_str(row.get("company_phone")) or _as_str(row.get("contact_phone"))
     phone = _norm_phone(phone_raw)
-    if phone and len(phone) == 10:
+    if phone and len(phone) == PHONE_DIGIT_COUNT:
         return f"phone:{phone}"
     name = _norm_name(_as_str(row.get("company_name")))
     zip_ = (_as_str(row.get("zip")) or "")[:5].strip()
@@ -163,11 +165,39 @@ def _coerce(value: Any) -> Any:
 
 
 def _utcnow_iso() -> str:
-    return datetime.now(tz=timezone.utc).isoformat()
+    return datetime.now(tz=UTC).isoformat()
 
 
-def _build_insert(row: dict, bk: str, alt: dict, now_iso: str) -> dict:
-    """Full payload for a new row (no existing record to merge against)."""
+def _apply_field_validators(payload: dict[str, Any], bk: str) -> int:
+    """Run per-field validators on the already-coerced payload.
+
+    Mutates ``payload`` in place: invalid ``ein`` / phones become ``None``.
+    Returns the count of values that were rejected, so the caller can roll
+    it into :data:`SyncSummary.validation_warnings`.
+    """
+    rejections = 0
+    if "ein" in payload and payload.get("ein") is not None:
+        original = payload["ein"]
+        cleaned = validate_ein(original, business_key=bk)
+        if cleaned is None and original is not None:
+            rejections += 1
+        payload["ein"] = cleaned
+    for field in PHONE_FIELDS:
+        if payload.get(field) is None:
+            continue
+        original = payload[field]
+        cleaned = validate_phone(original, business_key=bk)
+        if cleaned is None and original is not None:
+            rejections += 1
+        payload[field] = cleaned
+    return rejections
+
+
+def _build_insert(row: dict, bk: str, alt: dict, now_iso: str) -> tuple[dict, int]:
+    """Full payload for a new row (no existing record to merge against).
+
+    Returns ``(payload, validation_rejections)``.
+    """
     payload: dict[str, Any] = {"business_key": bk, "created_source": "pipeline"}
     for f in SCRAPED_FIELDS:
         v = _coerce(row.get(f))
@@ -182,10 +212,13 @@ def _build_insert(row: dict, bk: str, alt: dict, now_iso: str) -> dict:
         payload["priority_score"] = int(score)
     payload["alt_fields"] = {k: _coerce(v) for k, v in alt.items() if _coerce(v) is not None}
     payload["pipeline_last_seen_at"] = now_iso
-    return payload
+    rejections = _apply_field_validators(payload, bk)
+    return payload, rejections
 
 
-def _patch_existing(row: dict, existing: dict, alt: dict, now_iso: str) -> dict:
+def _patch_existing(
+    row: dict, existing: dict, alt: dict, now_iso: str, bk: str
+) -> tuple[dict, int]:
     """Build a PATCH payload for an existing row.
 
     * Fields present in ``existing.user_overrides`` are skipped (locked).
@@ -194,6 +227,8 @@ def _patch_existing(row: dict, existing: dict, alt: dict, now_iso: str) -> dict:
     * ``priority_score`` is refreshed unless user-locked.
     * ``alt_fields`` is always replaced with the latest dedupe snapshot.
     * ``pipeline_last_seen_at`` is touched server-side via an ISO timestamp.
+
+    Returns ``(patch, validation_rejections)``.
     """
     locks = existing.get("user_overrides") or {}
     # Expand composite locks (e.g. is_nonprofit locks nonprofit_source + ein).
@@ -219,7 +254,8 @@ def _patch_existing(row: dict, existing: dict, alt: dict, now_iso: str) -> dict:
             patch["priority_score"] = int(score)
     patch["alt_fields"] = {k: _coerce(v) for k, v in alt.items() if _coerce(v) is not None}
     patch["pipeline_last_seen_at"] = now_iso
-    return patch
+    rejections = _apply_field_validators(patch, bk)
+    return patch, rejections
 
 
 def seed_source_config(client=None) -> None:
@@ -231,7 +267,7 @@ def seed_source_config(client=None) -> None:
         client.table("source_config").upsert(
             rows, on_conflict="source_key", ignore_duplicates=True
         ).execute()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         event_log.error(
             "source_config_seed_failed",
             f"source_config seed failed: {type(e).__name__}: {e}",
@@ -254,7 +290,7 @@ def read_enabled_sources(client=None) -> set[str]:
         )
         rows = res.data or []
         return {r["source_key"] for r in rows if r.get("enabled")}
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         event_log.error(
             "source_config_read_failed",
             f"source_config read failed: {type(e).__name__}: {e}",
@@ -280,8 +316,8 @@ def _fetch_existing(client, keys: list[str]) -> dict[str, dict]:
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(min=2, max=20),
+    stop=stop_after_attempt(SUPABASE_RETRY_MAX_ATTEMPTS),
+    wait=wait_exponential(min=SUPABASE_RETRY_MIN_S, max=SUPABASE_RETRY_MAX_S),
     retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
     reraise=True,
 )
@@ -290,8 +326,8 @@ def _insert_batch(client, batch: list[dict]) -> None:
 
 
 @retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(min=2, max=20),
+    stop=stop_after_attempt(SUPABASE_RETRY_MAX_ATTEMPTS),
+    wait=wait_exponential(min=SUPABASE_RETRY_MIN_S, max=SUPABASE_RETRY_MAX_S),
     retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
     reraise=True,
 )
@@ -303,10 +339,19 @@ def sync(rows: Iterable[dict]) -> dict:
     """Upsert ``rows`` into ``public.prospects``.
 
     Returns a summary dict: ``{'inserted': N, 'updated': N, 'skipped': N,
-    'failed': N, 'total': N}``.
+    'failed': N, 'validation_warnings': N, 'total': N}``. ``validation_warnings``
+    counts per-field rejections surfaced by :mod:`db.validators` (malformed
+    EIN / phone); each rejection also emits a ``warn`` event on ``event_log``.
     """
     client = _client()
-    summary = {"inserted": 0, "updated": 0, "skipped": 0, "failed": 0, "total": 0}
+    summary = {
+        "inserted": 0,
+        "updated": 0,
+        "skipped": 0,
+        "failed": 0,
+        "validation_warnings": 0,
+        "total": 0,
+    }
 
     prepared: list[tuple[str, dict, dict]] = []  # (bk, base_row, alt)
     seen_keys: set[str] = set()
@@ -340,13 +385,15 @@ def sync(rows: Iterable[dict]) -> dict:
     to_update: list[tuple[str, dict]] = []  # (prospect_id, patch)
     for bk, base, alt in prepared:
         if bk in existing:
-            patch = _patch_existing(base, existing[bk], alt, now_iso)
+            patch, rejections = _patch_existing(base, existing[bk], alt, now_iso, bk)
+            summary["validation_warnings"] += rejections
             if patch:
                 to_update.append((existing[bk]["id"], patch))
             else:
                 summary["skipped"] += 1
         else:
-            payload = _build_insert(base, bk, alt, now_iso)
+            payload, rejections = _build_insert(base, bk, alt, now_iso)
+            summary["validation_warnings"] += rejections
             to_insert.append(payload)
 
     # ---- Inserts (batched) ----
@@ -355,7 +402,7 @@ def sync(rows: Iterable[dict]) -> dict:
         try:
             _insert_batch(client, batch)
             summary["inserted"] += len(batch)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             summary["failed"] += len(batch)
             event_log.error(
                 "supabase_upsert",
@@ -374,7 +421,7 @@ def sync(rows: Iterable[dict]) -> dict:
         try:
             _patch_one(client, prospect_id, patch)
             summary["updated"] += 1
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             summary["failed"] += 1
             event_log.error(
                 "supabase_upsert",

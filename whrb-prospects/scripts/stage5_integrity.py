@@ -196,7 +196,7 @@ def t06_schema_tables() -> T:
         try:
             client.table(tbl).select("*", count="exact", head=True).execute()
             found.append(tbl)
-        except Exception as err:  # noqa: BLE001
+        except Exception as err:
             missing.append(f"{tbl}:{err.__class__.__name__}")
     return T(
         "T06 all 10 Stage-1 tables reachable via service role",
@@ -290,7 +290,7 @@ def main() -> int:
     ap.add_argument("--deploy-url", required=True)
     ap.add_argument(
         "--since-iso",
-        default=(dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=10))
+        default=(dt.datetime.now(dt.UTC) - dt.timedelta(minutes=10))
         .isoformat(),
     )
     ap.add_argument(

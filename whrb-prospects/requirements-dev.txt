@@ -1,0 +1,10 @@
+# Dev-time dependencies for whrb-prospects (install alongside requirements.txt).
+# Regenerate requirements-dev.lock via `pip-compile requirements-dev.txt -o requirements-dev.lock`
+# after editing this file.
+pytest>=8.0
+pytest-cov>=4.1
+mypy>=1.10
+ruff>=0.5
+pip-tools>=7.4
+types-requests>=2.31
+pandas-stubs>=2.1

@@ -118,9 +118,9 @@ def dedupe(rows: list[dict]) -> list[dict]:
         if not name:
             continue
         zip_ = r.get("zip")
-        match = None
-        match_list = None   # which list the match lives in
-        match_idx = None    # and at what index, so we can replace in place
+        match: dict | None = None
+        match_list: list[dict] | None = None   # which list the match lives in
+        match_idx: int | None = None           # and at what index, so we can replace in place
         for idx, existing in enumerate(merged):
             if not _zip_compatible(existing.get("zip"), zip_):
                 continue
@@ -142,6 +142,7 @@ def dedupe(rows: list[dict]) -> list[dict]:
             # Use the return value of _merge — if r is more complete, _merge
             # picks r as the winner and mutates r, so the original match dict
             # is the *loser* and must be replaced in its list.
+            assert match_list is not None and match_idx is not None
             merged_row = _merge(match, r)
             match_list[match_idx] = merged_row
         else:

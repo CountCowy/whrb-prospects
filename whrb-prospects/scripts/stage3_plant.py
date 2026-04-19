@@ -30,7 +30,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -73,7 +73,7 @@ def _select_all(client, table: str, columns: str):
 def main() -> int:
     client = create_client(SUPABASE_URL, SERVICE_KEY)
 
-    stage3_start = datetime.now(tz=timezone.utc).isoformat()
+    stage3_start = datetime.now(tz=UTC).isoformat()
     print(f"[plant] stage3 start time: {stage3_start}")
 
     # ---- baseline counts + created_at snapshot ----
@@ -124,7 +124,7 @@ def main() -> int:
     )
 
     # ---- synthesize a row the pipeline will never touch ----
-    old_seen = (datetime.now(tz=timezone.utc) - timedelta(days=2)).isoformat()
+    old_seen = (datetime.now(tz=UTC) - timedelta(days=2)).isoformat()
     # delete any residue from a prior plant run so this is idempotent
     client.table("prospects").delete().eq("business_key", SYNTHETIC_BK).execute()
     syn_res = client.table("prospects").insert({

@@ -13,10 +13,14 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from typing import Any
+
+from config import CHECKPOINT_TTL_SECONDS
 
 CHECKPOINT_DIR = Path("cache/checkpoints")
 SOURCES_DIR = Path("cache/sources")
-TTL_SECONDS = 60 * 60 * 24  # 24h, matches requests-cache
+# Re-exported for backwards compatibility with scripts that imported it directly.
+TTL_SECONDS = CHECKPOINT_TTL_SECONDS
 
 
 def _ensure_dirs() -> None:
@@ -24,7 +28,7 @@ def _ensure_dirs() -> None:
     SOURCES_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _atomic_write_json(path: Path, payload) -> None:
+def _atomic_write_json(path: Path, payload: Any) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, default=str))
     tmp.replace(path)
@@ -40,12 +44,12 @@ def save_phase(name: str, rows: list[dict]) -> None:
     print(f"[checkpoint] saved {name} ({len(rows)} rows)")
 
 
-def load_latest(phase_order: list[str]):
+def load_latest(phase_order: list[str]) -> tuple[str | None, list[dict] | None]:
     """Return (name, rows) for the highest-numbered fresh checkpoint found
     in cache/checkpoints/, or (None, None) if none is usable. Phase names
     not in `phase_order` are ignored (guards against stale schemas)."""
     _ensure_dirs()
-    candidates = []
+    candidates: list[tuple[int, str, Path]] = []
     for path in CHECKPOINT_DIR.glob("*.json"):
         name = path.stem
         if name not in phase_order:
@@ -78,7 +82,7 @@ def clear_all() -> None:
 
 # ---- source-level cache (used inside pipeline.collect) ---- #
 
-def load_source(name: str):
+def load_source(name: str) -> list[dict] | None:
     """Return cached rows for a source, or None if missing/stale."""
     path = SOURCES_DIR / f"{name}.json"
     if not path.exists():
@@ -86,7 +90,8 @@ def load_source(name: str):
     if time.time() - path.stat().st_mtime > TTL_SECONDS:
         return None
     try:
-        return json.loads(path.read_text())
+        data: list[dict] = json.loads(path.read_text())
+        return data
     except Exception:
         return None
 

@@ -7,10 +7,9 @@ bookend that pipeline.py performs so every event_log row carries a pipeline_run_
 from __future__ import annotations
 
 import math
-import os
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -47,13 +46,13 @@ def main() -> int:
 
     client = supabase_sync._client()
     run_id = str(uuid.uuid4())
-    started_at = datetime.now(tz=timezone.utc).isoformat()
+    started_at = datetime.now(tz=UTC).isoformat()
     argv = "stage2_resync.py"
     try:
         client.table("pipeline_runs").insert(
             {"id": run_id, "status": "running", "args": argv, "started_at": started_at}
         ).execute()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[resync] pipeline_runs insert failed: {e}", file=sys.stderr)
         return 3
     event_log.set_pipeline_run_id(run_id)
@@ -77,11 +76,11 @@ def main() -> int:
         client.table("pipeline_runs").update(
             {
                 "status": status,
-                "finished_at": datetime.now(tz=timezone.utc).isoformat(),
+                "finished_at": datetime.now(tz=UTC).isoformat(),
                 "rows_upserted": summary.get("inserted", 0) + summary.get("updated", 0),
             }
         ).eq("id", run_id).execute()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[resync] pipeline_runs finalize failed: {e}", file=sys.stderr)
 
     event_log.flush()

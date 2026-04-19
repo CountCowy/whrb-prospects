@@ -23,10 +23,12 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from config import EVENT_LOG_FLUSH_EVERY
+
 _WHRB_PROSPECTS = Path(__file__).resolve().parent.parent
 load_dotenv(_WHRB_PROSPECTS / ".env")
 
-FLUSH_EVERY = 50
+FLUSH_EVERY = EVENT_LOG_FLUSH_EVERY
 _LOCK = threading.Lock()
 _BUFFER: list[dict[str, Any]] = []
 _PIPELINE_RUN_ID: str | None = None
@@ -52,7 +54,7 @@ def _client():
         from supabase import create_client
 
         _CLIENT = create_client(url, key)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[event_log] client init failed: {type(e).__name__}: {e}", file=sys.stderr)
         _CLIENT = None
     return _CLIENT
@@ -85,7 +87,7 @@ def log(
             json.dumps(ctx)
         except TypeError:
             ctx = {k: repr(v) for k, v in ctx.items()}
-        row = {
+        row: dict[str, Any] = {
             "source": "pipeline",
             "level": level,
             "category": category,
@@ -102,7 +104,7 @@ def log(
             should_flush = len(_BUFFER) >= FLUSH_EVERY
         if should_flush:
             flush()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[event_log] log() suppressed: {type(e).__name__}: {e}", file=sys.stderr)
 
 
@@ -134,7 +136,7 @@ def flush() -> None:
         return
     try:
         client.table("event_log").insert(batch).execute()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         # Don't recurse back into event_log; stderr is the last line of defense.
         print(f"[event_log] flush suppressed: {type(e).__name__}: {e}", file=sys.stderr)
 
@@ -143,5 +145,5 @@ def flush() -> None:
 def _flush_on_exit() -> None:
     try:
         flush()
-    except Exception:  # noqa: BLE001
+    except Exception:
         pass
