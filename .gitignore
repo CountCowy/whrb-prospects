@@ -6,6 +6,9 @@
 .idea/
 .vscode/
 
+# Claude Code session state (per-user, not a project artifact)
+.claude/
+
 # Env files — never commit secrets
 .env
 .env.local

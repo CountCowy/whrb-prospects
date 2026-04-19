@@ -1,0 +1,28 @@
+import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { Nav } from '@/components/Nav';
+import { createClient } from '@/lib/supabase/server';
+
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  const isAdmin = profile?.role === 'admin';
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <Nav isAdmin={isAdmin} />
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">
+        {children}
+      </main>
+    </div>
+  );
+}
