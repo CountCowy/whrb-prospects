@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 from db.supabase_sync import (
     _apply_field_validators,
     _as_str,
