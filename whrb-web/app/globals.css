@@ -1,0 +1,161 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Base surfaces — cards sit on --surface, which sits above --background so
+     the UI has depth without hard lines. */
+  --background: 0 0% 99%;
+  --surface: 0 0% 100%;
+  --surface-2: 240 5% 97%;
+  --foreground: 240 10% 4%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 4%;
+  --border: 240 6% 90%;
+  --border-subtle: 240 6% 94%;
+  --input: 240 6% 88%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 40%;
+
+  /* Harvard Crimson */
+  --primary: 350 71% 38%;
+  --primary-foreground: 0 0% 100%;
+  --primary-hex: #a51c30;
+  /* 12% primary for subtle fills (active nav, chips, selection). */
+  --primary-soft: 350 71% 38% / 0.12;
+  --primary-soft-border: 350 71% 38% / 0.25;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 350 71% 38%;
+  --radius: 0.625rem;
+
+  --tier-a: 152 69% 31%;
+  --tier-b: 32 95% 44%;
+  --tier-c: 215 16% 47%;
+
+  /* Shadows — soft, layered, never hard. */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.04);
+  --shadow-md:
+    0 4px 6px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.04);
+  --shadow-glow: 0 0 0 4px hsl(var(--primary) / 0.15);
+}
+
+.dark {
+  --background: 240 10% 4%;
+  --surface: 240 10% 7%;
+  --surface-2: 240 9% 10%;
+  --foreground: 0 0% 98%;
+  --card: 240 10% 7%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 5% 18%;
+  --border-subtle: 240 5% 14%;
+  --input: 240 5% 18%;
+  --muted: 240 5% 14%;
+  --muted-foreground: 240 5% 65%;
+
+  --primary: 350 62% 56%;
+  --primary-foreground: 0 0% 100%;
+  --primary-hex: #c63244;
+  --primary-soft: 350 62% 56% / 0.18;
+  --primary-soft-border: 350 62% 56% / 0.35;
+
+  --destructive: 0 63% 55%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 350 62% 56%;
+
+  --tier-a: 152 55% 46%;
+  --tier-b: 32 92% 60%;
+  --tier-c: 215 15% 64%;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md:
+    0 4px 6px -1px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-glow: 0 0 0 4px hsl(var(--primary) / 0.25);
+}
+
+@theme inline {
+  --font-sans:
+    var(--font-sans, ui-sans-serif), system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, sans-serif;
+  --color-background: hsl(var(--background));
+  --color-surface: hsl(var(--surface));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-border: hsl(var(--border));
+  --color-border-subtle: hsl(var(--border-subtle));
+  --color-input: hsl(var(--input));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-soft: hsl(var(--primary-soft));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-ring: hsl(var(--ring));
+  --color-tier-a: hsl(var(--tier-a));
+  --color-tier-b: hsl(var(--tier-b));
+  --color-tier-c: hsl(var(--tier-c));
+  --radius: var(--radius);
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+html,
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-feature-settings:
+    'cv11' on,
+    'ss01' on,
+    'ss03' on;
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Tabular numerals for anything numeric inside a .tabular-nums class. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Subtle crimson gradient that threads through the hero + login card. */
+.accent-gradient {
+  background-image:
+    radial-gradient(
+      ellipse 80% 60% at 20% 0%,
+      hsl(var(--primary) / 0.08),
+      transparent 60%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 100% 20%,
+      hsl(var(--primary) / 0.05),
+      transparent 60%
+    );
+}
+
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Anchors inherit color by default; add `.link` for in-content links. */
+.link {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+.link:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Selection in crimson. */
+::selection {
+  background: hsl(var(--primary) / 0.25);
+}

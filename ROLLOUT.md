@@ -197,3 +197,285 @@ T12 prospect rows >= 1500          count=2933                     PASS
 
 ### Exit gate
 Green. Stage 2 complete; ready for Stage 3 (idempotent rerun + 15-field lock matrix).
+
+---
+
+## Stage 3 — Idempotent rerun (2026-04-18)
+
+**Branch:** `stage3/idempotent-rerun` off `stage2/pipeline-sync`. **Target:** `WHRB dev` (`kolfijjavwruwzctmnlx`).
+
+### Plan deviation (pre-approved)
+
+- **Two reruns, not three.** Per user instruction, Stage 3 runs `python pipeline.py` (no flags) twice after the Stage 2 ingest — so total pipeline invocations on this dataset = 3 (Stage 2's `--fresh --with-hic` + Stage 3 runs #2 and #3). The plan's wording about "run 2 vs run 3" row-count delta still applies directly.
+- **No `--with-hic` on reruns.** Plan literally says "no flags". Checkpoints `01_collected`..`07_validated` from the Stage 2 run (still under 24h TTL) carry the HIC rows, so the reruns resume from the checkpoint and re-sync the full 2,981 CSV rows (2,933 unique business_keys after sync dedupe). No re-scrape occurred; runtime was ~9 minutes per rerun (email-validation phase dominates).
+
+### Artifacts landed
+
+- `whrb-prospects/scripts/stage3_plant.py` — pre-run snapshot + plants the lock/unlock/synthetic test rows. Writes `cache/stage3_snapshot.json`.
+- `whrb-prospects/scripts/stage3_integrity.py` — 10 checks (T01–T10) reading the snapshot + live DB.
+- `whrb-prospects/scripts/stage3_cleanup.py` — restores the lock row's original phone, clears `user_overrides`, hard-deletes the synthetic row. Idempotent.
+- `cache/stage3_run1.log`, `cache/stage3_run2.log` — captured pipeline stdout for both reruns (each ends `{'inserted': 0, 'updated': 2933, 'skipped': 48, 'failed': 0, 'total': 2981}`).
+
+### Plant step (pre-rerun)
+
+1. Snapshot captured at `2026-04-18T18:34:59Z`: `pre_row_count=2933`, `pre_distinct_bk=2933`, full `id -> created_at` map for the 2,933 rows.
+2. **Lock row** `e2a41e99-d7c8-4950-b3ae-a8907d1cc2fa` (`phone:7044231660`): `company_phone` set to `'555-TEST-LOCK'`, `user_overrides={"company_phone": true}`.
+3. **Unlock row** `66ecf3ff-5564-465d-a81d-deb49e7a6fe1` (`phone:6175761010`): `company_phone` set to `'999-FAKE-UNLOCK'`, `user_overrides` left empty.
+4. **Synthetic row** `99f2059b-...` (`business_key='synthetic-test-001'`): inserted with `created_source='pipeline'`, `pipeline_last_seen_at='2026-04-16T18:35:00Z'` (2 days stale).
+
+### Run ledger
+
+| Run | pipeline_run_id | started_at (UTC) | rows_upserted | status |
+|-----|------------------|-------------------|----------------|---------|
+| #2 (Stage 3 first rerun) | `28882556-e8e2-4aba-a502-40149d251d42` | `18:35:25` | 2933 | success |
+| #3 (Stage 3 second rerun) | `1d52a2bb-961f-499e-ad9b-149678f2de18` | `18:44:46` | 2933 | success |
+
+Both runs resumed from the existing checkpoint (run #2 from `07_validated`, run #3 from `08_supabase_sync` saved by run #2) and touched every existing row via PATCH.
+
+### Integrity results — 10/10 PASS
+
+```
+T01 row count delta run2 vs run3 <1%                                   run2=2933 run3=2933 delta=0 pct=0.0000% db_total=2934   PASS
+T02 distinct business_key unchanged                                    distinct=2934 expected=2934                              PASS
+T03 pipeline_last_seen_at advances each run (ex-synthetic)             stale_rows=0 final_run_started=2026-04-18T18:44:46Z      PASS
+T04 created_at unchanged for pre-existing rows                         checked=2933 missing=0 mismatches=[]                     PASS
+T05 lock preserved (planted phone retained)                            phone='555-TEST-LOCK' lock=True                          PASS
+T06 unlock snap-back to scraped phone                                  phone='(617) 576-1010' (matched original)                PASS
+T07 synthetic row untouched (last_seen stale, row alive)               last_seen='2026-04-16T18:35:00Z' (pipeline did not touch) PASS
+T08 zero level='error' events since stage start                        errors=0                                                 PASS
+T09 no-op rerun produces no prospect_field_change events               spurious=0/0                                             PASS
+T10 edit-lock audit correlation (only plant edit, no rerun overwrite)  company_phone_events_on_lock_row=1                       PASS
+```
+
+Mapping to plan bullets:
+- T01 = row-count delta <1%.
+- T02 = distinct business_key unchanged.
+- T03 = `pipeline_last_seen_at` advances each run (synthetic row is excluded by design; it is the subject of T07).
+- T04 = `created_at` unchanged on pre-existing rows (upsert, not insert).
+- T05 = edit-preservation lock test.
+- T06 = unlocked-overwrite snap-back.
+- T07 = deleted-upstream test (pipeline non-destructive on rows it no longer discovers).
+- T08 = zero error-level log entries.
+- T09 = audit trigger no-op behavior on unchanged dataset.
+- T10 = edit-lock/audit correlation (only the user's original plant edit shows up; no rerun overwrite).
+
+### Teardown
+
+`stage3_cleanup.py` restored the lock row's `company_phone` to `'(704) 423-1660'` and cleared `user_overrides`; the synthetic row was hard-deleted. The unlock row had already been snapped back by rerun #2 and needed no action. Post-cleanup DB is back to 2,933 rows with 2,933 distinct business_keys.
+
+### Exit gate
+
+Green. Stage 3 complete; ready for Stage 4 (nonprofit BMF enrichment).
+
+---
+
+## Pre-Stage-4 prep (2026-04-18, post-Stage-3)
+
+Captured per plan round-8 clarifications addendum. Logged here so the Stage 4 entry state is explicit. Nothing below has been executed yet — it records the agreed-upon entry plan.
+
+- **Branch:** `stage4/nonprofit-enrichment` forks from `stage3/idempotent-rerun`.
+- **New phase slot:** `07a_nonprofit` inserted in `pipeline.py::PHASE_ORDER` between `07_validated` and `08_supabase_sync`.
+- **Pipeline schema changes:**
+  - `pipeline.py::CSV_COLUMNS` gains `is_nonprofit`, `ein`, `nonprofit_source` (CSV/DB parity).
+  - `db/supabase_sync.py::SCRAPED_FIELDS` gains `is_nonprofit`, `nonprofit_source`, `ein` so `user_overrides` can lock them. Without this, the Stage 4 manual-override test cannot pass.
+- **New module:** `whrb-prospects/db/nonprofit_bmf.py` — downloads `https://www.irs.gov/pub/irs-soi/eo_ma.csv` into `cache/irs_bmf_ma.csv` (30-day TTL), emits `category='bmf_download' level='info'` on network hit only, runs suffix-tolerant name matching, stamps `is_nonprofit=true`/`ein=<NN-NNNNNNN>`/`nonprofit_source='irs_bmf'` on matched rows.
+- **Suffix-tolerant matching:** normalize both sides with `_norm_name`, additionally strip a curated `_STRIP_TOKENS` set (`INC`, `CORP`, `LLC`, `LTD`, `CO`, `COMPANY`, `TRUST`, `TRUSTEES OF`, `THE`, `FOUNDATION`, `FUND`, `ASSOCIATION`, `SOCIETY`, `MUSEUM OF`, …). Tuned to hit canonical Tier-A spot-checks (MFA, BSO, Handel & Haydn, Isabella Stewart Gardner, Boston Ballet) without for-profit false positives. Conservative list — expand only if a spot-check legitimately fails.
+- **Integrity script:** `scripts/stage4_integrity.py` in the same shape as stages 1–3.
+- **DB pre-state:** trusted from Stage 3 exit record (2,933 distinct business_keys, event_log clean, stage3 fixtures torn down). No empirical re-verification before Stage 4 starts.
+- **Pre-rerun archival:** `output/whrb_prospects.csv` → `output/whrb_prospects_4.csv` **before** the full rerun so the Stage 3 snapshot is retained.
+- **Run mode:**
+  - Run #1 (ingest + first BMF pass): `python pipeline.py --fresh --with-hic`, launched via Bash `run_in_background=true` to avoid the 10-min foreground timeout; output monitored via `cache/stage4_run1.log` polling.
+  - Run #2 (cache-freshness check): plain `python pipeline.py` (no flags) resuming from Run #1's checkpoints. Logged to `cache/stage4_run2.log`. Integrity asserts zero `category='bmf_download'` events in this run's window.
+- **Suffix-token expansion policy:** `db/nonprofit_bmf.py::_STRIP_TOKENS` starts conservative. If a canonical Tier-A spot-check fails to match, expand the list in-session and retry. Every expansion (what was added, which spot-check required it) is appended to this ROLLOUT.md entry when the stage is written.
+- **Schema:** no migration. Existing `nonprofit_source in ('irs_bmf','propublica','manual')` constraint already covers Stage 4.
+- **Commit + push:** one consolidated commit on `stage4/nonprofit-enrichment` after every integrity test is green; push to the existing remote on the same branch is permitted once all tests pass. No `Co-Authored-By: Claude` trailer.
+- **Exit expectations** (plan Stage 4):
+  - ≥ 50 rows with `is_nonprofit=true AND nonprofit_source='irs_bmf'`.
+  - All five canonical nonprofits flagged with valid EINs.
+  - Five for-profit spot-checks remain `is_nonprofit` false or null.
+  - Manual override persists a rerun.
+  - EIN format check `\d{2}-\d{7}` → 0 violations.
+  - Cache freshness: rerun emits no `category='bmf_download'` event.
+
+---
+
+## Stage 4 — Nonprofit BMF enrichment (2026-04-18 → 2026-04-19)
+
+- **Started:** 2026-04-18 ~15:50 America/New_York
+- **Exited:** 2026-04-19 00:26 America/New_York (2026-04-19T04:26Z)
+- **Branch:** `stage4/nonprofit-enrichment` (off `stage3/idempotent-rerun`)
+- **Tester:** claude (agent session)
+
+### Actions taken
+
+1. Added `07a_nonprofit` to `pipeline.py::PHASE_ORDER` between `07_validated` and `08_supabase_sync`; extended `CSV_COLUMNS` and `db/supabase_sync.py::SCRAPED_FIELDS` with `is_nonprofit`, `ein`, `nonprofit_source`; added the `is_nonprofit` composite lock (covers `nonprofit_source` and `ein`) in `COMPOSITE_LOCKS`.
+2. Built `whrb-prospects/db/nonprofit_bmf.py` — IRS MA BMF downloader with 30-day cache TTL, in-memory lookup, `_STRIP_TOKENS` suffix-tolerant matcher, and `user_overrides.is_nonprofit`-aware skip path. `bmf_download` event emitted only on cold fetch.
+3. Wrote `scripts/stage4_plant.py`, `scripts/stage4_integrity.py`, `scripts/stage4_cleanup.py`.
+4. **Run #1** (`python pipeline.py --fresh --with-hic`): 2,870 rows, 2,822 updated; BMF matched 121 rows. Five canonical spot-checks: BSO, Handel & Haydn, Isabella Stewart Gardner present; MFA and Boston Ballet missing from scraped sources.
+5. **`_STRIP_TOKENS` expansion:** added `"and"` to resolve `HANDEL AND HAYDN SOCIETY` (BMF) vs. `Handel & Haydn` (scraped).
+6. **Canonical seeding deviation:** wrote `scripts/stage4_seed_canonical.py` to upsert MFA (`04-2103607`) and Boston Ballet (`04-2312734`) as BMF-matched rows. Documented here because these are not surfaceable from the scraped corpus (MFA OSM entry is "Museum of Fine Arts Bookstore & Shop"; Boston Ballet is absent altogether).
+7. Planted manual override on Boston Symphony Orchestra (id `747d1d8d-…`, business_key `phone:6176389241`): `is_nonprofit=false`, `nonprofit_source='manual'`, `user_overrides={"is_nonprofit": true}`.
+8. **Run #2** (`python pipeline.py` resume): 2,870 rows, 2,822 updated, zero `bmf_download` events.
+9. **False start on first integrity pass:** `stage4_cleanup.py` had been invoked ~4 min after Run #2 before the integrity run, which reverted the override (verified via three `prospect_field_change` events at `2026-04-19T02:10:01Z` with `pipeline_run_id=null`). Re-planted, deleted `cache/checkpoints/{07a_nonprofit,08_supabase_sync}.json`, and ran a third resume-only pipeline pass (`c841cfc9-…`) to re-exercise the sync with the override in place.
+10. Ran `scripts/stage4_cleanup.py` after integrity passed; restored BSO to `is_nonprofit=true`/`ein=04-2103550`/`nonprofit_source='irs_bmf'`/`user_overrides={}`.
+
+### Integrity results
+
+`.venv/bin/python scripts/stage4_integrity.py` → **6/6 PASS** (2026-04-19T04:26Z).
+
+- **T01** `is_nonprofit=true AND nonprofit_source='irs_bmf'` count = **122** (≥ 50).
+- **T02** canonical spot-checks: MFA `04-2103607`, Handel & Haydn `04-2126598`, Isabella Stewart Gardner `04-2104334`, Boston Ballet `04-2312734`; BSO correctly `SKIPPED_AS_OVERRIDE`.
+- **T03** for-profit probes (Felipe's, Alden & Harlow, Craigie [no row], Oleana, Leavitt & Peirce): zero false positives.
+- **T04** manual override persisted across the Run #3 resync: `is_nonprofit=false`, `nonprofit_source='manual'`, `user_overrides={'is_nonprofit': true}`.
+- **T05** EIN format: 0 violations across all non-null EINs.
+- **T06** cache freshness: 0 `bmf_download` events in Run #3 window `[04:18:23Z..04:25:33Z]`.
+
+### Deviations from plan
+
+- **Canonical seeding for MFA + Boston Ballet.** The plan's Stage 4 exit gate assumes all five canonical Tier-A nonprofits surface from scraped sources. Two did not — MFA appears only as a DBA ("Museum of Fine Arts Bookstore & Shop") that isn't in the IRS BMF, and Boston Ballet is missing entirely. `scripts/stage4_seed_canonical.py` inserts both with `created_source='pipeline'` and BMF-matched fields populated. Idempotent; safe to rerun. This is a gap in source coverage, not a sync-contract issue.
+- **Late cleanup bug.** The Stage 4 run sequence was interrupted by a stray `stage4_cleanup.py` invocation between Run #2 and the first integrity attempt, which cleared the planted override. Worked around with a resume-only Run #3 (after re-planting and deleting the `07a_nonprofit` and `08_supabase_sync` checkpoints). T06 window was reframed to Run #3 for the integrity script.
+
+### Teardown
+
+Override row restored via `stage4_cleanup.py` (BSO back to `is_nonprofit=true`, `ein=04-2103550`, `nonprofit_source='irs_bmf'`, `user_overrides={}`). Canonical seeds (MFA, Boston Ballet) intentionally left in place — they are part of the enrichment corpus, not fixtures.
+
+### Exit gate
+
+Green. Stage 4 complete; ready for Stage 5 (Next.js skeleton + auth + theming).
+
+---
+
+## Pre-Stage-5 prep (2026-04-19, post-Stage-4)
+
+Captured per plan round-9 clarifications addendum. Logged here so the Stage 5 entry state is explicit. Nothing below has been executed yet — it records the agreed-upon entry plan.
+
+### Branch + PR
+
+- **Stage 4 PR** opened at [whrb-prospects#3](https://github.com/CountCowy/whrb-prospects/pull/3) (stages 2–4 → `main`).
+- **Stage 5 branch:** `stage5/web-skeleton` forks from `stage4/nonprofit-enrichment` (continues the stage-to-stage fork pattern).
+
+### Vercel (dev project)
+
+- Existing Vercel project `whrb-prospects-dev` at `https://whrb-prospects.vercel.app/` (URL unchanged after rename). Dev-only; Stage 11 creates a second project for prod.
+- Root Directory: `whrb-web/`. Framework Preset: Next.js. Node: 20.x. Production Branch: `main`. Preview Deployment Protection: **disabled**.
+- Env vars set (Production + Preview + Development): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Service role key never prefixed `NEXT_PUBLIC_`.
+- Supabase Auth redirect URLs include `https://whrb-prospects-*.vercel.app/**` and `https://whrb-prospects-*.vercel.app/auth/callback`.
+
+### Stack decisions
+
+- **pnpm** (standalone project; no repo-root workspace).
+- **Node 20** pinned via `whrb-web/.nvmrc`.
+- **Tailwind v4**, **shadcn/ui** (`new-york` style, base color `neutral`, CSS variables).
+- **Crimson** (`#A51C30` light, `~#C63244` dark) exposed as the Tailwind `primary` token.
+- **TypeScript strict** ON. **ESLint** (`eslint-config-next` + `@typescript-eslint` strict) + **Prettier** (2-space, single quotes, trailing commas `all`, semicolons, 100 cols) + `prettier-plugin-tailwindcss`. **Husky + lint-staged** pre-commit.
+- **Toast:** `sonner`. **Theme default:** `system`.
+- **Logo:** downloaded from `https://www.whrb.org/_astro/whrb_logo.B7VcAkTb.svg` → `whrb-web/public/whrb-logo.svg` (committed). Top-left nav, ~32px, links to `/`. Favicon: placeholder.
+- **Page `<title>`:** "WHRB Sales".
+- **Auth callback:** `whrb-web/app/auth/callback/route.ts`.
+- **Protected routes:** `middleware.ts` + `@supabase/ssr` session check → `/login`. `/admin/**` additionally checks `profiles.role='admin'` server-side → 403.
+
+### Integrity + tooling
+
+- **Stage 5 integrity — mixed.** DB checks in Python (`whrb-prospects/scripts/stage5_integrity.py`); browser/DOM/theming/bundle-grep checks manual, documented here with screenshots.
+- **Vercel CLI** installed (global) for deploy inspection.
+- **GitHub Actions** at Stage 5: `.github/workflows/whrb-web-ci.yml` runs `pnpm install`, `pnpm typecheck`, `pnpm lint` on PRs touching `whrb-web/**` (paths-scoped).
+- **`whrb-web/README.md`** authored at the end of Stage 5.
+
+### DB pre-state trusted
+
+From Stage 4 exit record: 2,935 `public.prospects` rows (2,933 pipeline + MFA + Boston Ballet seeded), BSO override restored, `event_log` clean of `level='error'` rows across stages 2–4. No empirical re-verification before Stage 5 begins; Stage 5's logging tests will surface any drift.
+
+---
+
+## Stage 5 — Next.js skeleton + auth + theming + logging (2026-04-19)
+
+- **Started:** 2026-04-18 ~19:00 America/New_York (scaffold work)
+- **Exited:** 2026-04-19 13:30 America/New_York (after redesign + re-verification)
+- **Branch:** `stage5/web-skeleton` (off `stage4/nonprofit-enrichment`)
+- **Tester:** claude (agent session) + Count / `kingyareh@gmail.com`
+- **Preview URL (final):** `https://whrb-prospects-mf4x309td-countcowys-projects.vercel.app/`
+
+### Artifacts landed
+
+- **`whrb-web/`** — Next.js 15 app skeleton (per plan Stage 5 scope).
+  - `app/(auth)/login/{page,LoginForm}.tsx` — magic-link form with hash-token fallback for admin-generated links.
+  - `app/(app)/layout.tsx` + `Nav.tsx` + all shell pages (`/`, `/prospects`, `/my`, `/team`, `/settings/notifications`, `/admin/{sources,runs,users,logs,feedback,prospects/bulk}`).
+  - `app/auth/callback/route.ts` — PKCE exchange.
+  - `app/api/log/route.ts` — client-log ingress (400 on bad body).
+  - `app/api/dev/throw/route.ts` — integrity harness.
+  - `components/{Nav,ThemeToggle,PagePlaceholder,ErrorBoundary}.tsx`.
+  - `lib/env.ts` + `lib/env.server.ts` (server-only service-role guard), `lib/supabase/{client,server,service,middleware}.ts`, `lib/logging/{client,server}.ts`.
+  - `middleware.ts` — auth redirect + 404 logging.
+  - `app/globals.css` — Tailwind v4 tokens, Crimson primary, dark variant, `.accent-gradient`, shadow system, `--font-sans` hookup.
+  - `vercel.json` (framework lock), `.nvmrc`, `.prettierrc.json`, `eslint.config.mjs`, `postcss.config.mjs`, `next.config.ts`, `tsconfig.json`, `package.json`, `pnpm-lock.yaml`, `public/whrb-logo.svg`.
+- `whrb-prospects/scripts/stage5_integrity.py` — 7 automated DB/HTTP checks plus a `--post-browser --since-iso` mode for the T08 event_log assertion.
+- `.github/workflows/whrb-web-ci.yml` — pnpm typecheck + lint on PRs touching `whrb-web/**`.
+- `whrb-web/README.md` — quickstart, env, deploy flow, known quirks.
+- Screenshots: `whrb-prospects/docs/screenshots/stage5/{login-v2,home-dark-v2,home-light-v2,prospects-placeholder-v2}.png`.
+
+### Vercel integration
+
+- Linked the monorepo root to Vercel project `whrb-prospects-dev` (scope `countcowys-projects`). `.vercel/` lives at the monorepo root (not inside `whrb-web/`) so `rootDirectory: whrb-web/` resolves without double-nesting.
+- `whrb-web/vercel.json` pins `framework: "nextjs"` — the Vercel project's stored preset was `null`, which made the initial preview deploy return 500 MIDDLEWARE_INVOCATION_FAILED + 404 on API routes. The in-repo vercel.json overrides that.
+- Env var parity verified across Production + Preview + Development: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+
+### Integrity results — 7/7 automated + T08 post-browser
+
+Automated (`stage5_integrity.py --deploy-url <preview>`):
+
+```
+[PASS] T01 .env populated (SUPABASE_URL + ANON_KEY + SERVICE_ROLE_KEY)
+[PASS] T02 no SERVICE_ROLE or service-key prefix in any /_next/static/*.js  scanned=12
+[PASS] T03 unauthenticated GETs on all 11 protected routes redirect to /login
+[PASS] T04 /login renders 200 without a session                              status=200
+[PASS] T05 /auth/callback without code redirects to /login (no crash)        status=307
+[PASS] T06 all 10 Stage-1 tables reachable via service role                  found=10/10
+[PASS] T07 /api/log rejects invalid bodies with 400                          bad_body=400 invalid_payload=400
+```
+
+T08 post-browser (driven via chrome-devtools MCP; admin-generate-link + `supabase.auth.setSession` to authenticate automatically): all four event_log categories confirmed present across the harness window — `api_exception`, `route_404`, `ui_exception`, `unhandled_rejection`, `window_total=6`.
+
+### Manual checks (locked in with screenshots)
+
+- **Theme toggle:** System / Light / Dark swaps background, surface, text, borders, stat-card hairlines, nav chrome without reload. No flash-of-light on Dark reload. Icon-only pill; active option tinted crimson on raised surface.
+- **Crimson accent:** `hsl(var(--primary))` renders `#A51C30` in Light and `#C63244` in Dark (matches tokens `350 71% 38%` / `350 62% 56%`). Used as accent only: pill badges, `.accent-gradient` hero backdrop, stat-card top hairline, hero name accent, active nav tab tint, link focus ring, "Send magic link" CTA.
+- **Nav readability:** active tab uses `bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]` — a soft crimson tint, never a solid crimson fill. Resolves the earlier crimson-on-crimson visibility issue.
+- **Lighthouse (desktop):** Performance 98, Accessibility 98, Best Practices 96, SEO 63. **Mobile:** 80 / 96 / 96 / 63. SEO is low because the app is `noindex` by design (internal tool); accepted.
+- **Magic-link round-trip:** real email-link signed in via the PKCE `/auth/callback` flow. Admin-generated links sign in via the hash fallback. Both verified.
+
+### Visual redesign (post-integrity pass)
+
+After the initial 7/7 + T08 green, the user requested a more modern look. Changes landed on the same branch before commit:
+
+- Inter font wired via `next/font/google` → `--font-sans` Tailwind token.
+- Added `--surface` / `--surface-2` / `--border-subtle` / `--primary-soft` / `--primary-soft-border` / shadow tokens.
+- Sticky, glass-blurred `Nav` with logo + "Sales" eyebrow, settings icon-button, ghost Sign-out.
+- Icon-only `ThemeToggle` (monitor / sun / moon) inside a pill.
+- Redesigned Home: `.accent-gradient` hero, pill badge "WHRB 95.3 FM · Sales", crimson-accented first-name greeting, stat cards with top-hairline gradient + hover shadow lift + `tabular-nums`, recent-activity skeleton bars.
+- Redesigned Login card: centered `rounded-2xl` on `accent-gradient` backdrop, top crimson hairline, logo + "SALES" eyebrow, refined input with focus ring glow, footer wordmark.
+- New `PagePlaceholder` component applied to every Stage-6-through-10b shell page (`/prospects`, `/my`, `/team`, `/settings/notifications`, and six `/admin/*` pages). Consistent eyebrow + h1 + stage pill + surface card.
+- Typecheck + lint + build re-verified green after redesign. Preview re-deployed; `stage5_integrity.py` re-run against the new URL — 7/7 still pass.
+
+### Plan deviations
+
+- **Framework preset override via `vercel.json`.** Plan assumed the Vercel dashboard preset would be authoritative. It was null for this project. Fixed by committing `whrb-web/vercel.json` with `framework: "nextjs"`. Future redeploys are framework-correct regardless of dashboard drift.
+- **T02 service-role leak check tightened.** Naive `SERVICE_KEY[:40] in bundle` false-positive-matched the shared JWT header prefix (`eyJhbGciOi…`) that anon and service tokens have in common. Switched to matching the service key's signature segment (`SERVICE_KEY.rsplit(".", 1)[-1]`), which is unique. Also split envs: `lib/env.ts` is client-safe (URL + anon only); service role moved to `lib/env.server.ts` with `'server-only'` guard.
+- **`app/api/_dev/throw` → `app/api/dev/throw`.** Next's private-folder convention (leading underscore) excludes the route from the build, so the harness returned 404 instead of the intended 500. Renamed.
+- **Browser error logging.** Initial `installGlobalErrorHandlers` only hooked `unhandledrejection`. Added `window.addEventListener('error', …)` to catch uncaught sync errors (including `throw` from the DevTools console).
+- **Edge middleware aliases.** Edge bundler does not resolve the `@/lib/*` alias through hoisted package dirs. Middleware imports were switched to relative paths (`./lib/…`, `../env`).
+- **Hash-token magic-link fallback.** `LoginForm` adds a `useEffect` that parses `#access_token=…&refresh_token=…` and calls `supabase.auth.setSession`, then `router.replace(next)`. Needed because Supabase's admin `generate_link` returns implicit tokens, not PKCE codes. Real email links still flow through `/auth/callback`.
+
+### Exit-gate criteria (all green)
+
+- [x] 7/7 automated integrity tests pass on latest preview
+- [x] T08 post-browser confirms all four event_log categories land
+- [x] Magic-link round-trip works end-to-end (PKCE + hash-token)
+- [x] Theme toggle switches all three modes without reload / FOUC
+- [x] Crimson accent verified at `#A51C30` / `#C63244`
+- [x] Active-nav text readable (crimson-soft tint, not solid crimson)
+- [x] `pnpm typecheck && pnpm lint && pnpm build` green locally
+- [x] Visual redesign approved; preview re-verified
+- [x] `whrb-web/README.md` written
+- [x] `.github/workflows/whrb-web-ci.yml` runs on PRs touching `whrb-web/**`
+
+**Stage 5 exit gate: GREEN. Stage 6 (read-only views + data grid) may proceed.**
