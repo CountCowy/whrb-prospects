@@ -40,6 +40,7 @@ PHASE_ORDER = [
     "05_apollo",
     "06_ma_sos",
     "07_validated",
+    "07a_nonprofit",
     "08_supabase_sync",
 ]
 
@@ -50,6 +51,7 @@ CSV_COLUMNS = [
     "contact_name", "contact_title", "contact_email", "contact_phone", "contact_linkedin",
     "address", "zip", "tier", "category", "rating", "review_count",
     "source", "priority_score", "seasonality_window", "pipeline_notes",
+    "is_nonprofit", "nonprofit_source", "ein",
 ]
 
 SEASONALITY = {
@@ -314,6 +316,21 @@ def main(argv: list[str]) -> None:
         print("-- email validation --")
         email_validate.clean_rows(rows)
         checkpoint.save_phase("07_validated", rows)
+
+    # Phase 07a — IRS BMF nonprofit enrichment
+    if resume_idx < 7:
+        print("-- nonprofit BMF enrichment --")
+        from db import nonprofit_bmf
+        try:
+            nonprofit_bmf.enrich_rows(rows)
+        except Exception as e:  # noqa: BLE001
+            print(f"[nonprofit_bmf] FAILED: {type(e).__name__}: {e}")
+            event_log.error(
+                "bmf_enrichment_failed",
+                f"BMF enrichment failed: {type(e).__name__}: {e}",
+                context={"exception": type(e).__name__, "detail": str(e)[:500]},
+            )
+        checkpoint.save_phase("07a_nonprofit", rows)
 
     # Scoring + CSV write are cheap; always run so every invocation writes CSV.
     for r in rows:

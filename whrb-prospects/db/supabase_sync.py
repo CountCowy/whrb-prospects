@@ -65,7 +65,18 @@ SCRAPED_FIELDS = (
     "source",
     "seasonality_window",
     "pipeline_notes",
+    "is_nonprofit",
+    "nonprofit_source",
+    "ein",
 )
+
+# Composite locks: when the key field on the left is locked via
+# ``user_overrides``, ALL fields on the right are also skipped at patch time.
+# This matches the plan's "if user_overrides contains is_nonprofit, do not
+# touch the flag, the EIN, or nonprofit_source" contract.
+COMPOSITE_LOCKS: dict[str, tuple[str, ...]] = {
+    "is_nonprofit": ("is_nonprofit", "nonprofit_source", "ein"),
+}
 
 # Integer columns in public.prospects — pandas floats must be int-coerced.
 INT_FIELDS = ("review_count",)
@@ -185,9 +196,14 @@ def _patch_existing(row: dict, existing: dict, alt: dict, now_iso: str) -> dict:
     * ``pipeline_last_seen_at`` is touched server-side via an ISO timestamp.
     """
     locks = existing.get("user_overrides") or {}
+    # Expand composite locks (e.g. is_nonprofit locks nonprofit_source + ein).
+    effective_locks: set[str] = {k for k, v in locks.items() if v}
+    for trigger, covered in COMPOSITE_LOCKS.items():
+        if locks.get(trigger):
+            effective_locks.update(covered)
     patch: dict[str, Any] = {}
     for f in SCRAPED_FIELDS:
-        if locks.get(f):
+        if f in effective_locks:
             continue
         v = _coerce(row.get(f))
         if v is not None and f in INT_FIELDS:
