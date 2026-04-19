@@ -14,6 +14,12 @@ from __future__ import annotations
 
 import requests
 
+from config import (
+    BOSTON_FOOD_MAX_ROWS,
+    BOSTON_FOOD_OFFSET_CEILING,
+    BOSTON_FOOD_PAGE_SIZE,
+    SOCRATA_PAGE_LIMIT,
+)
 from util.http import raise_for_smart_status, smart_retry
 
 # Cambridge Open Data (Socrata)
@@ -49,7 +55,7 @@ def _pick(rec: dict, *keys: str):
 
 
 def _fetch_cambridge_diversity() -> list[dict]:
-    data = _get_json(CAMBRIDGE_DIVERSITY_URL, {"$limit": 5000})
+    data = _get_json(CAMBRIDGE_DIVERSITY_URL, {"$limit": SOCRATA_PAGE_LIMIT})
     rows = []
     for r in data:
         name = _pick(r, "bus_name", "business_name", "name", "dba")
@@ -77,7 +83,7 @@ def _looks_like_business_permit(rec: dict) -> bool:
 
 def _fetch_somerville_permits() -> list[dict]:
     data = _get_json(SOMERVILLE_PERMITS_URL, {
-        "$limit": 5000,
+        "$limit": SOCRATA_PAGE_LIMIT,
         "$order": "date_application_submitted DESC",
     })
     rows = []
@@ -99,19 +105,13 @@ def _fetch_somerville_permits() -> list[dict]:
     return rows
 
 
-# Boston food licenses dominate raw volume and have low actionable signal without
-# a phone. Require a phone and cap at this many rows to stop them from flooding
-# the prospect CSV past the higher-tier sources.
-BOSTON_FOOD_MAX_ROWS = 500
-
-
 def _fetch_boston_food() -> list[dict]:
     raw: list[dict] = []
     offset = 0
     while True:
         resp = _get_json(BOSTON_CKAN_BASE, {
             "resource_id": BOSTON_FOOD_RESOURCE_ID,
-            "limit": 1000,
+            "limit": BOSTON_FOOD_PAGE_SIZE,
             "offset": offset,
         })
         records = (resp.get("result") or {}).get("records") or []
@@ -119,7 +119,7 @@ def _fetch_boston_food() -> list[dict]:
             break
         raw.extend(records)
         offset += len(records)
-        if offset >= 5000:
+        if offset >= BOSTON_FOOD_OFFSET_CEILING:
             break
     rows = []
     for r in raw:

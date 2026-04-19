@@ -20,7 +20,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -268,19 +267,18 @@ def t10_rls_check() -> T:
 # -------------------------------------------------------------------------
 def main() -> int:
     conn = _conn()
-    with conn:
-        with conn.cursor() as cur:
-            results = [
-                t01_tables(cur),
-                t02_policies(cur),
-                t03_triggers(cur),
-                t04_auth_trigger(cur),
-                t05_admin(cur),
-                t06_trigger_smoke(cur, conn),
-                t07_invite_trigger(cur, conn),
-                t08_check_constraint(cur, conn),
-                t09_indexes(cur),
-            ]
+    with conn, conn.cursor() as cur:
+        results = [
+            t01_tables(cur),
+            t02_policies(cur),
+            t03_triggers(cur),
+            t04_auth_trigger(cur),
+            t05_admin(cur),
+            t06_trigger_smoke(cur, conn),
+            t07_invite_trigger(cur, conn),
+            t08_check_constraint(cur, conn),
+            t09_indexes(cur),
+        ]
     # T10 runs a subprocess and manages its own connections; outside the txn.
     results.append(t10_rls_check())
     conn.close()

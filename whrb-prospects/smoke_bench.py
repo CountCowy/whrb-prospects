@@ -1,6 +1,7 @@
 """Per-source timing + row-count benchmark. Not run by the pipeline."""
-import time
 import signal
+import time
+
 
 def run(label, fn, timeout=120):
     def handler(signum, frame):
@@ -19,8 +20,14 @@ def run(label, fn, timeout=120):
     finally:
         signal.alarm(0)
 
-from sources import (osm_overpass, yelp_fusion, ma_hic, city_licenses,
-                     chambers, best_of_boston, program_books)
+from sources import (
+    best_of_boston,
+    chambers,
+    city_licenses,
+    osm_overpass,
+    program_books,
+    yelp_fusion,
+)
 from sources.program_books_fetcher import huntington_sponsors
 
 print("== per-source benchmark ==")

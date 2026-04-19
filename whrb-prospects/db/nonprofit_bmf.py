@@ -24,17 +24,19 @@ from __future__ import annotations
 import csv
 import os
 import time
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import requests
 
+from config import NONPROFIT_BMF_CACHE_TTL_SECONDS
 from enrich.dedupe import _norm_name
 from util import event_log
 
 BMF_URL = "https://www.irs.gov/pub/irs-soi/eo_ma.csv"
 CACHE_PATH = Path(__file__).resolve().parent.parent / "cache" / "irs_bmf_ma.csv"
-CACHE_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 days
+# Re-exported for backwards compatibility with scripts that imported it directly.
+CACHE_TTL_SECONDS = NONPROFIT_BMF_CACHE_TTL_SECONDS
 
 # Tokens to strip from both sides of the match in addition to _norm_name's
 # punctuation/case normalization. Ordering matters only in that multi-word
@@ -171,11 +173,12 @@ def _load_lookup(force: bool = False) -> dict[str, dict]:
                     out[key] = {"ein": ein, "name": name}
             _LOOKUP = out
             return out
-        for row in reader:
-            ein = _format_ein(row.get(ein_col))
-            name = row.get(name_col)
-            if not ein or not name:
+        for dict_row in reader:
+            ein = _format_ein(dict_row.get(ein_col))
+            name_val = dict_row.get(name_col)
+            if not ein or not name_val:
                 continue
+            name = name_val
             key = _match_key(name)
             if not key:
                 continue

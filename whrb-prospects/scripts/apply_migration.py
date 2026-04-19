@@ -59,9 +59,8 @@ def _apply(conn, path: Path, label: str, dry_run: bool) -> None:
     if dry_run:
         print("(dry-run; not executing)")
         return
-    with conn:
-        with conn.cursor() as cur:
-            cur.execute(sql)
+    with conn, conn.cursor() as cur:
+        cur.execute(sql)
     print(f"OK: {label} applied.")
 
 

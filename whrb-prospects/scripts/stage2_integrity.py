@@ -27,12 +27,11 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import os
 import random
 import sys
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -320,10 +319,9 @@ def run_network_kill_simulation() -> int:
          the failure (i.e. a bad batch does not abort the whole run).
     """
     from db import supabase_sync
-    from enrich.dedupe import _norm_name
     from util import event_log
 
-    stage_start = datetime.now(tz=timezone.utc).isoformat()
+    stage_start = datetime.now(tz=UTC).isoformat()
     event_log.set_pipeline_run_id(None)
 
     unique = random.randint(100000, 999999)
@@ -363,7 +361,7 @@ def run_network_kill_simulation() -> int:
         return original_fn(client_arg, batch)
 
     # Rewrap with tenacity so retry behavior is preserved.
-    from tenacity import Retrying, stop_after_attempt, wait_exponential, retry_if_exception_type
+    from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
 
     def wrapped(client_arg, batch):
         for attempt in Retrying(

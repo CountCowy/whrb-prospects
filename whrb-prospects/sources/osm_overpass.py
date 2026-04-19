@@ -6,7 +6,7 @@ Docs: https://wiki.openstreetmap.org/wiki/Overpass_API
 from __future__ import annotations
 
 import time
-from typing import Iterable
+from collections.abc import Iterable
 
 import requests
 

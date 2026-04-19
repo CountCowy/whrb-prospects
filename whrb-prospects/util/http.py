@@ -9,6 +9,9 @@ emission is fire-and-forget and must never raise back into the caller.
 """
 from __future__ import annotations
 
+import sys
+from typing import Any
+
 import requests
 from tenacity import (
     Retrying,
@@ -35,15 +38,25 @@ RETRYABLE_EXCEPTIONS = (
 )
 
 
-def _log_event(level: str, category: str, **kwargs) -> None:
-    """Fire-and-forget import so util.event_log -> util.http import cycles
-    can't deadlock at module load."""
+def _log_event(level: str, category: str, **kwargs: Any) -> None:
+    """Fire-and-forget event emission.
+
+    The local ``from util import event_log`` is intentional — importing it at
+    module top would create a load-time cycle (``event_log`` imports
+    ``supabase`` which may pull ``requests``, which transitively loops back
+    here on some platforms). Any exception raised while logging is swallowed
+    *but* surfaced to stderr so operators can see catastrophic logger
+    failures without letting them crash the scraper.
+    """
     try:
-        from util import event_log  # noqa: WPS433 (local import intentional)
+        from util import event_log
 
         getattr(event_log, level)(category, kwargs.pop("message", ""), **kwargs)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:
+        print(
+            f"[util.http._log_event] suppressed {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
 
 
 def raise_for_smart_status(response: requests.Response) -> None:
@@ -101,7 +114,7 @@ def smart_retry(max_attempts: int = 3, wait_min: int = 2, wait_max: int = 20):
             # Unreachable, but keep the linter happy.
             raise RuntimeError("smart_retry fell through without returning") from last_exc
 
-        _wrapped.__wrapped__ = fn
+        _wrapped.__wrapped__ = fn  # type: ignore[attr-defined]
         _wrapped.__name__ = getattr(fn, "__name__", "smart_retry_wrapped")
         _wrapped.__doc__ = fn.__doc__
         return _wrapped

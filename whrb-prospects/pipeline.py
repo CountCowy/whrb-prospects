@@ -14,15 +14,17 @@ from __future__ import annotations
 import argparse
 import math
 import sys
+from collections.abc import Callable
+from datetime import UTC
 from pathlib import Path
 
 import pandas as pd
 
-from config import SCORE_WEIGHTS, WHRB_ZIPS
+from config import ENABLED_SOURCES_DEFAULT, SCORE_WEIGHTS, WHRB_ZIPS
 from enrich import apollo_free, contact_scraper, dedupe, email_validate, hunter_free
 from sources import (
-    best_of_boston,
     bbb,
+    best_of_boston,
     chambers,
     city_licenses,
     ma_hic,
@@ -87,7 +89,7 @@ def seasonality_for(category: str | None) -> str:
     return "year-round"
 
 
-def _safe_cached(label: str, fn) -> list[dict]:
+def _safe_cached(label: str, fn: Callable[[], list[dict]]) -> list[dict]:
     cached = checkpoint.load_source(label)
     if cached is not None:
         print(f"[{label}] loaded {len(cached)} rows from cache")
@@ -166,8 +168,8 @@ def _start_pipeline_run(argv: list[str]) -> str | None:
     produce a CSV; events just won't be correlated.
     """
     try:
-        from datetime import datetime, timezone
         import os
+        from datetime import datetime
 
         from dotenv import load_dotenv
         from supabase import create_client
@@ -181,7 +183,7 @@ def _start_pipeline_run(argv: list[str]) -> str | None:
         client = create_client(url, key)
         row = {
             "status": "running",
-            "started_at": datetime.now(tz=timezone.utc).isoformat(),
+            "started_at": datetime.now(tz=UTC).isoformat(),
             "args": " ".join(argv) if argv else "",
         }
         res = client.table("pipeline_runs").insert(row).execute()
@@ -189,7 +191,7 @@ def _start_pipeline_run(argv: list[str]) -> str | None:
         event_log.set_pipeline_run_id(run_id)
         print(f"[pipeline_runs] run_id={run_id}")
         return run_id
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[pipeline_runs] failed to create run row: {type(e).__name__}: {e}")
         return None
 
@@ -198,22 +200,22 @@ def _finish_pipeline_run(run_id: str | None, *, status: str, rows_upserted: int 
     if not run_id:
         return
     try:
-        from datetime import datetime, timezone
         import os
+        from datetime import datetime
 
         from supabase import create_client
 
         client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
         patch: dict = {
             "status": status,
-            "finished_at": datetime.now(tz=timezone.utc).isoformat(),
+            "finished_at": datetime.now(tz=UTC).isoformat(),
         }
         if rows_upserted is not None:
             patch["rows_upserted"] = rows_upserted
         if error:
             patch["error"] = error[:4000]
         client.table("pipeline_runs").update(patch).eq("id", run_id).execute()
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[pipeline_runs] failed to finalize: {type(e).__name__}: {e}")
 
 
@@ -244,21 +246,23 @@ def main(argv: list[str]) -> None:
         context={"argv": argv, "no_supabase": args.no_supabase},
     )
 
-    enabled_sources: set[str] | None = None
+    # Start with the default allowlist so a failed source_config bootstrap
+    # doesn't accidentally re-enable known-broken scrapers (best_of_boston).
+    enabled_sources: set[str] | None = set(ENABLED_SOURCES_DEFAULT)
     if not args.no_supabase:
         try:
             from db import supabase_sync
             supabase_sync.seed_source_config()
             enabled_sources = supabase_sync.read_enabled_sources()
             print(f"[source_config] enabled scrapers: {sorted(enabled_sources)}")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"[source_config] skipped due to error: {type(e).__name__}: {e}")
             event_log.error(
                 "source_config_bootstrap_failed",
                 f"source_config bootstrap failed: {type(e).__name__}: {e}",
                 context={"exception": type(e).__name__},
             )
-            enabled_sources = None
+            enabled_sources = set(ENABLED_SOURCES_DEFAULT)
 
     if args.fresh:
         checkpoint.clear_all()
@@ -323,7 +327,7 @@ def main(argv: list[str]) -> None:
         from db import nonprofit_bmf
         try:
             nonprofit_bmf.enrich_rows(rows)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"[nonprofit_bmf] FAILED: {type(e).__name__}: {e}")
             event_log.error(
                 "bmf_enrichment_failed",
@@ -357,7 +361,7 @@ def main(argv: list[str]) -> None:
             sync_summary = supabase_sync.sync(df.to_dict(orient="records"))
             print(f"[supabase_sync] {sync_summary}")
             checkpoint.save_phase("08_supabase_sync", rows)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             sync_error = f"{type(e).__name__}: {e}"
             print(f"[supabase_sync] FAILED: {sync_error}")
             event_log.error(
@@ -371,9 +375,7 @@ def main(argv: list[str]) -> None:
     if sync_summary:
         rows_upserted = sync_summary.get("inserted", 0) + sync_summary.get("updated", 0)
     status = "success"
-    if sync_error:
-        status = "failed"
-    elif sync_summary and sync_summary.get("failed", 0) > 0:
+    if sync_error or (sync_summary and sync_summary.get("failed", 0) > 0):
         status = "failed"
     event_log.info(
         "run_finish",

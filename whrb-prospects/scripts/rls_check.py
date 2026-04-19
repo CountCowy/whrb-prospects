@@ -24,9 +24,9 @@ from __future__ import annotations
 import os
 import sys
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from dotenv import load_dotenv
 from supabase import Client, create_client

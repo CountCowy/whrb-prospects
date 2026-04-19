@@ -1,4 +1,12 @@
-"""BBB Eastern MA accredited business directory — Playwright (JS-rendered)."""
+"""BBB Eastern MA accredited business directory — Playwright (JS-rendered).
+
+Status (Stage 5.5): known flaky — the ``.result-card`` selector drifts with
+bbb.org theme updates and Playwright launches fail intermittently on
+headless Chromium. Kept behind the ``--with-bbb`` CLI flag intentionally.
+Do not re-enable in :data:`config.ENABLED_SOURCES_DEFAULT` until the
+selectors are hardened against the current BBB template; see ROLLOUT.md
+Stage 1 notes for the original triage.
+"""
 from __future__ import annotations
 
 from playwright.sync_api import sync_playwright

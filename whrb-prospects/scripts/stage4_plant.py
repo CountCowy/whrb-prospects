@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -71,7 +71,7 @@ def _pick_override_target(client) -> dict | None:
 def main() -> int:
     client = create_client(SUPABASE_URL, SERVICE_KEY)
 
-    stage4_plant_time = datetime.now(tz=timezone.utc).isoformat()
+    stage4_plant_time = datetime.now(tz=UTC).isoformat()
     print(f"[stage4-plant] plant time: {stage4_plant_time}")
 
     target = _pick_override_target(client)

@@ -39,7 +39,7 @@ def main() -> int:
     if not res.data:
         print(f"[stage4-cleanup] override row {ov['id']} gone; skipping")
         return 0
-    current_overrides = dict((res.data[0].get("user_overrides") or {}))
+    current_overrides = dict(res.data[0].get("user_overrides") or {})
     current_overrides.pop("is_nonprofit", None)
     patch = {
         "is_nonprofit": ov["original_is_nonprofit"],

@@ -1,0 +1,83 @@
+[project]
+name = "whrb-prospects"
+version = "0.1.0"
+description = "WHRB 95.3 FM Boston-area ad-sales prospect pipeline."
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["cache", "output", "data", ".venv", "smoke_bench.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "TID", "RUF"]
+ignore = [
+    "E501",   # line length — many scraper URL constants are long on purpose
+    "E701",   # pipeline.py scoring uses compact `if x: y` for tabular alignment
+    "E741",   # `l` in a one-shot comprehension is not worth a rename
+    "B008",   # default-arg function call (requests timeout kwargs rely on it)
+    "B905",   # `zip(..., strict=)` is opinion, not correctness
+    "SIM103", # return-condition-directly is cosmetic
+    "SIM105", # contextlib.suppress is less legible than `try: ... except: pass`
+    "SIM110", # for-any() equivalence prefers explicit early-return
+    "SIM114", # if-with-same-arms occasionally clearer as two branches
+    "RUF002", # en-dash in docstrings is intentional prose
+]
+
+[tool.ruff.lint.per-file-ignores]
+# CLI integrity/resync scripts sys.path.insert before importing db/util, which is
+# an intentional module-load-order workaround — E402 doesn't apply.
+"scripts/*.py" = ["F841", "E402"]
+"tests/*.py"   = ["B011", "S101"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending  = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+warn_unreachable = true
+check_untyped_defs = true
+no_implicit_optional = true
+ignore_missing_imports = true
+# Gradual typing baseline: enforce on the files Stage 5.5 touched plus the
+# always-imported core. Scraper sources, ma_sos Playwright driver, program-book
+# PDF parsers, and one-off scripts stay loose — they rely on BeautifulSoup /
+# pandas / Playwright shapes that aren't worth fighting the type checker over
+# yet. A follow-up PR can pull more modules into this list as they're cleaned.
+files = [
+    "config.py",
+    "db/validators.py",
+    "db/nonprofit_bmf.py",
+    "enrich/dedupe.py",
+    "util",
+]
+exclude = [
+    "cache/",
+    "output/",
+    "data/",
+    "tests/",
+    ".venv/",
+]
+
+[[tool.mypy.overrides]]
+# Third-party libraries without stubs — silence noisy import errors.
+module = [
+    "supabase.*",
+    "tenacity.*",
+    "rapidfuzz.*",
+    "dotenv.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-q"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
