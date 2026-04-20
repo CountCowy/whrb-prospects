@@ -1,12 +1,155 @@
-import { PagePlaceholder } from '@/components/PagePlaceholder';
+import Link from 'next/link';
+import { SearchInput } from '@/components/SearchInput';
+import { FilterBar } from '@/components/FilterBar';
+import { ProspectTable } from '@/components/ProspectTable';
+import {
+  listProspects,
+  getFilterFacets,
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZES,
+} from '@/lib/queries/prospects';
+import { createClient } from '@/lib/supabase/server';
 
-export default function MyClientsPage() {
+export const dynamic = 'force-dynamic';
+
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function firstString(v: string | string[] | undefined): string | undefined {
+  if (Array.isArray(v)) return v[0];
+  return v;
+}
+
+function parseSort(sp: SearchParams): { field: string; dir: 'asc' | 'desc' } {
+  const field = firstString(sp.sort) ?? 'priority_score';
+  const dir = firstString(sp.dir) === 'asc' ? 'asc' : 'desc';
+  return { field, dir };
+}
+
+function parsePageSize(sp: SearchParams): number {
+  const raw = Number(firstString(sp.pageSize));
+  return (PAGE_SIZES as readonly number[]).includes(raw) ? raw : DEFAULT_PAGE_SIZE;
+}
+
+export default async function MyClientsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const sp = await searchParams;
+  const view = firstString(sp.view) === 'kanban' ? 'kanban' : 'table';
+  const sort = parseSort(sp);
+  const pageSize = parsePageSize(sp);
+  const page = Math.max(1, Number(firstString(sp.page)) || 1);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const userId = user!.id;
+
+  const filters = {
+    q: firstString(sp.q),
+    tier: firstString(sp.tier),
+    state: firstString(sp.state),
+    zip: firstString(sp.zip),
+    category: firstString(sp.category),
+    source: firstString(sp.source),
+    is_nonprofit: firstString(sp.is_nonprofit) as 'true' | 'false' | undefined,
+  };
+
+  const [facets, result] = await Promise.all([
+    getFilterFacets(),
+    listProspects({
+      filters,
+      sort,
+      page,
+      pageSize,
+      assignedToSelf: true,
+      selfUserId: userId,
+    }),
+  ]);
+
   return (
-    <PagePlaceholder
-      eyebrow="Queue"
-      title="My Clients"
-      description="Kanban / table view of prospects assigned to you. Drag-and-drop state transitions and inline notes land in Stage 7."
-      stage="Stage 7"
-    />
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
+            Assigned to me
+          </div>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">My Clients</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <ViewToggle current={view} />
+          <SearchInput placeholder="Search my prospects…" />
+        </div>
+      </div>
+      <FilterBar
+        tiers={facets.tiers}
+        states={facets.states}
+        sources={facets.sources}
+        showAssignedFacet={false}
+      />
+      {view === 'kanban' ? (
+        <div
+          data-testid="kanban-placeholder"
+          className="rounded-xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-8 text-center"
+        >
+          <h2 className="text-base font-semibold">Kanban arrives Stage 7.</h2>
+          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+            Drag-drop state transitions land in the next stage. For now the table view is the
+            source of truth.
+          </p>
+        </div>
+      ) : (
+        <ProspectTable
+          rows={result.rows}
+          total={result.total}
+          page={result.page}
+          pageSize={result.pageSize}
+          sort={result.sort}
+          emptyTitle="No prospects assigned to you yet."
+          emptyDescription="Rows you pick up (Stage 7) will land here."
+          emptyAction={{ href: '/prospects?assigned=false', label: 'Browse unassigned' }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ViewToggle({ current }: { current: 'table' | 'kanban' }) {
+  const base = 'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors';
+  return (
+    <div
+      role="tablist"
+      aria-label="View"
+      className="inline-flex rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-0.5"
+    >
+      <Link
+        href="/my"
+        role="tab"
+        aria-selected={current === 'table'}
+        data-testid="view-table"
+        className={`${base} ${
+          current === 'table'
+            ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] border-transparent'
+            : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+        }`}
+      >
+        Table
+      </Link>
+      <Link
+        href="/my?view=kanban"
+        role="tab"
+        aria-selected={current === 'kanban'}
+        data-testid="view-kanban"
+        className={`${base} ${
+          current === 'kanban'
+            ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] border-transparent'
+            : 'border-transparent text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+        }`}
+      >
+        Kanban
+      </Link>
+    </div>
   );
 }
