@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { SearchInput } from '@/components/SearchInput';
 import { FilterBar } from '@/components/FilterBar';
 import { ProspectTable } from '@/components/ProspectTable';
+import { KanbanBoard } from '@/components/KanbanBoard';
+import { MyClientsRealtime } from '@/components/MyClientsRealtime';
 import {
   listProspects,
   getFilterFacets,
@@ -38,7 +40,7 @@ export default async function MyClientsPage({
   const sp = await searchParams;
   const view = firstString(sp.view) === 'kanban' ? 'kanban' : 'table';
   const sort = parseSort(sp);
-  const pageSize = parsePageSize(sp);
+  const pageSize = view === 'kanban' ? 500 : parsePageSize(sp);
   const page = Math.max(1, Number(firstString(sp.page)) || 1);
 
   const supabase = await createClient();
@@ -69,8 +71,17 @@ export default async function MyClientsPage({
     }),
   ]);
 
+  const kanbanCards = result.rows.map((r) => ({
+    id: r.id,
+    company_name: r.company_name,
+    tier: r.tier,
+    state: r.state,
+    priority_score: r.priority_score,
+  }));
+
   return (
     <div className="space-y-6">
+      <MyClientsRealtime currentUserId={userId} />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
@@ -90,16 +101,11 @@ export default async function MyClientsPage({
         showAssignedFacet={false}
       />
       {view === 'kanban' ? (
-        <div
-          data-testid="kanban-placeholder"
-          className="rounded-xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-8 text-center"
-        >
-          <h2 className="text-base font-semibold">Kanban arrives Stage 7.</h2>
-          <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
-            Drag-drop state transitions land in the next stage. For now the table view is the
-            source of truth.
-          </p>
-        </div>
+        kanbanCards.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <KanbanBoard cards={kanbanCards} />
+        )
       ) : (
         <ProspectTable
           rows={result.rows}
@@ -108,10 +114,24 @@ export default async function MyClientsPage({
           pageSize={result.pageSize}
           sort={result.sort}
           emptyTitle="No prospects assigned to you yet."
-          emptyDescription="Rows you pick up (Stage 7) will land here."
+          emptyDescription="Rows you pick up will appear here."
           emptyAction={{ href: '/prospects?assigned=false', label: 'Browse unassigned' }}
         />
       )}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div
+      data-testid="kanban-empty-state"
+      className="rounded-xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-8 text-center"
+    >
+      <h2 className="text-base font-semibold">No prospects assigned yet.</h2>
+      <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+        Pick one up from All Prospects to see it on the board.
+      </p>
     </div>
   );
 }

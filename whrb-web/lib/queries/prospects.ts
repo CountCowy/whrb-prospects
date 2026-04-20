@@ -239,12 +239,12 @@ export async function getFilterFacets(): Promise<FilterFacets> {
   const tiers = ['A', 'B', 'C'];
   const states = [
     'researching',
+    'waiting_response',
     'initial_contact',
-    'pitched',
-    'waiting',
+    'ongoing_contact',
     'sold',
+    'previous_client',
     'dead',
-    'not_a_fit',
   ];
   const sources = [
     'hsba',
