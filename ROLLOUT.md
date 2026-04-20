@@ -1402,12 +1402,32 @@ cluttered.
       post-merge if needed)
 - [x] Migration `001_prospect_update_guard.sql` applied idempotently
 - [x] ROLLOUT entry written (this section)
-- [ ] Preview-deploy integrity re-verify (appended after push)
+- [x] Preview-deploy integrity re-verify (see below)
 - [x] `stage7_cleanup.py` teardown clean; DB back to pre-plant state
       (`user_overrides={}`, 0 stage7-tagged notes, 0 manual prospects)
       apart from the retained synthetic reps
 
-**Stage 7 exit gate: PENDING preview re-verify.** Stage 8 (contract test)
-unblocked once preview verification is appended below and the PR is merged.
+### Preview re-verification (Vercel deployment)
+
+Branch `stage7/editing-and-assignment` → preview URL
+`https://whrb-prospects-dev-git-stage7-editin-2f4902-countcowys-projects.vercel.app`:
+
+- `.venv/bin/python scripts/stage7_integrity.py --deploy-url <preview>` — **16/16 pass**
+  (T01-T11, T20-T24; re-planted fixtures, ran against production-build preview, then
+  cleaned up).
+- `E2E_BASE_URL=<preview> pnpm e2e --grep stage7` — **17/17 pass** (plus 2 setup).
+- CI e2e job initially failed on T08 due to a timing race in the Playwright
+  spec: `startTransition(onDelete)` on the Delete button returns before the
+  `DELETE /api/.../notes/<noteId>` response lands, so `page.reload()` could
+  fetch notes BEFORE the DB write finishes. Fixed by adding
+  `page.waitForResponse()` guards to the delete clicks in T08 + T09 (not a
+  production defect — the UI path is fine; only the test's async awaiting
+  was wrong). Re-pushed; CI green.
+- Two earlier-killed `pipeline_runs` rows from the abandoned lock-matrix
+  runs (13:37 + 13:51 starts) were manually transitioned to `status='failed'`.
+
+**Stage 7 exit gate: GREEN.** Stage 8 (contract test) unblocked. Synthetic
+reps (`stage7-rep-a@example.com`, `stage7-rep-b@example.com`) retained for
+Stage 8 to reuse.
 
 

@@ -104,7 +104,11 @@ test('stage7-t08 author soft-delete hides note from rep view', async ({ browser 
     await page.getByTestId('tab-notes').click();
     const item = page.locator(`[data-testid="note-item"][data-note-id="${noteId}"]`);
     await expect(item).toBeVisible();
+    const deleteResp = page.waitForResponse(
+      (r) => r.url().includes(`/notes/${noteId}`) && r.request().method() === 'DELETE',
+    );
     await item.getByTestId('note-delete').click();
+    await deleteResp;
     await page.reload();
     await page.getByTestId('tab-notes').click();
     await expect(
@@ -146,7 +150,11 @@ test('stage7-t09 admin soft-delete hides note from rep', async ({ browser }) => 
       `[data-testid="note-item"][data-note-id="${noteId}"]`,
     );
     await expect(adminItem).toBeVisible();
+    const adminDeleteResp = adminPage.waitForResponse(
+      (r) => r.url().includes(`/notes/${noteId}`) && r.request().method() === 'DELETE',
+    );
     await adminItem.getByTestId('note-delete').click();
+    await adminDeleteResp;
     await adminCtx.close();
 
     const repCtx = await browser.newContext({ storageState: REP_A_STORAGE });
