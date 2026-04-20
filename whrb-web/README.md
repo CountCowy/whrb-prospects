@@ -30,13 +30,13 @@ pnpm dev           # http://localhost:3000
 
 Exact parity with the Vercel project (Production + Preview + Development):
 
-| Var | Exposed to client | Source |
-|-----|-------------------|--------|
-| `NEXT_PUBLIC_SUPABASE_URL` | yes | `WHRB dev` project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes | `WHRB dev` anon key |
-| `SUPABASE_URL` | no | server-only mirror (used by `lib/env.server.ts`) |
-| `SUPABASE_ANON_KEY` | no | server-only mirror |
-| `SUPABASE_SERVICE_ROLE_KEY` | no | **server-only**, never `NEXT_PUBLIC_` |
+| Var                             | Exposed to client | Source                                           |
+| ------------------------------- | ----------------- | ------------------------------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`      | yes               | `WHRB dev` project URL                           |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | yes               | `WHRB dev` anon key                              |
+| `SUPABASE_URL`                  | no                | server-only mirror (used by `lib/env.server.ts`) |
+| `SUPABASE_ANON_KEY`             | no                | server-only mirror                               |
+| `SUPABASE_SERVICE_ROLE_KEY`     | no                | **server-only**, never `NEXT_PUBLIC_`            |
 
 The service role key is guarded by `lib/env.server.ts` (imports `server-only`);
 any accidental client import fails the build. Integrity test **T02** scans
@@ -52,6 +52,9 @@ pnpm typecheck     # tsc --noEmit
 pnpm lint          # eslint . --max-warnings 0
 pnpm format        # prettier --write .
 pnpm format:check  # prettier --check .
+pnpm e2e           # Playwright e2e (auto-starts pnpm dev on localhost)
+pnpm e2e:ui        # Playwright inspector — interactive run / debug
+pnpm e2e:debug     # Playwright headed run with the debugger attached
 ```
 
 ## Auth flow
@@ -88,11 +91,11 @@ auth redirect).
 
 Three streams, one `event_log` table:
 
-| Surface | Writer |
-|---------|--------|
-| Pipeline (Python) | `whrb-prospects/util/event_log.py` (batched) |
-| Next.js server (middleware + API routes) | `lib/logging/server.ts` → service-role insert |
-| Browser | `lib/logging/client.ts` → `POST /api/log` (anon, RLS-gated) |
+| Surface                                  | Writer                                                      |
+| ---------------------------------------- | ----------------------------------------------------------- |
+| Pipeline (Python)                        | `whrb-prospects/util/event_log.py` (batched)                |
+| Next.js server (middleware + API routes) | `lib/logging/server.ts` → service-role insert               |
+| Browser                                  | `lib/logging/client.ts` → `POST /api/log` (anon, RLS-gated) |
 
 The browser logger hooks `window.onerror` and `unhandledrejection` at mount,
 plus a React `ErrorBoundary` for render exceptions. Validated categories:
@@ -131,6 +134,49 @@ covers the automated matrix (7/7):
 
 Plus the browser-driven T08 follow-up (`--post-browser --since-iso <ISO>`),
 which confirms the four event_log categories above landed.
+
+## Running e2e tests
+
+Playwright lives in `e2e/` (Stage 6a bootstrap). One `setup` project mints a
+synthetic user via `supabase.auth.admin.generateLink` + `verifyOtp`, drops the
+session into the app via the existing `LoginForm` hash-token fallback, waits
+for `@supabase/ssr` to flush the auth cookie, then persists `storageState` to
+`e2e/.auth/user.json`. All other projects depend on `setup` and start
+authenticated.
+
+```bash
+# Local run — auto-starts `pnpm dev` and drives it
+pnpm e2e
+
+# Against a deployed preview URL (skips the auto-`pnpm dev`)
+E2E_BASE_URL="https://whrb-prospects-<hash>-countcowys-projects.vercel.app" pnpm e2e
+
+# Interactive inspector
+pnpm e2e:ui
+```
+
+Required env (either via `.env.local` or exported):
+
+| Var                                                   | Used by                                        |
+| ----------------------------------------------------- | ---------------------------------------------- |
+| `SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_URL`           | auth.setup admin + anon clients                |
+| `SUPABASE_ANON_KEY` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | auth.setup `verifyOtp`                         |
+| `SUPABASE_SERVICE_ROLE_KEY`                           | auth.setup `admin.createUser` / `generateLink` |
+| `E2E_BASE_URL` _(optional)_                           | overrides baseURL for remote targets           |
+| `E2E_USER_EMAIL` _(optional)_                         | defaults to `stage6a-smoke@example.com`        |
+
+Outputs (gitignored): `playwright-report/` (HTML report), `test-results/`
+(traces + screenshots + videos on failure), `e2e/.auth/user.json` (session
+cookies).
+
+### CI
+
+`.github/workflows/whrb-web-ci.yml`'s `e2e` job runs on every PR that touches
+`whrb-web/**`. It waits for the Vercel preview deployment on the PR head
+commit (`patrickedqvist/wait-for-vercel-preview`) and runs Playwright against
+that URL. Requires these repository secrets: `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. The HTML report is uploaded
+as a workflow artifact for 14 days; traces are uploaded on failure only.
 
 ## Layout
 
