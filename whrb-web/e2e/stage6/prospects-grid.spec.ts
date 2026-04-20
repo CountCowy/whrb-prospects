@@ -108,7 +108,12 @@ test.describe('Stage 6 — All Prospects grid', () => {
     await expect(page.getByTestId('prospect-row').first()).toBeVisible();
   });
 
-  test('T13 row click navigates to detail and all fields render read-only', async ({ page }) => {
+  test('T13 row click navigates to detail (Stage 7 editable shell)', async ({ page }) => {
+    // Stage 7 rewrote the detail page from read-only to the editable tabbed
+    // ProspectDetail shell. The navigation contract still holds — a row
+    // click must land on /prospects/<uuid> and render the detail component.
+    // The "Read-only" badge + zero-textbox assertions are superseded by
+    // Stage 7's stage7-t03-t04 + stage7-t22 specs.
     await page.goto('/prospects?pageSize=25');
     const firstRowLink = page
       .getByTestId('prospect-row')
@@ -118,9 +123,6 @@ test.describe('Stage 6 — All Prospects grid', () => {
     await firstRowLink.click();
     await expect(page).toHaveURL(/\/prospects\/[0-9a-f-]{36}/);
     await expect(page.getByTestId('prospect-detail')).toBeVisible();
-    await expect(page.getByTestId('stage-badge')).toContainText('Read-only');
-    // Notes section exists but is read-only (no textarea/button present).
-    await expect(page.getByTestId('notes-section')).toBeVisible();
-    expect(await page.getByRole('textbox').count()).toBe(0);
+    await expect(page.getByTestId('stage-badge')).toContainText('Stage 7');
   });
 });

@@ -1416,18 +1416,35 @@ Branch `stage7/editing-and-assignment` → preview URL
   (T01-T11, T20-T24; re-planted fixtures, ran against production-build preview, then
   cleaned up).
 - `E2E_BASE_URL=<preview> pnpm e2e --grep stage7` — **17/17 pass** (plus 2 setup).
-- CI e2e job initially failed on T08 due to a timing race in the Playwright
-  spec: `startTransition(onDelete)` on the Delete button returns before the
-  `DELETE /api/.../notes/<noteId>` response lands, so `page.reload()` could
-  fetch notes BEFORE the DB write finishes. Fixed by adding
-  `page.waitForResponse()` guards to the delete clicks in T08 + T09 (not a
-  production defect — the UI path is fine; only the test's async awaiting
-  was wrong). Re-pushed; CI green.
+- CI e2e job iterated three times before landing green:
+  1. First run: snapshot missing — CI doesn't plant fixtures by default.
+     Extended `.github/workflows/whrb-web-ci.yml` `e2e` job with
+     setup-python + `pip install -r whrb-prospects/requirements.txt` +
+     `stage7_cleanup.py → stage7_plant.py` pre-steps and an `always()`
+     teardown `stage7_cleanup.py` post-step. This mirrors the local
+     plant/test/cleanup lifecycle.
+  2. Second run: pre-existing Stage-6 specs asserted contracts that
+     Stage 7 changed — stage-badge "Read-only" is now "Stage 7 ·
+     Editable", the kanban-placeholder is gone, and the Stage 7 plant
+     seeds 2 notes (not the 12 Stage 6 wrote). Patched
+     `e2e/stage6/prospects-grid.spec.ts::T13`,
+     `e2e/stage6/my-clients.spec.ts::T15`, and
+     `e2e/stage6/home.spec.ts::T02` to align with the superseded contracts.
+  3. Third run: **CI e2e green (3m11s)** — 37 tests (20 Stage-6 + 17
+     Stage-7 + 2 setup) all pass against the preview deploy.
+- T08 Playwright timing fix: `startTransition(onDelete)` on the Delete
+  button returns before the `DELETE /api/.../notes/<noteId>` response
+  lands, so `page.reload()` could race ahead of the DB write. Added
+  `page.waitForResponse()` guards to the delete clicks in T08 + T09 (not
+  a production defect — the UI path is fine; only the test's async
+  awaiting was wrong).
 - Two earlier-killed `pipeline_runs` rows from the abandoned lock-matrix
   runs (13:37 + 13:51 starts) were manually transitioned to `status='failed'`.
 
-**Stage 7 exit gate: GREEN.** Stage 8 (contract test) unblocked. Synthetic
-reps (`stage7-rep-a@example.com`, `stage7-rep-b@example.com`) retained for
-Stage 8 to reuse.
+**Stage 7 exit gate: GREEN.** All 16 DB-facet + 17 Playwright + 15 lock-matrix
+pipeline-rerun assertions pass on both localhost and preview. CI e2e green.
+Stage 8 (contract test) unblocked. Synthetic reps
+(`stage7-rep-a@example.com`, `stage7-rep-b@example.com`) retained for Stage 8
+to reuse.
 
 
