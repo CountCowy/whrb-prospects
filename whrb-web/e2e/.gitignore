@@ -1,0 +1,9 @@
+# Playwright auth state — contains short-lived session cookies for the
+# synthetic e2e user; do not commit.
+.auth/
+
+# Playwright outputs.
+test-results/
+playwright-report/
+blob-report/
+trace/
