@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listPipelineRuns } from '@/lib/queries/admin';
 import { formatDateTime } from '@/lib/time';
+import { TriggerRunButton } from '@/components/admin/TriggerRunButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,19 +57,7 @@ export default async function AdminRunsPage({
             trace.
           </p>
         </div>
-        <button
-          type="button"
-          disabled
-          aria-disabled="true"
-          title="Wired in Stage 10"
-          data-testid="trigger-run-button"
-          className="cursor-not-allowed rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--muted))] px-4 py-2 text-sm font-medium text-[hsl(var(--muted-foreground))] opacity-70"
-        >
-          Trigger new run
-          <span className="ml-2 rounded-full bg-[hsl(var(--background))] px-2 py-[1px] text-[10px] uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-            Stage 10
-          </span>
-        </button>
+        <TriggerRunButton />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))]">

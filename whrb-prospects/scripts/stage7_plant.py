@@ -60,14 +60,18 @@ ADMIN_EMAIL = "kingyareh@gmail.com"
 
 CANONICAL_SEEDS = {"Boston Ballet", "Museum of Fine Arts", "Massachusetts Bay Transportation Authority"}
 
-# Mirrors stage9_integrity.T13_WHITELISTED_CATEGORIES. These categories are
-# expected stimuli of later-stage test harnesses (Stage 9's invite retries
-# hitting dev-SMTP rate limits; pipeline scrape retries emitting source_failed
-# / scrape_http on transient 4xx/5xx) and must not abort a Stage 7 plant.
+# Mirrors stage9_integrity.T13_WHITELISTED_CATEGORIES (plus Stage 10's
+# `pipeline_run_failed` from the round-10 §21.4 item 13 clarification).
+# These categories are expected stimuli of later-stage test harnesses and
+# must not abort a Stage 7 plant.
+# - admin_user_invite_failed: Stage 9 invite retries hitting dev-SMTP rate limits
+# - source_failed / scrape_http: pipeline scrape retries on transient 4xx/5xx
+# - pipeline_run_failed: Stage 10 T04 forced-failure probe
 EXPECTED_STIMULUS_CATEGORIES: tuple[str, ...] = (
     "admin_user_invite_failed",
     "source_failed",
     "scrape_http",
+    "pipeline_run_failed",
 )
 
 # The 15 lockable field names as defined in plan §16.3 item 9.

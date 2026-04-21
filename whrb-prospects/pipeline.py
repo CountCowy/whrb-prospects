@@ -164,11 +164,23 @@ def _start_pipeline_run(argv: list[str]) -> str | None:
     Round-7: required for every run (CLI + web). CLI runs have
     ``triggered_by=null``; ``args`` captures the argv string.
 
+    Stage-10 extension: when the `WHRB_PIPELINE_RUN_ID` env var is set, the
+    caller (the `run-pipeline.yml` GitHub Actions workflow) has already
+    created the row and advanced it to ``running``. We simply adopt the id
+    for event_log correlation and skip the INSERT/UPDATE entirely.
+
     Returns ``None`` if the DB is unreachable — the pipeline still runs to
     produce a CSV; events just won't be correlated.
     """
+    import os
+
+    adopted = os.environ.get("WHRB_PIPELINE_RUN_ID")
+    if adopted:
+        event_log.set_pipeline_run_id(adopted)
+        print(f"[pipeline_runs] adopted run_id={adopted} (workflow-managed)")
+        return adopted
+
     try:
-        import os
         from datetime import datetime
 
         from dotenv import load_dotenv
@@ -199,8 +211,20 @@ def _start_pipeline_run(argv: list[str]) -> str | None:
 def _finish_pipeline_run(run_id: str | None, *, status: str, rows_upserted: int | None, error: str | None) -> None:
     if not run_id:
         return
+    # Stage-10: when the workflow owns the row (adopted via env var), it also
+    # performs the final UPDATE with the parsed stdout summary — pipeline.py
+    # must not compete with it. We still print a machine-readable summary line
+    # so the workflow can scrape rows_upserted without a DB read.
+    import os
+
+    if os.environ.get("WHRB_PIPELINE_RUN_ID"):
+        print(
+            "[pipeline_summary] "
+            f"status={status} rows_upserted={rows_upserted if rows_upserted is not None else ''} "
+            f"error={(error or '').replace(chr(10), ' ')[:400]}"
+        )
+        return
     try:
-        import os
         from datetime import datetime
 
         from supabase import create_client

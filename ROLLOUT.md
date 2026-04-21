@@ -2219,3 +2219,121 @@ concerns):**
 - Workflow concurrency key (`group: pipeline-run`) verified against
   two rapid `queued` inserts.
 
+### Pre-Stage-10 implementation round (2026-04-21)
+
+Captured immediately before Stage 10 coding begins. Answers to one
+interactive Q-round (12 questions, Claude → user). These supersede
+plan §8 and §20 where they conflict; formalised as a round-10
+clarifications addendum in the parent plan (§21).
+
+**Branch + preflight**
+- Branch `stage10/pipeline-dispatch` forks off `origin/main` at
+  `1be6be4` (PR #10 merge / Stage 9 exit) **in the top-level
+  `Listing/` checkout**, not a worktree. Worktree `dazzling-pare-1450b2`
+  exits first.
+- Preflight (§3.5) accepts the Stage 9 exit record as trusted
+  baseline. `stage10_plant.py` spot-checks live `event_log` for
+  new `level in ('error','fatal')` rows since Stage 9 exit and
+  halts on anything not whitelisted (same pattern as Stages 7
+  / 9 plants).
+
+**Chicken-and-egg resolution — mid-stage merge**
+- GitHub Actions `repository_dispatch` + `schedule` triggers only
+  fire from the default branch. Several Stage 10 Tk tests
+  (T01–T03, T06–T10) therefore cannot run until the workflow
+  file lives on `main`. Accepted deviation: the Stage 10 PR
+  **merges mid-stage**, before the full Tk set is green. Test
+  order:
+  1. Build branch with workflow + Edge Function + API route +
+     plant/cleanup/integrity scripts.
+  2. Push + open PR → CI green.
+  3. Merge PR to `main` (mid-stage merge — plan-deviation).
+  4. Deploy Edge Function; set Edge Function secret
+     `GH_DISPATCH_PAT`; re-point + re-enable
+     `pipeline_run_dispatch` Database Webhook at the Edge
+     Function invoke URL.
+  5. Run T01 (Trigger), wait T02/T03 (~9-min full pipeline),
+     then T05, T06, T07, T09.
+  6. Temp flip `schedule: '*/5 * * * *'` (not `*/10`, see
+     below), wait ≤ 5 min for T08, verify. Follow-up PR
+     reverts cron to production `0 8 1,15 * *` (T10). Probe-
+     fired `pipeline_runs` row is **kept** (audit trail).
+  7. T04 (forced-failure) via `workflow_dispatch` with a
+     `force_fail: boolean` input that temporarily overrides
+     `SUPABASE_URL=https://invalid.example` on the pipeline
+     step only. No repo state mutation; no revert needed.
+  8. T11 + T12 verified last; T11's zero-error-budget
+     whitelists the `pipeline_run_failed` category Stage 10
+     introduces.
+
+**Infrastructure prerequisites**
+- **Supabase CLI install** via `brew install supabase/tap/supabase`
+  (recommended for macOS — keeps CLI independent of global
+  npm, tap updates with releases). Claude will prompt user for
+  the Supabase access token (`sbp_...`) before the first
+  `supabase login` / `supabase functions deploy` call; the
+  token lives in the CLI keychain, never in the repo.
+- `GH_DISPATCH_PAT` **confirmed** present as Actions repo
+  secret (issued 2026-04-21T22:03:01Z). §20.2's "token
+  provisioned" record accurate; the initial `gh secret list`
+  confusion during the 21.3 Q&A was a transient fetch issue.
+  The same value must be set as a Supabase Edge Function
+  secret during test-fire step 4.
+- Supabase Database Webhook current state **not verifiable
+  from outside** (pooler region mismatch + `supabase_functions`
+  schema not PostgREST-exposed). Expected state at Stage 10
+  entry per §20.3 item: webhook exists, disabled, still
+  pointing at `api.github.com/...dispatches`. Stage 10 re-
+  points to the Edge Function invoke URL, swaps the PAT
+  header for the Supabase anon key, and re-enables. Dashboard
+  check confirms at implementation time.
+
+**Tk tightenings**
+- **T04** forced-failure via `workflow_dispatch` `force_fail`
+  input; repo state unchanged. Accepted over plan §8.5's
+  "temporary commit" option.
+- **T08** scheduled-cron probe uses `*/5 * * * *` (not `*/10`)
+  to cap the wait at ≤ 5 minutes (user preference). GitHub
+  Actions' minimum cron granularity is 5 minutes.
+- **T11** zero-error-budget whitelists the `pipeline_run_failed`
+  category (from T04). This new category also joins
+  `stage7_plant.EXPECTED_STIMULUS_CATEGORIES` per the Stage 9
+  CI-fixup precedent so downstream CI runs that plant Stage 7
+  fixtures don't abort on the Stage 10 error row.
+
+**Fixtures**
+- Synthetic rep `stage10-rep@example.com` (created
+  `email_confirm: True`, matches Stage 9's `stage9-rep`
+  pattern). Used only for T05 non-admin 403 check; hard-
+  deleted by `stage10_cleanup.py`.
+- **Minimal** postrun_check subset (user Q11): 5 edits planted
+  via direct DB patch (service-role client) —
+  1 locked phone, 1 state, 1 note, 1 self-assignment,
+  1 nonprofit override. Stage 8 already verified the
+  browser-driven 20-edit contract end-to-end; Stage 10's T09
+  is a smoke on the sync side, not a re-proof of the full
+  Stage 8 contract.
+- Scheduled-probe row and T04 failed-probe row are **both
+  kept** after cleanup — they form part of the audit trail
+  and are legitimate pipeline_runs entries.
+
+**Files to land on the stage10 branch**
+- `.github/workflows/run-pipeline.yml` — new.
+- `whrb-web/app/api/pipeline/run/route.ts` — new.
+- `whrb-web/app/(app)/admin/runs/page.tsx` — wire the existing
+  disabled "Trigger new run" button.
+- `whrb-web/supabase/functions/github-dispatch/index.ts` — new
+  Edge Function (Path A proxy per §20.4).
+- `whrb-prospects/scripts/stage10_plant.py`, `stage10_cleanup.py`,
+  `stage10_integrity.py` — new.
+- `whrb-web/e2e/stage10/` Playwright specs (T01 UI + T05 guard).
+
+**Plan deviations documented for the Stage 10 exit entry**
+1. Mid-stage PR merge (required for `repository_dispatch` +
+   `schedule` to fire from the default branch).
+2. `*/5` (not `*/10`) probe cron window.
+3. T04 via `workflow_dispatch` input rather than temporary
+   commit.
+4. `stage7_plant.EXPECTED_STIMULUS_CATEGORIES` extended with
+   `pipeline_run_failed` to keep downstream CI green.
+
