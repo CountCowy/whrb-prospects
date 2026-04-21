@@ -10,10 +10,10 @@ on:
   # verifies end-to-end with a temporary `*/5 * * * *` window during the probe
   # and reverts to the production cadence before stage exit.
   schedule:
-    # Stage 10 T08 verification probe — temporary short-interval cron.
-    # MUST be reverted to production cadence ('0 8 1,15 * *' only) before
-    # Stage 10 exit (plan §8.5 + §21.4 item 12). Reverted in a follow-up PR.
-    - cron: '*/5 * * * *'
+    # Production cadence — 08:00 UTC on the 1st and 15th (plan §2 decision 5).
+    # The `*/5 * * * *` verification probe from Stage 10 T08 was reverted
+    # here (T10) after one scheduled fire (pipeline_runs a263ef9e) was
+    # observed creating a row with args='--scheduled', triggered_by=null.
     - cron: '0 8 1,15 * *'
   # Manual trigger from the Actions UI (troubleshooting + T04 forced-failure).
   workflow_dispatch:
