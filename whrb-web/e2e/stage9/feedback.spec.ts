@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
-import { loadSnapshot, serviceClient } from './helpers';
+import { loadSnapshot, serviceClient, snapshotExists } from './helpers';
 
 const ADMIN_STORAGE = path.join(__dirname, '../.auth/admin.json');
 const REP_STORAGE = path.join(__dirname, '../.auth/stage9-rep.json');
@@ -9,6 +9,7 @@ const REP_STORAGE = path.join(__dirname, '../.auth/stage9-rep.json');
 // Home and FeedbackHistory reflects the update.
 // T12 (UI): admin_response is rendered in the user's FeedbackHistory item.
 test('stage9-t11-t12 admin triage surfaces on user Home', async ({ browser }) => {
+  test.skip(!snapshotExists(), 'Stage 9 plant snapshot missing — stage9 specs skip in CI.');
   const snap = loadSnapshot();
   const adminCtx = await browser.newContext({ storageState: ADMIN_STORAGE });
   const adminPage = await adminCtx.newPage();

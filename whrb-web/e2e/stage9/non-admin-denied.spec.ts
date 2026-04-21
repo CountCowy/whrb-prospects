@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
+import { snapshotExists } from './helpers';
 
 const REP_STORAGE = path.join(__dirname, '../.auth/stage9-rep.json');
 
 // T02 (UI): non-admin SSR access to admin pages renders the 403 fallback.
 test('stage9-t02 non-admin sees 403 on every admin page', async ({ browser }) => {
+  test.skip(!snapshotExists(), 'Stage 9 plant snapshot missing — stage9 specs skip in CI.');
   const ctx = await browser.newContext({ storageState: REP_STORAGE });
   const page = await ctx.newPage();
   for (const p of [
@@ -21,6 +23,7 @@ test('stage9-t02 non-admin sees 403 on every admin page', async ({ browser }) =>
 
 // T03 (UI): non-admin fetch to admin APIs → 403.
 test('stage9-t03 non-admin PATCH on admin APIs returns 403', async ({ browser }) => {
+  test.skip(!snapshotExists(), 'Stage 9 plant snapshot missing — stage9 specs skip in CI.');
   const ctx = await browser.newContext({ storageState: REP_STORAGE });
   const page = await ctx.newPage();
   await page.goto('/');

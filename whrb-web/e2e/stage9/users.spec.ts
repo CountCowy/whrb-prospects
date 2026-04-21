@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import path from 'node:path';
-import { loadSnapshot, serviceClient } from './helpers';
+import { loadSnapshot, serviceClient, snapshotExists } from './helpers';
 
 const ADMIN_STORAGE = path.join(__dirname, '../.auth/admin.json');
 const REP_STORAGE = path.join(__dirname, '../.auth/stage9-rep.json');
@@ -8,6 +8,7 @@ const REP_STORAGE = path.join(__dirname, '../.auth/stage9-rep.json');
 // Reset the synthetic rep to a clean baseline before every test so prior
 // mutations (role flip, deactivation) don't bleed across specs.
 test.beforeEach(async () => {
+  test.skip(!snapshotExists(), 'Stage 9 plant snapshot missing — stage9 specs skip in CI.');
   const snap = loadSnapshot();
   const svc = serviceClient();
   await svc

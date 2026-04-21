@@ -29,6 +29,10 @@ export type Stage9Snapshot = {
   seeded_feedback_id: string;
 };
 
+export function snapshotExists(): boolean {
+  return fs.existsSync(SNAPSHOT_PATH);
+}
+
 export function loadSnapshot(): Stage9Snapshot {
   if (!fs.existsSync(SNAPSHOT_PATH)) {
     throw new Error(
