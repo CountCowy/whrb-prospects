@@ -2047,3 +2047,150 @@ Post-cleanup state:
 (trigger endpoint + GitHub Actions worker) unblocked once explicitly
 authorized.
 
+### Stage 9 CI fixup (PR #10, 2026-04-21)
+
+The Stage 9 work was verified locally (integrity 20/20 + e2e 13/13)
+but PR #10's CI e2e job surfaced two latent issues that did not appear
+in the local run because local and CI differ in which fixtures are
+planted.
+
+1. **`stage7_plant` error-window gate did not whitelist Stage 9
+   stimulus categories.** `whrb-web-ci.yml` plants Stage 7 fixtures
+   before Playwright and the plant's pre-mutation sanity check
+   (`_sanity_errors_since`) aborts on any `level in ('error','fatal')`
+   row since the Stage-6-exit baseline. Stage 9's work legitimately
+   produced 8 such rows — 7 `admin_user_invite_failed` (dev-SMTP
+   rate-limit from repeat invites) and 1 `source_failed` (transient
+   scraper 4xx) — all already whitelisted in Stage 9 T13 via
+   `stage9_integrity.T13_WHITELISTED_CATEGORIES`. Fix: mirror the
+   same whitelist (3 categories) in `stage7_plant.EXPECTED_STIMULUS_CATEGORIES`
+   and filter rows client-side before counting. Error message now
+   prints both the whitelist and up to 3 offending samples so a
+   genuinely unexpected category is easy to diagnose.
+   Commit: `871ad47` on `stage9/admin-console`.
+2. **`stage9.setup.ts` was not tolerant of a missing snapshot.** After
+   fix #1 let CI past the plant, Playwright's Stage 9 setup failed at
+   `loadSnapshot()` because CI does not plant Stage 9 fixtures (only
+   Stage 7). The Stage 9 PR already introduced a "missing snapshot →
+   `setup.skip()`" pattern on `stage7.setup.ts` for the symmetric
+   local case (Stage 7 specs skipping when Stage 9 is running). Fix:
+   apply the identical pattern to `stage9.setup.ts`. Net: in CI,
+   Stage 7 setup + specs run (fixtures planted by the workflow);
+   Stage 9 setup + specs skip gracefully. Locally (with Stage 9
+   fixtures planted via `stage9_plant.py`), the symmetry reverses —
+   same pattern, mirrored. Commit: `3a54a2e` on `stage9/admin-console`.
+
+Neither fix alters Stage 9 correctness; both are CI-environment
+adaptations that preserve the Stage 9 exit artefacts verbatim.
+**Stage 9 CI coverage is deliberately Stage 7 only** — Stage 9 e2e in
+CI is a Stage 10b polish candidate, not a Stage 9 requirement (see
+§19 round-8 clarifications: Stage 9 e2e exit criterion was "local
+run, 13 passed / 1 skipped").
+
+### Pre-Stage-10 prep (2026-04-21)
+
+Captured before Stage 10 implementation begins so decisions are
+durable across sessions. These supersede plan §8.4 where they
+conflict; formalised as a round-9 clarifications addendum in the
+parent plan (§20).
+
+**GitHub dispatch PAT provisioned.**
+- Secret name: `GH_DISPATCH_PAT` (GitHub repo secret, scope
+  `CountCowy/whrb-prospects` → Settings → Secrets and variables →
+  Actions).
+- Type: **fine-grained** personal access token.
+- Resource owner: `CountCowy`. Repository access: single repo
+  (`CountCowy/whrb-prospects`).
+- Permissions: `Contents: Read and write` (the fine-grained
+  equivalent of the scope the `POST /repos/{owner}/{repo}/dispatches`
+  endpoint requires), `Metadata: Read` (auto). All other scopes: No
+  access.
+- Issued: 2026-04-21. **Expires: 2026-07-20** (90-day window).
+  Rotated once on 2026-04-21 after an initial value was exposed in
+  a chat transcript; the second issuance kept the same 90-day
+  expiry. **Rotation reminder: regenerate + update both the repo
+  secret and the Supabase webhook header on or before 2026-07-20.**
+- Where the token value actually lives (for reference — do not
+  commit the value anywhere else):
+    1. GitHub repo secret `GH_DISPATCH_PAT` (consumed by the Stage 10
+       workflow when it calls repository_dispatch-driven steps).
+    2. Supabase (Edge Function secret per Path A, below) — the
+       pipeline-run webhook itself will no longer carry the PAT after
+       Stage 10 switches to the Edge Function proxy.
+
+**Supabase Database Webhook — plan-deviation for Stage 10.**
+
+Plan §8.4's assumption that the Dashboard exposes a free-form HTTP
+request body turned out to be wrong for the current Dashboard UI on
+WHRB dev (`kolfijjavwruwzctmnlx`). Two concrete gaps observed during
+setup:
+
+1. **Body is not user-templatable from the Dashboard.** The webhook
+   always posts the Supabase-managed envelope
+   `{ type, table, schema, record, old_record }`. GitHub's
+   `POST /repos/.../dispatches` requires `{ event_type, client_payload }`
+   and returns 422 for any other shape. A raw smoke insert
+   (`insert into pipeline_runs (status, args) values ('queued', '--smoke')`;
+   row id `ff294b04-82fa-4ce3-9a32-e823d559b024`) confirmed the 422:
+   `"\"old_record\", \"record\", \"schema\", \"table\", \"type\" are
+   not permitted keys.\n\"event_type\" wasn't supplied."`. The smoke
+   row was deleted and the current webhook was disabled pending the
+   redesign below.
+2. **"Conditions to send webhook: `status = 'queued'`" is not
+   exposed in the current Dashboard UI.** The plan expected this as
+   a webhook-level filter; we need the equivalent filter in code.
+
+**Decision — Path A (Edge Function proxy) adopted for Stage 10.**
+The Stage 10 implementation will:
+
+- Add a Supabase Edge Function
+  `whrb-web/supabase/functions/github-dispatch/index.ts` which:
+    - Receives the Supabase webhook envelope POST.
+    - Verifies an envelope shape (`type === 'INSERT'`,
+      `table === 'pipeline_runs'`, `record.status === 'queued'`);
+      short-circuits with 204 for any other envelope (this is how
+      the `status='queued'` filter is enforced in lieu of the
+      missing Dashboard control).
+    - POSTs `{ event_type: 'pipeline_run', client_payload: { pipeline_run_id: record.id } }`
+      to `https://api.github.com/repos/CountCowy/whrb-prospects/dispatches`
+      with `Authorization: token ${Deno.env.get('GH_DISPATCH_PAT')}`,
+      `Accept: application/vnd.github+json`,
+      `X-GitHub-Api-Version: 2022-11-28`.
+    - Returns GitHub's status upstream to `net._http_response` for
+      observability.
+- Re-point the existing `pipeline_run_dispatch` Database Webhook at
+  the Edge Function's invoke URL
+  (`https://kolfijjavwruwzctmnlx.supabase.co/functions/v1/github-dispatch`).
+  Replace the `Authorization` header with the Supabase anon key
+  (the Edge Function verifies itself, not the caller).
+- Store `GH_DISPATCH_PAT` as an **Edge Function secret**
+  (`supabase secrets set GH_DISPATCH_PAT=...`), not as a webhook
+  header — keeps the PAT off the webhook configuration surface.
+- Stage 10 integrity T01–T08 remain the end-to-end contract; only
+  the wiring between steps T01 ("Trigger run" → queued row) and T02
+  ("row flips to running") gains this intermediate Edge-Function
+  hop. Latency impact: sub-second — acceptable.
+
+Path B (Postgres trigger + `pg_net.http_post`) was evaluated and
+deferred: it would eliminate the Edge Function but make the
+dispatch invisible to Supabase's Function Logs and put a trigger on
+the hot insert path. Path A is preferred.
+
+**Cleanup at pre-prep close:**
+- Deleted: `pipeline_runs` row `ff294b04-82fa-4ce3-9a32-e823d559b024`
+  (smoke-test remnant).
+- Disabled (not deleted): the current Supabase Database Webhook
+  pointing at `api.github.com/...dispatches` — left in place so
+  Stage 10 can re-point rather than rebuild from scratch.
+- Workflow file `.github/workflows/run-pipeline.yml` — not yet
+  created (Stage 10 artefact, not Stage 9).
+
+**Open items still to confirm at Stage 10 kickoff (not Stage 9
+concerns):**
+- Two cron verifications: the one-time `*/10 * * * *` probe window
+  (plan §8.5) and revert to the plan's `0 8 1,15 * *` cadence.
+- Forced-failure probe (temp invalid `SUPABASE_URL`) to exercise the
+  `status='failed'` + `error` path.
+- Workflow concurrency key (`group: pipeline-run`) verified against
+  two rapid `queued` inserts.
+
