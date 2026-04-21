@@ -15,14 +15,20 @@ export type NoteRow = {
   prospect?: { id: string; company_name: string } | null;
 };
 
-export async function listNotesForProspect(prospectId: string): Promise<NoteRow[]> {
+export async function listNotesForProspect(
+  prospectId: string,
+  opts: { includeDeleted?: boolean } = {},
+): Promise<NoteRow[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from('prospect_notes')
     .select('*, author:profiles!author_id(id,email,display_name)')
-    .eq('prospect_id', prospectId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false });
+    .eq('prospect_id', prospectId);
+  if (!opts.includeDeleted) {
+    query = query.is('deleted_at', null);
+  }
+  query = query.order('created_at', { ascending: false });
+  const { data, error } = await query;
   if (error) throw error;
   return (data ?? []) as unknown as NoteRow[];
 }

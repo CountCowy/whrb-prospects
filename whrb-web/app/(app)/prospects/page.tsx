@@ -1,7 +1,10 @@
 import { SearchInput } from '@/components/SearchInput';
 import { FilterBar } from '@/components/FilterBar';
 import { ProspectTable } from '@/components/ProspectTable';
+import { AddProspectModal } from '@/components/AddProspectModal';
 import { listProspects, getFilterFacets, DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/queries/prospects';
+import { createClient } from '@/lib/supabase/server';
+import { getProfile } from '@/lib/queries/profiles';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,6 +48,13 @@ export default async function AllProspectsPage({
     assigned: firstString(sp.assigned) as 'true' | 'false' | undefined,
   };
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const me = user ? await getProfile(user.id) : null;
+  const isAdmin = me?.role === 'admin';
+
   const [facets, result] = await Promise.all([
     getFilterFacets(),
     listProspects({ filters, sort, page, pageSize }),
@@ -59,7 +69,10 @@ export default async function AllProspectsPage({
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">All Prospects</h1>
         </div>
-        <SearchInput />
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin ? <AddProspectModal /> : null}
+          <SearchInput />
+        </div>
       </div>
       <FilterBar
         tiers={facets.tiers}

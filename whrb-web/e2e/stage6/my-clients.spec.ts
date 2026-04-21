@@ -14,11 +14,17 @@ test.describe('Stage 6 — My Clients', () => {
     );
   });
 
-  test('T15 kanban view toggle shows Stage-7 placeholder, preserves table as default', async ({
+  test('T15 kanban view toggle (Stage 7 replaced placeholder with real board)', async ({
     page,
   }) => {
+    // Stage 7 shipped the real KanbanBoard — the Stage-6 placeholder
+    // (testid=kanban-placeholder) is gone. Empty state copy is now
+    // `kanban-empty-state` for unassigned users. View toggle still flips.
     await page.goto('/my?view=kanban');
-    await expect(page.getByTestId('kanban-placeholder')).toBeVisible();
     await expect(page.getByTestId('view-kanban')).toHaveAttribute('aria-selected', 'true');
+    const empty = page.getByTestId('kanban-empty-state');
+    const board = page.getByTestId('kanban-board');
+    const visible = (await empty.isVisible()) || (await board.isVisible());
+    expect(visible).toBe(true);
   });
 });

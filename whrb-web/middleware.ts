@@ -30,6 +30,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|whrb-logo.svg|robots.txt|sitemap.xml|api/log|api/feedback).*)',
+    '/((?!_next/static|_next/image|favicon.ico|whrb-logo.svg|robots.txt|sitemap.xml|api/).*)',
   ],
 };
