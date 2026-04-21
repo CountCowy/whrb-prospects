@@ -31,3 +31,7 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# Supabase CLI local artifacts (do not commit)
+supabase/.temp/
+supabase/.branches/

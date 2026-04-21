@@ -482,6 +482,7 @@ T13_WHITELISTED_CATEGORIES: tuple[str, ...] = (
     "admin_user_invite_failed",  # Supabase dev-SMTP over_email_send_rate_limit
     "source_failed",             # transient scraper failure — pipeline-level, not Stage 9
     "scrape_http",               # util/http.py retry-exhaustion event
+    "pipeline_run_failed",       # Stage 10 T04 forced-failure probe (round-10 §21.4 item 13)
 )
 
 
