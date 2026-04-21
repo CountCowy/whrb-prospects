@@ -2087,6 +2087,31 @@ CI is a Stage 10b polish candidate, not a Stage 9 requirement (see
 §19 round-8 clarifications: Stage 9 e2e exit criterion was "local
 run, 13 passed / 1 skipped").
 
+3. **Per-test fixture guard on the stage9 specs.** Commit 3a54a2e
+   made `stage9.setup.ts` tolerant, but the specs themselves still
+   called `loadSnapshot()` / referenced `stage9-rep.json` in test
+   bodies and `beforeEach`, so they crashed before the skip could
+   take effect. Fix: added `snapshotExists()` to `stage9/helpers.ts`
+   and placed `test.skip(!snapshotExists(), ...)` at the top of every
+   affected test (`feedback`, `non-admin-denied`, `users`) plus the
+   `users.spec.ts` `beforeEach`. In CI, those seven cases now skip
+   gracefully; locally with Stage 9 fixtures planted, behaviour is
+   unchanged. The three stage9 specs that never touch fixtures
+   (`sources`, `logs-and-runs`, `runs-button`) continue to run in
+   CI and provide the "stage9 surfaces are up" smoke. Commit:
+   `93dde94` on `stage9/admin-console`.
+4. **Stage 7 activity spec asserted on the DB column name, not the
+   UI label.** Latent since Stage 7: `activity.spec.ts` line 28
+   expected the literal `company_email` in the rendered Activity
+   entry, but `ActivityTab.fieldLabel` humanises `_` → ` `, so the
+   UI renders "changed company email from …". The test happened to
+   pass in the Stage 7 CI preview by coincidence of the then-picked
+   lock-matrix subject's prior values, then drifted as the dev DB
+   evolved through Stage 8/9. Corrected the expectation to the
+   rendered form (`'company email'`), added a one-line comment
+   explaining the humanisation, and scanned the other stage7/stage9
+   specs for the same pattern (no other matches). Commit: `93dde94`.
+
 ### Pre-Stage-10 prep (2026-04-21)
 
 Captured before Stage 10 implementation begins so decisions are
