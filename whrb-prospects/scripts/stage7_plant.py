@@ -20,8 +20,11 @@ Seeds:
 
 Pre-conditions verified before mutation:
   - Admin present (role='admin').
-  - event_log has 0 rows with level in ('error','fatal') since a documented
-    reference timestamp (recorded in the snapshot as started_at_iso).
+  - event_log has 0 *unexpected* rows with level in ('error','fatal') since a
+    documented reference timestamp. Known expected-stimulus categories
+    (EXPECTED_STIMULUS_CATEGORIES) are filtered out — these are produced by
+    later-stage test harnesses (dev-SMTP rate limit, pipeline scrape retries)
+    and are not Stage 7 correctness signals.
 
 Idempotent: re-running with an existing snapshot refuses; run
 stage7_cleanup.py first to start over.
@@ -56,6 +59,16 @@ STAGE7_REP_B = "stage7-rep-b@example.com"
 ADMIN_EMAIL = "kingyareh@gmail.com"
 
 CANONICAL_SEEDS = {"Boston Ballet", "Museum of Fine Arts", "Massachusetts Bay Transportation Authority"}
+
+# Mirrors stage9_integrity.T13_WHITELISTED_CATEGORIES. These categories are
+# expected stimuli of later-stage test harnesses (Stage 9's invite retries
+# hitting dev-SMTP rate limits; pipeline scrape retries emitting source_failed
+# / scrape_http on transient 4xx/5xx) and must not abort a Stage 7 plant.
+EXPECTED_STIMULUS_CATEGORIES: tuple[str, ...] = (
+    "admin_user_invite_failed",
+    "source_failed",
+    "scrape_http",
+)
 
 # The 15 lockable field names as defined in plan §16.3 item 9.
 LOCKABLE_FIELDS: tuple[str, ...] = (
@@ -185,15 +198,27 @@ def _seed_notes(client, author_id: str, prospect_id: str) -> list[str]:
     return planted
 
 
-def _sanity_errors_since(client, since_iso: str) -> int:
+def _sanity_errors_since(client, since_iso: str) -> tuple[int, list[str]]:
+    """Count error/fatal event_log rows since `since_iso`, excluding expected
+    stimulus categories. Returns (count, up-to-3-sample-strings) so the caller
+    can surface useful diagnostics when the gate trips.
+    """
     res = (
         client.table("event_log")
-        .select("id", count="exact", head=True)
+        .select("category,created_at")
         .in_("level", ["error", "fatal"])
         .gte("created_at", since_iso)
+        .order("created_at", desc=True)
+        .limit(200)
         .execute()
     )
-    return res.count or 0
+    rows = res.data or []
+    unexpected = [
+        r for r in rows
+        if (r.get("category") or "") not in EXPECTED_STIMULUS_CATEGORIES
+    ]
+    samples = [f"{r['created_at']} {r.get('category')}" for r in unexpected[:3]]
+    return len(unexpected), samples
 
 
 def main() -> int:
@@ -210,11 +235,13 @@ def main() -> int:
         raise SystemExit(f"admin profile missing: {ADMIN_EMAIL}")
 
     stage6_exit_iso = "2026-04-20T04:45:00Z"
-    err_count = _sanity_errors_since(client, stage6_exit_iso)
+    err_count, err_samples = _sanity_errors_since(client, stage6_exit_iso)
     if err_count != 0:
         raise SystemExit(
-            f"event_log has {err_count} error/fatal rows since {stage6_exit_iso}. "
-            "Investigate before planting."
+            f"event_log has {err_count} unexpected error/fatal rows since "
+            f"{stage6_exit_iso} "
+            f"(whitelist={list(EXPECTED_STIMULUS_CATEGORIES)}). "
+            f"Samples: {err_samples}. Investigate before planting."
         )
 
     rep_a_id = _create_rep(client, STAGE7_REP_A, FIXTURE_PASSWORD)

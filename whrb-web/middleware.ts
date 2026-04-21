@@ -9,13 +9,32 @@ function isPublic(path: string): boolean {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const { user, response } = await updateSession(request);
+  const { supabase, user, response } = await updateSession(request);
 
   if (!user && !isPublic(pathname)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/login';
     redirectUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(redirectUrl);
+  }
+
+  // Stage 9: deactivated accounts are signed out on their next request and
+  // redirected to /login?deactivated=1. This is the enforcement half of the
+  // /admin/users "Deactivate" control.
+  if (user && !isPublic(pathname)) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('deactivated_at')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (profile?.deactivated_at) {
+      await supabase.auth.signOut();
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = '/login';
+      redirectUrl.search = '';
+      redirectUrl.searchParams.set('deactivated', '1');
+      return NextResponse.redirect(redirectUrl);
+    }
   }
 
   if (user && pathname === '/login') {

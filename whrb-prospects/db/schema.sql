@@ -22,7 +22,10 @@ create table profiles (
   email text unique not null,
   display_name text,
   role text not null check (role in ('admin','rep')) default 'rep',
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  -- Stage 9 (002_profiles_deactivation.sql): non-null blocks sign-in via
+  -- whrb-web/middleware.ts. Cleared by /admin/users Reactivate.
+  deactivated_at timestamptz
 );
 
 -- 2) prospects: main table. Columns mirror pipeline.py::CSV_COLUMNS plus

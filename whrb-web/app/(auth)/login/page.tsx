@@ -1,10 +1,17 @@
 import { LoginForm } from './LoginForm';
 
-export default function LoginPage({
+export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; sent?: string; error?: string }>;
+  searchParams: Promise<{
+    next?: string;
+    sent?: string;
+    error?: string;
+    deactivated?: string;
+  }>;
 }) {
+  const params = await searchParams;
+  const deactivated = params.deactivated === '1';
   return (
     <div className="accent-gradient relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
       <div
@@ -25,6 +32,15 @@ export default function LoginPage({
             We&rsquo;ll email you a one-time magic link. Access is admin-invite
             only.
           </p>
+          {deactivated ? (
+            <div
+              role="alert"
+              data-testid="deactivated-banner"
+              className="mt-5 rounded-lg border border-[hsl(var(--destructive))]/30 bg-[hsl(var(--destructive))]/10 p-3 text-sm text-[hsl(var(--destructive))]"
+            >
+              Your account has been deactivated. Contact an admin to restore access.
+            </div>
+          ) : null}
           <div className="mt-6">
             <LoginForm searchParams={searchParams} />
           </div>

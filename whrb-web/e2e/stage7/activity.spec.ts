@@ -25,7 +25,9 @@ test('stage7-t12-t16 field edit surfaces in Activity + sort toggle', async ({ br
 
   await page.getByTestId('tab-activity').click();
   const latest = page.getByTestId('activity-entry').first();
-  await expect(latest).toContainText('company_email');
+  // ActivityTab humanizes the field name (underscores → spaces), so assert
+  // against the rendered form, not the DB column name.
+  await expect(latest).toContainText('company email');
 
   // Sort toggle
   await page.getByTestId('activity-sort-toggle').click();
