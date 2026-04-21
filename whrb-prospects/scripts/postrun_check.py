@@ -21,7 +21,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 from supabase import create_client

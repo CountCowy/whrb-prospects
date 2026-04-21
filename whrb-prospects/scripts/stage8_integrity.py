@@ -24,7 +24,6 @@ import random
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from dotenv import load_dotenv
 from supabase import create_client

@@ -63,7 +63,7 @@ def _mint_url(email: str, base_url: str) -> str:
             raise RuntimeError(
                 f"Could not extract hashed_token from generate_link response: {exc!r} "
                 f"(payload type={type(link).__name__})"
-            )
+            ) from exc
     verified = anon.auth.verify_otp({"token_hash": token_hash, "type": "magiclink"})
     session = getattr(verified, "session", None)
     if session is None and isinstance(verified, dict):

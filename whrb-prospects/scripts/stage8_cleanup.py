@@ -62,7 +62,6 @@ def _restore_pickup(client, entries: list[dict]) -> int:
         client.table("prospects").update(
             {
                 "assigned_to": e.get("pre_assigned_to"),
-                "assigned_at": None if e.get("pre_assigned_to") is None else None,
                 "state": e.get("pre_state"),
             }
         ).eq("id", e["row_id"]).execute()
