@@ -6,7 +6,12 @@ import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 
 interface Props {
-  searchParams: Promise<{ next?: string; sent?: string; error?: string }>;
+  searchParams: Promise<{
+    next?: string;
+    sent?: string;
+    error?: string;
+    deactivated?: string;
+  }>;
 }
 
 export function LoginForm({ searchParams }: Props) {
