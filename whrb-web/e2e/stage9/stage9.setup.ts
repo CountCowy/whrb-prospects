@@ -77,29 +77,43 @@ async function landMagiclink({
 
 setup('stage9 · authenticate admin + synthetic rep', async ({ page, baseURL }) => {
   if (!baseURL) throw new Error('baseURL must be set in playwright.config.ts');
-  const snap = loadSnapshot();
+  // CI does not plant Stage 9 fixtures — only the local integrity run
+  // does. If the stage9 snapshot is absent, skip gracefully (mirrors the
+  // stage7 setup tolerance that landed in the Stage 9 PR). The stage9
+  // specs themselves still fail fast via loadSnapshot() when they
+  // actually need it.
+  try {
+    const snap = loadSnapshot();
 
-  // Reset the synthetic rep to a clean state so repeated Playwright runs
-  // are idempotent (prior runs may leave the rep deactivated or elevated
-  // to admin).
-  const service = createClient(
-    requireEnv('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'),
-    requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
-  await service
-    .from('profiles')
-    .update({ role: 'rep', deactivated_at: null })
-    .eq('id', snap.synthetic_rep_id);
+    // Reset the synthetic rep to a clean state so repeated Playwright runs
+    // are idempotent (prior runs may leave the rep deactivated or elevated
+    // to admin).
+    const service = createClient(
+      requireEnv('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'),
+      requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    await service
+      .from('profiles')
+      .update({ role: 'rep', deactivated_at: null })
+      .eq('id', snap.synthetic_rep_id);
 
-  await landMagiclink({ page, baseURL, email: ADMIN_EMAIL, storagePath: ADMIN_STORAGE });
-  await page.context().clearCookies();
-  await landMagiclink({
-    page,
-    baseURL,
-    email: snap.synthetic_rep_email,
-    storagePath: REP_STORAGE,
-  });
+    await landMagiclink({ page, baseURL, email: ADMIN_EMAIL, storagePath: ADMIN_STORAGE });
+    await page.context().clearCookies();
+    await landMagiclink({
+      page,
+      baseURL,
+      email: snap.synthetic_rep_email,
+      storagePath: REP_STORAGE,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('stage9_snapshot.json')) {
+      setup.skip(true, 'Stage 9 plant snapshot missing — stage9 specs will skip.');
+      return;
+    }
+    throw err;
+  }
 });
 
 export { ADMIN_STORAGE, REP_STORAGE };
