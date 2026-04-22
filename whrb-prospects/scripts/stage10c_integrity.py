@@ -23,12 +23,10 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
 
-import requests
 from dotenv import load_dotenv
 from supabase import create_client
 
