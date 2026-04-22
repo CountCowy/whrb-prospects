@@ -62,6 +62,10 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           EVENT_NAME: ${{ github.event_name }}
           DISPATCH_RUN_ID: ${{ github.event.client_payload.pipeline_run_id }}
+          # Stage 10c: stamp github.run_id onto the pipeline_runs row so the
+          # cancel API can target POST /repos/.../actions/runs/{id}/cancel
+          # when admins cancel a running workflow.
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           python - <<'PY'
           import os, sys, json
@@ -70,6 +74,7 @@ jobs:
           url = os.environ['SUPABASE_URL']
           key = os.environ['SUPABASE_SERVICE_ROLE_KEY']
           event = os.environ['EVENT_NAME']
+          gh_run_id = int(os.environ.get('GITHUB_RUN_ID') or 0) or None
           sb = create_client(url, key)
           now = datetime.now(tz=timezone.utc).isoformat()
           run_id = None
@@ -80,10 +85,13 @@ jobs:
                   sys.exit(1)
               # Flip the queued row to running. If the row doesn't exist or is
               # already running/success/failed, surface the discrepancy and exit.
-              res = sb.table('pipeline_runs').update({
+              update_patch = {
                   'status': 'running',
                   'started_at': now,
-              }).eq('id', run_id).eq('status', 'queued').execute()
+              }
+              if gh_run_id is not None:
+                  update_patch['github_run_id'] = gh_run_id
+              res = sb.table('pipeline_runs').update(update_patch).eq('id', run_id).eq('status', 'queued').execute()
               if not res.data:
                   print(f'::warning::no queued row matched id={run_id}; continuing for forensic trace', file=sys.stderr)
           else:
@@ -91,19 +99,36 @@ jobs:
               # the Edge Function (which filters on status='queued') never
               # re-dispatches and creates a loop.
               args_str = '--scheduled' if event == 'schedule' else '--manual'
-              res = sb.table('pipeline_runs').insert({
+              insert_row = {
                   'status': 'running',
                   'started_at': now,
                   'triggered_by': None,
                   'args': args_str,
-              }).execute()
+              }
+              if gh_run_id is not None:
+                  insert_row['github_run_id'] = gh_run_id
+              res = sb.table('pipeline_runs').insert(insert_row).execute()
               run_id = (res.data[0] if res.data else {}).get('id')
               if not run_id:
                   print('::error::failed to insert pipeline_runs row', file=sys.stderr)
                   sys.exit(1)
-          print(f'[pipeline_runs] run_id={run_id}')
+          # Stage 10c: read back the `args` column for repository_dispatch so
+          # the Run pipeline step below can honor admin-selected flags.
+          # Schedule / workflow_dispatch paths keep the hardcoded --with-hic
+          # invocation (those `args` values are markers like '--scheduled',
+          # not real pipeline.py flags).
+          args_out = ''
+          if event == 'repository_dispatch':
+              fetched = sb.table('pipeline_runs').select('args').eq('id', run_id).single().execute()
+              raw = (fetched.data or {}).get('args') or ''
+              # Defensive: strip the --stage10c-fixture sentinel if it
+              # slipped through the dispatch-skip trigger.
+              tokens = [t for t in raw.split() if t and t != '--stage10c-fixture']
+              args_out = ' '.join(tokens)
+          print(f'[pipeline_runs] run_id={run_id} github_run_id={gh_run_id} args={args_out!r}')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f'run_id={run_id}\n')
+              f.write(f'args={args_out}\n')
           PY
 
       - name: Run pipeline
@@ -118,11 +143,25 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ (github.event_name == 'workflow_dispatch' && inputs.force_fail == true) && 'invalid' || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           WHRB_PIPELINE_RUN_ID: ${{ steps.runrow.outputs.run_id }}
+          # Stage 10c: admin-selected flags from /admin/runs (empty for
+          # schedule / workflow_dispatch paths; defaults to --with-hic below).
+          PIPELINE_ARGS_RAW: ${{ steps.runrow.outputs.args }}
+          EVENT_NAME: ${{ github.event_name }}
           PYTHONUNBUFFERED: '1'
         run: |
           set -o pipefail
           mkdir -p cache
-          python pipeline.py --with-hic 2>&1 | tee cache/pipeline.log
+          # Stage 10c: honor admin-selected args on repository_dispatch.
+          # Every token in PIPELINE_ARGS_RAW is server-side whitelist-validated
+          # so word-splitting is safe. Empty args → legacy `--with-hic`.
+          if [ "$EVENT_NAME" = "repository_dispatch" ] && [ -n "$PIPELINE_ARGS_RAW" ]; then
+            echo "[run-pipeline] invoking: python pipeline.py $PIPELINE_ARGS_RAW"
+            # shellcheck disable=SC2086  # intentional word-split on validated argv
+            python pipeline.py $PIPELINE_ARGS_RAW 2>&1 | tee cache/pipeline.log
+          else
+            echo "[run-pipeline] invoking: python pipeline.py --with-hic (legacy)"
+            python pipeline.py --with-hic 2>&1 | tee cache/pipeline.log
+          fi
 
       - name: Finalize pipeline_runs row
         if: always()

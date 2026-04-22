@@ -18,6 +18,11 @@ const STATE_VALUES = [
   'dead',
 ] as const;
 
+// Stage 10c: cap on the preview.ids list + the ids-apply body length.
+const MAX_IDS = 5000;
+// Stage 10c: supported page sizes for the paginated preview table.
+const PAGE_SIZES = [25, 50, 100, 250] as const;
+
 const Filter = z.object({
   q: z.string().optional(),
   tier: z.string().optional(),
@@ -46,12 +51,45 @@ const DeletePayload = z.object({
   action: z.literal('delete'),
   payload: z.object({ confirm: z.literal('DELETE') }),
 });
+const ActionPayload = z.union([AssignPayload, StatePayload, TierPayload, DeletePayload]);
 
-const Body = z.intersection(
-  z.object({ filter: Filter, preview: z.boolean().optional() }),
-  z.union([AssignPayload, StatePayload, TierPayload, DeletePayload]),
+// Stage 10c: preview body is the filter + optional page / pageSize selector.
+const PreviewBody = z.intersection(
+  z.object({
+    filter: Filter,
+    preview: z.literal(true),
+    page: z.number().int().min(0).max(1000).optional(),
+    pageSize: z
+      .number()
+      .int()
+      .refine((v) => (PAGE_SIZES as readonly number[]).includes(v), {
+        message: `pageSize must be one of ${PAGE_SIZES.join(', ')}`,
+      })
+      .optional(),
+  }),
+  ActionPayload,
 );
 
+// Stage 10b body: apply against the filter's full match set.
+const FilterApplyBody = z.intersection(
+  z.object({ filter: Filter, preview: z.literal(false).optional() }),
+  ActionPayload,
+);
+
+// Stage 10c body: apply against an explicit ids list (bypasses filter).
+const IdsApplyBody = z.intersection(
+  z.object({
+    ids: z
+      .array(z.string().uuid())
+      .min(1)
+      .max(MAX_IDS),
+    filter: Filter.optional(),
+    preview: z.literal(false).optional(),
+  }),
+  ActionPayload,
+);
+
+const Body = z.union([PreviewBody, IdsApplyBody, FilterApplyBody]);
 type ParsedBody = z.infer<typeof Body>;
 
 const SEARCH_FIELDS = [
@@ -66,10 +104,6 @@ const SEARCH_FIELDS = [
   'source',
 ];
 
-// The type narrowing of the PostgREST query builder chain across conditional
-// `.eq/.or/.ilike/.not/.is` calls is hostile to TS inference; treat the
-// incoming filter builder as `any` at the helper boundary. Each specific
-// method call still goes through supabase-js's runtime validation.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applyFilter(qb: any, filter: z.infer<typeof Filter>): any {
   let q = qb;
@@ -90,6 +124,14 @@ function applyFilter(qb: any, filter: z.infer<typeof Filter>): any {
   if (filter.assigned === 'true') q = q.not('assigned_to', 'is', null);
   return q;
 }
+
+type MatchedRow = {
+  id: string;
+  assigned_to: string | null;
+  company_name: string;
+  tier: string | null;
+  state: string;
+};
 
 export async function POST(req: Request) {
   const authz = await getAuthed();
@@ -116,41 +158,111 @@ export async function POST(req: Request) {
   }
   const body: ParsedBody = parsed.data;
 
-  const preview = 'preview' in body && body.preview === true;
+  const isPreview = 'preview' in body && body.preview === true;
   const service = createServiceClient();
 
-  const selectQ = applyFilter(
-    service.from('prospects').select('id,assigned_to,company_name,tier,state', { count: 'exact' }),
-    body.filter,
-  );
-  const { data: matched, count, error: selErr } = await selectQ;
-  if (selErr) {
-    await logEvent({
-      source: 'web_server',
-      level: 'error',
-      category: 'api_exception',
-      message: 'bulk preview select failed',
-      context: { code: selErr.code, message: selErr.message, filter: body.filter },
-      userId: authz.user.id,
-    });
-    return NextResponse.json({ error: selErr.message }, { status: 500 });
-  }
-  const matchedRows = (matched ?? []) as Array<{
-    id: string;
-    assigned_to: string | null;
-    company_name: string;
-    tier: string | null;
-    state: string;
-  }>;
-  const totalCount = count ?? matchedRows.length;
-  const ids = matchedRows.map((r) => r.id);
+  // ---------------- Preview branch (Stage 10c paginated) ----------------
+  if (isPreview) {
+    const pageSize = body.pageSize ?? 25;
+    const page = body.page ?? 0;
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
 
-  if (preview) {
+    // Full id+count query — capped at MAX_IDS. Using id-only for the cap
+    // scan keeps memory bounded even if a filter matches millions.
+    const { data: idsData, count, error: idsErr } = await applyFilter(
+      service.from('prospects').select('id', { count: 'exact' }),
+      body.filter,
+    ).range(0, MAX_IDS - 1);
+    if (idsErr) {
+      return NextResponse.json({ error: idsErr.message }, { status: 500 });
+    }
+    const totalCount = count ?? (idsData ?? []).length;
+    const ids = ((idsData ?? []) as Array<{ id: string }>).map((r) => r.id);
+    const countExceeded = totalCount > MAX_IDS;
+
+    // Page slice with richer columns for the table render.
+    const { data: rows, error: rowsErr } = await applyFilter(
+      service.from('prospects').select('id,assigned_to,company_name,tier,state'),
+      body.filter,
+    )
+      .order('company_name', { ascending: true })
+      .range(from, to);
+    if (rowsErr) {
+      return NextResponse.json({ error: rowsErr.message }, { status: 500 });
+    }
+
     return NextResponse.json({
       ok: true,
       count: totalCount,
-      sample: matchedRows.slice(0, 10),
+      ids,
+      rows: (rows ?? []) as MatchedRow[],
+      page,
+      pageSize,
+      countExceeded,
+      // kept for backward compatibility with any Stage 10b probe; new UI
+      // reads `rows` directly.
+      sample: ((rows ?? []) as MatchedRow[]).slice(0, 10),
     });
+  }
+
+  // ---------------- Apply branches ----------------
+  let ids: string[];
+  let matchedRows: MatchedRow[];
+
+  if ('ids' in body && body.ids) {
+    // Stage 10c selection-basket apply. Fetch notif context rows by ids.
+    ids = body.ids;
+    const { data: fetched, error: fErr } = await service
+      .from('prospects')
+      .select('id,assigned_to,company_name,tier,state')
+      .in('id', ids);
+    if (fErr) {
+      await logEvent({
+        source: 'web_server',
+        level: 'error',
+        category: 'api_exception',
+        message: 'bulk ids-apply fetch failed',
+        context: { code: fErr.code, message: fErr.message, ids_count: ids.length },
+        userId: authz.user.id,
+      });
+      return NextResponse.json({ error: fErr.message }, { status: 500 });
+    }
+    matchedRows = (fetched ?? []) as MatchedRow[];
+    // Drop any ids that no longer exist (e.g. deleted between preview + apply).
+    const existing = new Set(matchedRows.map((r) => r.id));
+    ids = ids.filter((x) => existing.has(x));
+  } else {
+    // Stage 10b filter-based apply. Fetch all matched rows up to MAX_IDS.
+    // `body.filter` is required on FilterApplyBody but TS's union narrowing
+    // after the `'ids' in body` check can still see an optional — fall back
+    // to an empty filter which applyFilter handles as a no-op.
+    const filterForApply = body.filter ?? {};
+    const { data: matched, count, error: selErr } = await applyFilter(
+      service.from('prospects').select('id,assigned_to,company_name,tier,state', { count: 'exact' }),
+      filterForApply,
+    ).range(0, MAX_IDS - 1);
+    if (selErr) {
+      await logEvent({
+        source: 'web_server',
+        level: 'error',
+        category: 'api_exception',
+        message: 'bulk preview select failed',
+        context: { code: selErr.code, message: selErr.message, filter: filterForApply },
+        userId: authz.user.id,
+      });
+      return NextResponse.json({ error: selErr.message }, { status: 500 });
+    }
+    matchedRows = (matched ?? []) as MatchedRow[];
+    if ((count ?? matchedRows.length) > MAX_IDS) {
+      return NextResponse.json(
+        {
+          error: `Filter matches ${count ?? matchedRows.length} rows — exceeds ${MAX_IDS} cap. Narrow the filter or switch to selection mode.`,
+        },
+        { status: 400 },
+      );
+    }
+    ids = matchedRows.map((r) => r.id);
   }
 
   if (ids.length === 0) {
@@ -172,9 +284,9 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    // Fan out notifications. To avoid spam: group by recipient and insert one row per (recipient, prospect).
     const fanouts: Array<() => Promise<unknown>> = [];
     for (const row of matchedRows) {
+      if (!ids.includes(row.id)) continue;
       if (newAssignee && newAssignee !== row.assigned_to) {
         fanouts.push(() =>
           notify({
@@ -232,6 +344,7 @@ export async function POST(req: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const via = 'ids' in body && body.ids ? 'ids' : 'filter';
   await logEvent({
     source: 'web_server',
     level: 'info',
@@ -239,13 +352,14 @@ export async function POST(req: Request) {
     message: `bulk ${body.action} on ${ids.length} prospects`,
     context: {
       action: body.action,
-      filter: body.filter,
+      filter: 'filter' in body ? body.filter : null,
       count: ids.length,
       ids,
       payload: body.payload,
+      via,
     },
     userId: authz.user.id,
   });
 
-  return NextResponse.json({ ok: true, count: ids.length, action: body.action });
+  return NextResponse.json({ ok: true, count: ids.length, action: body.action, via });
 }
