@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getAuthed } from '@/lib/server/authz';
 import { createClient } from '@/lib/supabase/server';
 import { NotificationPreferencesForm } from '@/components/NotificationPreferencesForm';
+import { SignOutButton } from '@/components/SignOutButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,20 @@ export default async function NotificationsPreferencesPage() {
         </p>
       </div>
       <NotificationPreferencesForm initial={initial} />
+
+      <section
+        data-testid="settings-account"
+        className="mt-8 rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-sm"
+      >
+        <h2 className="text-sm font-semibold">Account</h2>
+        <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
+          Signed in as{' '}
+          <span className="font-medium text-[hsl(var(--foreground))]">{authz.user.email}</span>.
+        </p>
+        <div className="mt-4">
+          <SignOutButton variant="settings" testId="settings-sign-out" />
+        </div>
+      </section>
     </div>
   );
 }

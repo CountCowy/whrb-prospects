@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
-import { createClient } from '@/lib/supabase/client';
+import { SignOutButton } from '@/components/SignOutButton';
 
 const TABS = [
   { href: '/', label: 'Home' },
@@ -24,16 +24,8 @@ export function Nav({
   initialUnreadCount: number;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const tabs = isAdmin ? [...TABS, { href: '/admin/sources', label: 'Admin' }] : TABS;
-
-  async function signOut() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
-  }
 
   const settingsIcon = (
     <svg
@@ -55,38 +47,6 @@ export function Nav({
   return (
     <header className="sticky top-0 z-40 border-b border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))]/80 backdrop-blur-md supports-[backdrop-filter]:bg-[hsl(var(--background))]/70">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:px-6">
-        <button
-          type="button"
-          onClick={() => setDrawerOpen((v) => !v)}
-          aria-label="Toggle navigation menu"
-          aria-expanded={drawerOpen}
-          className="rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] md:hidden"
-          data-testid="nav-hamburger"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            {drawerOpen ? (
-              <>
-                <path d="M6 6l12 12" />
-                <path d="M6 18L18 6" />
-              </>
-            ) : (
-              <>
-                <path d="M4 6h16" />
-                <path d="M4 12h16" />
-                <path d="M4 18h16" />
-              </>
-            )}
-          </svg>
-        </button>
         <Link href="/" className="flex items-center gap-2" aria-label="WHRB Sales home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/whrb-logo.svg" alt="WHRB" className="h-7 w-auto" />
@@ -116,20 +76,53 @@ export function Nav({
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
           <NotificationBell userId={userId} initialUnread={initialUnreadCount} />
+          {/* Settings gear + Sign out are desktop-only on the nav.
+              On mobile the settings link lives inside the hamburger drawer
+              and sign-out is available at /settings/notifications. */}
           <Link
             href="/settings/notifications"
             aria-label="Settings"
-            className="rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+            className="hidden rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] md:inline-flex"
           >
             {settingsIcon}
           </Link>
           <ThemeToggle />
+          <div className="hidden md:inline-flex">
+            <SignOutButton variant="nav" testId="nav-sign-out" />
+          </div>
+          {/* Mobile hamburger — right-aligned (after bell + theme). Opens a
+              drawer with tabs + Settings link + Sign-out. */}
           <button
             type="button"
-            onClick={signOut}
-            className="rounded-md border border-[hsl(var(--border))] bg-transparent px-3 py-1.5 text-sm font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+            onClick={() => setDrawerOpen((v) => !v)}
+            aria-label="Toggle navigation menu"
+            aria-expanded={drawerOpen}
+            className="rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] md:hidden"
+            data-testid="nav-hamburger"
           >
-            Sign out
+            <svg
+              viewBox="0 0 24 24"
+              width="22"
+              height="22"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
+              {drawerOpen ? (
+                <>
+                  <path d="M6 6l12 12" />
+                  <path d="M6 18L18 6" />
+                </>
+              ) : (
+                <>
+                  <path d="M4 6h16" />
+                  <path d="M4 12h16" />
+                  <path d="M4 18h16" />
+                </>
+              )}
+            </svg>
           </button>
         </div>
       </div>
@@ -139,7 +132,7 @@ export function Nav({
           className="border-t border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))] md:hidden"
           data-testid="nav-mobile-drawer"
         >
-          <ul className="flex flex-col p-2">
+          <ul className="flex flex-col gap-1 p-2">
             {tabs.map((tab) => {
               const active =
                 tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
@@ -161,6 +154,23 @@ export function Nav({
               );
             })}
           </ul>
+          <div className="border-t border-[hsl(var(--border-subtle))] p-2">
+            <Link
+              href="/settings/notifications"
+              onClick={() => setDrawerOpen(false)}
+              data-testid="nav-mobile-settings"
+              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                pathname.startsWith('/settings')
+                  ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
+                  : 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]'
+              }`}
+            >
+              <span className="inline-flex h-4 w-4 items-center justify-center">
+                {settingsIcon}
+              </span>
+              <span>Settings</span>
+            </Link>
+          </div>
         </nav>
       ) : null}
     </header>
