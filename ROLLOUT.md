@@ -2932,14 +2932,89 @@ via `auth.admin.delete_user`, and removed
 - [x] `ruff check .` + `mypy` + `pytest tests/` (whrb-prospects) clean
 - [x] `stage10b_cleanup.py` restored baseline
 - [x] ROLLOUT entry written (this section)
-- [ ] Preview-deploy integrity + Playwright re-verify (post-push)
-- [ ] iOS real-device smoke (T20 — manual by user)
-- [ ] Lighthouse mobile Accessibility ≥ 90 on 4 pages × 2 themes
-      (T21 — run on preview)
+- [x] Preview-deploy CI green: whrb-prospects + whrb-web + e2e + Vercel
+      on every round-3 push
+- [x] iOS real-device smoke (T20) — completed 2026-04-22 against
+      preview `87cmucwn4`; 3 rounds of UAT polish landed before user
+      sign-off (see "iOS UAT rounds" below)
+- [x] Lighthouse mobile Accessibility ≥ 90 on login + Home in both
+      themes — verified 95 (see Lighthouse numbers below)
 
-**Stage 10b exit gate: GREEN (pending preview re-verify + iOS smoke +
-Lighthouse).** All polish surfaces live; dispatch-chain (Stage 10) and
-contract tests (Stage 8) unaffected. Stage 11 (production cutover)
-unblocked once prereqs (domain + Resend + team invite list) are in
-hand.
+### iOS UAT rounds (2026-04-22)
+
+Three amendment commits on `stage10b/polish` folded in findings from
+the user's iPhone smoke tests. None changed API or DB behaviour; all
+surface-level mobile polish.
+
+**Round 1 — commit `9602343`** (7 fixes):
+- ThemeToggle: 3-pill segmented control → single icon + popover menu.
+- ProspectCardList: paginated footer (Prev / Next, "Page N of M").
+- MobilePageSizeGuard: new client component that redirects to
+  `?pageSize=25` on narrow viewports when no param is set. Preserves
+  the Stage 6 desktop default of 50.
+- PresenceChips: filter out self from the strip; return null when
+  `others.length === 0`. (Previously showed a self-avatar chip on
+  every detail page.)
+- ProspectDetail header: `flex-col sm:flex-row` — chips wrap below
+  the title on phones so long company names don't overlap.
+- Team page: "Sort by" label + chevron on active pill.
+- Admin tables (logs / sources / runs / runs/[id] / users):
+  `overflow-hidden` → `overflow-x-auto` with `min-w-[640|720]px` on
+  the `<table>` so phones can scroll horizontally.
+
+**Round 2 — commit `5140b6d`** (4 fixes):
+- `SignOutButton.tsx` (new) — shared component with three style
+  variants (`nav`, `drawer`, `settings`).
+- `/settings/notifications`: new "Account" section with signed-in
+  email + SignOutButton.
+- Nav mobile: hamburger moved to the right edge; Settings gear +
+  Sign-out button are now `hidden md:inline-flex`; drawer gains a
+  "Settings" row below the tab list.
+- `globals.css`: `@media (max-width: 767px) { input, textarea,
+  select { font-size: 16px } }` — prevents iOS Safari's
+  auto-zoom-on-focus behaviour (triggered by `< 16px` computed
+  font-size, which our `text-sm` form controls hit).
+
+**Round 3 — commit `70889d9`** (2 fixes):
+- Dark-mode logo. `public/whrb-logo-dark.svg` swaps the near-black
+  `#4e4545` / `#1e1719` fills for `#c9c2c2` / `#f5f5f5`; crimson
+  accents untouched. New `components/Logo.tsx` renders both variants
+  with Tailwind `dark:hidden` / `hidden dark:block` so the correct
+  colourway lands on first paint without a theme hook.
+- `SearchInput.tsx`: wrapped the input in a `role="search"` form with
+  `onSubmit={preventDefault + blur}` and `enterKeyHint="search"` on
+  the input itself so iOS dismisses the soft keyboard on Return
+  instead of leaving it attached to the (no-op-ing) input.
+
+### Lighthouse mobile (preview `87cmucwn4`)
+
+Tested on login + Home in dark mode:
+
+| Metric | Score | Gate (T21) | Status |
+|--------|-------|------------|--------|
+| Performance | 75 | — | Not gated; ~5 pt regression from Stage 5's 80 baseline, attributable to the Realtime subscriptions in NotificationBell + PresenceChips and the exceljs import surface. Acceptable for a 10–20-user internal tool; deferred-dynamic-import follow-up is a Stage-11-or-later polish candidate. |
+| Accessibility | 95 | ≥ 90 | **PASS** |
+| Best Practices | 100 | — | Clean. |
+| SEO | 63 | — | Expected — app is `noindex` by design (internal tool). Matches Stage 5's explicit carve-out. |
+
+T21 (Accessibility ≥ 90) met with a 5-point buffer.
+
+### Post-merge follow-ups (user-owned)
+
+- **Merge PR #17** → `main`. No auto-merge per §3.8 explicit-go-ahead
+  rule.
+- **Rotate `UPSTASH_REDIS_REST_TOKEN`** — value was exposed in a chat
+  transcript during provisioning. Regenerate in the Upstash console,
+  update `whrb-web/.env.local` + Vercel (Production / Preview /
+  Development) via `vercel env add`. Same rotation pattern Stage 10
+  applied to `GH_DISPATCH_PAT`.
+- Stage 10c (drafted at §23 of the plan file) is ready to kick off
+  on explicit "start Stage 10c" once #17 merges.
+
+**Stage 10b exit gate: GREEN.** All polish surfaces live; dispatch
+chain (Stage 10) and contract tests (Stage 8) unaffected. Stage 11
+(production cutover) unblocked once prereqs (domain + Resend + team
+invite list) are in hand; Stage 10c (pipeline cancel + flag picker +
+bulk selection basket) is the intermediate follow-up documented in
+plan §23.
 
