@@ -113,6 +113,12 @@ create table pipeline_runs (
   rows_upserted int,
   error text,
   args text,
+  -- Stage 10c: GitHub Actions workflow run ID (nullable). Added by
+  -- migration 005_pipeline_runs_github_run_id.sql; populated by
+  -- .github/workflows/run-pipeline.yml when transitioning queued→running.
+  -- Used by /api/pipeline/run/[id]/cancel to target the workflow run via
+  -- POST /repos/.../actions/runs/{id}/cancel.
+  github_run_id bigint,
   created_at timestamptz default now()
 );
 

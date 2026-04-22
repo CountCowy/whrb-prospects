@@ -6,11 +6,32 @@ import { logEvent } from '@/lib/logging/server';
 
 export const runtime = 'nodejs';
 
+// Stage 10c: tightly-scoped argv whitelist. Any token outside this set → 400.
+// Order of canonicalisation matches this array so `pipeline_runs.args` is
+// stable across runs that pass the same flag set in different orders.
+const FLAG_WHITELIST = ['--dry', '--with-hic', '--with-bbb', '--fresh', '--no-supabase'] as const;
+const FLAG_SET = new Set<string>(FLAG_WHITELIST);
+
 const Body = z
   .object({
     args: z.string().max(200).optional(),
   })
   .strict();
+
+function canonicaliseArgs(raw: string): { ok: true; args: string } | { ok: false; bad: string } {
+  const tokens = raw
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  for (const t of tokens) {
+    if (!FLAG_SET.has(t)) {
+      return { ok: false, bad: t };
+    }
+  }
+  // Canonical order + de-dupe.
+  const picked = FLAG_WHITELIST.filter((f) => tokens.includes(f));
+  return { ok: true, args: picked.join(' ') };
+}
 
 export async function POST(req: Request) {
   const authz = await getAuthed();
@@ -38,13 +59,27 @@ export async function POST(req: Request) {
     );
   }
 
+  let canonicalArgs: string | null = null;
+  if (parsed.data.args && parsed.data.args.trim()) {
+    const c = canonicaliseArgs(parsed.data.args);
+    if (!c.ok) {
+      return NextResponse.json(
+        {
+          error: `Unknown flag "${c.bad}". Allowed: ${FLAG_WHITELIST.join(', ')}`,
+        },
+        { status: 400 },
+      );
+    }
+    canonicalArgs = c.args || null;
+  }
+
   const service = createServiceClient();
   const { data, error } = await service
     .from('pipeline_runs')
     .insert({
       status: 'queued',
       triggered_by: authz.user.id,
-      args: parsed.data.args ?? null,
+      args: canonicalArgs,
     })
     .select('id')
     .single();
@@ -66,9 +101,9 @@ export async function POST(req: Request) {
     level: 'info',
     category: 'pipeline_run_enqueued',
     message: `pipeline run ${data.id} enqueued`,
-    context: { pipeline_run_id: data.id, args: parsed.data.args ?? null },
+    context: { pipeline_run_id: data.id, args: canonicalArgs },
     userId: authz.user.id,
   });
 
-  return NextResponse.json({ pipeline_run_id: data.id }, { status: 201 });
+  return NextResponse.json({ pipeline_run_id: data.id, args: canonicalArgs }, { status: 201 });
 }

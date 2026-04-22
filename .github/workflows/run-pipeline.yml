@@ -62,6 +62,10 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           EVENT_NAME: ${{ github.event_name }}
           DISPATCH_RUN_ID: ${{ github.event.client_payload.pipeline_run_id }}
+          # Stage 10c: stamp github.run_id onto the pipeline_runs row so the
+          # cancel API can target POST /repos/.../actions/runs/{id}/cancel
+          # when admins cancel a running workflow.
+          GITHUB_RUN_ID: ${{ github.run_id }}
         run: |
           python - <<'PY'
           import os, sys, json
@@ -70,6 +74,7 @@ jobs:
           url = os.environ['SUPABASE_URL']
           key = os.environ['SUPABASE_SERVICE_ROLE_KEY']
           event = os.environ['EVENT_NAME']
+          gh_run_id = int(os.environ.get('GITHUB_RUN_ID') or 0) or None
           sb = create_client(url, key)
           now = datetime.now(tz=timezone.utc).isoformat()
           run_id = None
@@ -80,10 +85,13 @@ jobs:
                   sys.exit(1)
               # Flip the queued row to running. If the row doesn't exist or is
               # already running/success/failed, surface the discrepancy and exit.
-              res = sb.table('pipeline_runs').update({
+              update_patch = {
                   'status': 'running',
                   'started_at': now,
-              }).eq('id', run_id).eq('status', 'queued').execute()
+              }
+              if gh_run_id is not None:
+                  update_patch['github_run_id'] = gh_run_id
+              res = sb.table('pipeline_runs').update(update_patch).eq('id', run_id).eq('status', 'queued').execute()
               if not res.data:
                   print(f'::warning::no queued row matched id={run_id}; continuing for forensic trace', file=sys.stderr)
           else:
@@ -91,17 +99,20 @@ jobs:
               # the Edge Function (which filters on status='queued') never
               # re-dispatches and creates a loop.
               args_str = '--scheduled' if event == 'schedule' else '--manual'
-              res = sb.table('pipeline_runs').insert({
+              insert_row = {
                   'status': 'running',
                   'started_at': now,
                   'triggered_by': None,
                   'args': args_str,
-              }).execute()
+              }
+              if gh_run_id is not None:
+                  insert_row['github_run_id'] = gh_run_id
+              res = sb.table('pipeline_runs').insert(insert_row).execute()
               run_id = (res.data[0] if res.data else {}).get('id')
               if not run_id:
                   print('::error::failed to insert pipeline_runs row', file=sys.stderr)
                   sys.exit(1)
-          print(f'[pipeline_runs] run_id={run_id}')
+          print(f'[pipeline_runs] run_id={run_id} github_run_id={gh_run_id}')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f'run_id={run_id}\n')
           PY

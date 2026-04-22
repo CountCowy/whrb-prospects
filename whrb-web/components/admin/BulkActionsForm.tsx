@@ -1,7 +1,16 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+
+import { BulkPreviewTable } from './BulkPreviewTable';
+import type {
+  Action,
+  Assignee,
+  Filter,
+  MatchedRow,
+  SelectionMode,
+} from './BulkActionsForm.types';
 
 const STATE_OPTIONS = [
   'researching',
@@ -13,44 +22,47 @@ const STATE_OPTIONS = [
   'dead',
 ] as const;
 
-type Filter = {
-  q?: string;
-  tier?: string;
-  state?: string;
-  assigned_to?: string;
-  zip?: string;
-  category?: string;
-  source?: string;
-  is_nonprofit?: 'true' | 'false';
-  assigned?: 'true' | 'false';
-};
-
-type SampleRow = {
-  id: string;
-  company_name: string;
-  tier: string | null;
-  state: string;
-  assigned_to: string | null;
-};
-
-type Assignee = { id: string; label: string; deactivated: boolean };
-
-type Action = 'assign' | 'state' | 'tier' | 'delete';
+const DEFAULT_PAGE_SIZE = 25;
 
 function blankFilter(): Filter {
   return {};
 }
 
+type PreviewResponse = {
+  ok: boolean;
+  count: number;
+  ids: string[];
+  rows: MatchedRow[];
+  page: number;
+  pageSize: number;
+  countExceeded: boolean;
+};
+
 export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
+  const assigneesById = useMemo(() => {
+    const m = new Map<string, Assignee>();
+    for (const a of assignees) m.set(a.id, a);
+    return m;
+  }, [assignees]);
+
+  // Filter + preview state
   const [filter, setFilter] = useState<Filter>(blankFilter());
-  const [previewCount, setPreviewCount] = useState<number | null>(null);
-  const [sample, setSample] = useState<SampleRow[]>([]);
+  const [preview, setPreview] = useState<PreviewResponse | null>(null);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
+
+  // Action state
   const [action, setAction] = useState<Action>('assign');
   const [assignTo, setAssignTo] = useState<string>('');
   const [stateValue, setStateValue] = useState<(typeof STATE_OPTIONS)[number]>('researching');
   const [tierValue, setTierValue] = useState<'A' | 'B' | 'C'>('A');
   const [confirmText, setConfirmText] = useState('');
   const [pending, startTransition] = useTransition();
+
+  // Stage 10c: selection mode + exclusion (filter mode) / basket (selection mode).
+  const [mode, setMode] = useState<SelectionMode>('filter');
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [basket, setBasket] = useState<Set<string>>(new Set());
 
   function setField<K extends keyof Filter>(k: K, v: Filter[K]) {
     setFilter((f) => {
@@ -59,18 +71,23 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
       else next[k] = v;
       return next;
     });
-    setPreviewCount(null);
-    setSample([]);
+    setPreview(null);
+    setPage(0);
+    setExcluded(new Set());
   }
 
-  async function preview() {
-    startTransition(async () => {
+  async function runPreview(opts?: { page?: number; pageSize?: number }): Promise<PreviewResponse | null> {
+    const p = opts?.page ?? page;
+    const ps = opts?.pageSize ?? pageSize;
+    try {
       const res = await fetch('/api/admin/prospects/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           filter,
           preview: true,
+          page: p,
+          pageSize: ps,
           action: 'state',
           payload: { state: 'researching' },
         }),
@@ -78,27 +95,115 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error ?? 'Preview failed.');
-        return;
+        return null;
       }
-      const body = (await res.json()) as { count: number; sample: SampleRow[] };
-      setPreviewCount(body.count);
-      setSample(body.sample);
+      const body = (await res.json()) as PreviewResponse;
+      setPreview(body);
+      setPage(body.page);
+      setPageSize(body.pageSize);
+      return body;
+    } catch (err) {
+      toast.error(`Preview failed: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  function onPreviewClick() {
+    setExcluded(new Set());
+    startTransition(async () => {
+      await runPreview({ page: 0 });
     });
   }
 
+  function onPageChange(p: number) {
+    startTransition(async () => {
+      await runPreview({ page: p });
+    });
+  }
+
+  function onPageSizeChange(ps: number) {
+    startTransition(async () => {
+      await runPreview({ page: 0, pageSize: ps });
+    });
+  }
+
+  function toggleRowExclude(id: string) {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleRowBasket(id: string) {
+    setBasket((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function onToggleRow(id: string) {
+    if (mode === 'filter') toggleRowExclude(id);
+    else toggleRowBasket(id);
+  }
+
+  function addPageToBasket() {
+    if (!preview) return;
+    setBasket((prev) => {
+      const next = new Set(prev);
+      for (const r of preview.rows) next.add(r.id);
+      return next;
+    });
+  }
+
+  function addAllMatchesToBasket() {
+    if (!preview) return;
+    setBasket((prev) => {
+      const next = new Set(prev);
+      for (const id of preview.ids) next.add(id);
+      return next;
+    });
+  }
+
+  function clearBasket() {
+    setBasket(new Set());
+  }
+
+  const effectiveCount = useMemo(() => {
+    if (mode === 'basket') return basket.size;
+    if (!preview) return null;
+    const excludedInMatches = preview.ids.filter((id) => excluded.has(id)).length;
+    return Math.max(0, preview.count - excludedInMatches);
+  }, [mode, preview, excluded, basket]);
+
   async function apply() {
-    if (previewCount === null) {
-      toast.error('Run preview first.');
-      return;
-    }
-    if (previewCount === 0) {
-      toast.error('No rows match the filter.');
-      return;
+    if (mode === 'filter') {
+      if (!preview) {
+        toast.error('Run preview first.');
+        return;
+      }
+      if (effectiveCount === 0) {
+        toast.error('No rows match after exclusions.');
+        return;
+      }
+      if (preview.countExceeded) {
+        toast.error('Narrow the filter — match set exceeds 5,000.');
+        return;
+      }
+    } else {
+      if (basket.size === 0) {
+        toast.error('Basket is empty. Add rows via preview first.');
+        return;
+      }
     }
     if (action === 'delete' && confirmText !== 'DELETE') {
       toast.error('Type DELETE to confirm.');
       return;
     }
+
     let payload: Record<string, unknown>;
     if (action === 'assign') payload = { assigned_to: assignTo || null };
     else if (action === 'state') payload = { state: stateValue };
@@ -106,30 +211,83 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
     else payload = { confirm: 'DELETE' };
 
     startTransition(async () => {
+      let reqBody: Record<string, unknown>;
+      if (mode === 'basket') {
+        reqBody = { ids: Array.from(basket), action, payload };
+      } else {
+        // Filter-based apply with exclusions — send explicit ids when any row
+        // is excluded; otherwise use the legacy filter body.
+        const includedIds = (preview?.ids ?? []).filter((id) => !excluded.has(id));
+        if (excluded.size > 0) {
+          reqBody = { ids: includedIds, action, payload };
+        } else {
+          reqBody = { filter, action, payload };
+        }
+      }
       const res = await fetch('/api/admin/prospects/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filter, action, payload }),
+        body: JSON.stringify(reqBody),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error ?? 'Action failed.');
         return;
       }
-      const body = (await res.json()) as { count: number; action: Action };
+      const body = (await res.json()) as { count: number; action: Action; via?: string };
       toast.success(
-        `Applied ${body.action} to ${body.count} prospect${body.count === 1 ? '' : 's'}.`,
+        `Applied ${body.action} to ${body.count} prospect${body.count === 1 ? '' : 's'}${body.via === 'ids' ? ' (selection)' : ''}.`,
       );
-      setPreviewCount(null);
-      setSample([]);
       setConfirmText('');
+      if (mode === 'basket') {
+        setBasket(new Set());
+      } else {
+        setExcluded(new Set());
+        setPreview(null);
+      }
     });
   }
 
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-sm">
-        <h2 className="text-sm font-semibold">Filter</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">Filter</h2>
+          <div
+            className="flex gap-1 rounded-md border border-[hsl(var(--border))] p-0.5 text-xs"
+            role="tablist"
+            aria-label="Selection mode"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'filter'}
+              data-testid="bulk-mode-filter"
+              onClick={() => setMode('filter')}
+              className={`rounded px-2 py-1 font-medium ${
+                mode === 'filter'
+                  ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
+                  : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]'
+              }`}
+            >
+              Filter-based
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'basket'}
+              data-testid="bulk-mode-basket"
+              onClick={() => setMode('basket')}
+              className={`rounded px-2 py-1 font-medium ${
+                mode === 'basket'
+                  ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
+                  : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]'
+              }`}
+            >
+              Selection-based
+            </button>
+          </div>
+        </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <LabeledInput
             label="Search (q)"
@@ -180,25 +338,15 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
           <LabeledSelect
             label="Nonprofit"
             value={filter.is_nonprofit ?? ''}
-            onChange={(v) =>
-              setField('is_nonprofit', (v || undefined) as Filter['is_nonprofit'])
-            }
+            onChange={(v) => setField('is_nonprofit', (v || undefined) as Filter['is_nonprofit'])}
             options={[
               { value: '', label: '(any)' },
               { value: 'true', label: 'Yes' },
               { value: 'false', label: 'No' },
             ]}
           />
-          <LabeledInput
-            label="ZIP"
-            value={filter.zip ?? ''}
-            onChange={(v) => setField('zip', v)}
-          />
-          <LabeledInput
-            label="Source"
-            value={filter.source ?? ''}
-            onChange={(v) => setField('source', v)}
-          />
+          <LabeledInput label="ZIP" value={filter.zip ?? ''} onChange={(v) => setField('zip', v)} />
+          <LabeledInput label="Source" value={filter.source ?? ''} onChange={(v) => setField('source', v)} />
           <LabeledSelect
             label="Assignee"
             value={filter.assigned_to ?? ''}
@@ -212,42 +360,90 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
             ]}
           />
         </div>
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={preview}
+            onClick={onPreviewClick}
             disabled={pending}
             className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-sm font-medium hover:bg-[hsl(var(--muted))] disabled:opacity-50"
             data-testid="bulk-preview"
           >
             {pending ? 'Loading…' : 'Preview'}
           </button>
-          {previewCount !== null ? (
-            <span
-              className="text-sm text-[hsl(var(--muted-foreground))]"
-              data-testid="bulk-preview-count"
-            >
-              {previewCount.toLocaleString()} match
-              {previewCount === 1 ? '' : 'es'}
+          {preview ? (
+            <span className="text-sm text-[hsl(var(--muted-foreground))]" data-testid="bulk-preview-count">
+              {preview.count.toLocaleString()} match{preview.count === 1 ? '' : 'es'}
             </span>
+          ) : null}
+          {mode === 'basket' && preview ? (
+            <>
+              <button
+                type="button"
+                onClick={addPageToBasket}
+                data-testid="bulk-basket-add-page"
+                disabled={pending}
+                className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--muted))] disabled:opacity-50"
+              >
+                + Add this page ({preview.rows.length})
+              </button>
+              <button
+                type="button"
+                onClick={addAllMatchesToBasket}
+                data-testid="bulk-basket-add-all"
+                disabled={pending || preview.countExceeded}
+                title={preview.countExceeded ? 'Match set exceeds 5,000 — narrow filter first.' : undefined}
+                className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--muted))] disabled:opacity-50"
+              >
+                + Add all matches ({preview.ids.length})
+              </button>
+            </>
           ) : null}
         </div>
       </section>
 
-      {sample.length > 0 ? (
-        <section className="rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-sm">
-          <h2 className="text-sm font-semibold">Sample (first 10)</h2>
-          <ul className="mt-3 divide-y divide-[hsl(var(--border-subtle))] text-sm">
-            {sample.map((r) => (
-              <li key={r.id} className="flex items-center justify-between py-2">
-                <span className="truncate">{r.company_name}</span>
-                <span className="text-xs text-[hsl(var(--muted-foreground))]">
-                  tier {r.tier ?? '—'} · {r.state}
-                </span>
-              </li>
-            ))}
-          </ul>
+      {mode === 'basket' ? (
+        <section
+          className="rounded-xl border border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] p-4 shadow-sm"
+          data-testid="bulk-basket-strip"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-[hsl(var(--primary))]">
+                Selection basket
+              </h3>
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
+                Selected (<span data-testid="bulk-basket-count">{basket.size}</span>) — survives
+                filter changes until Clear.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={clearBasket}
+              data-testid="bulk-basket-clear"
+              disabled={basket.size === 0}
+              className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] disabled:opacity-50"
+            >
+              Clear basket
+            </button>
+          </div>
         </section>
+      ) : null}
+
+      {preview ? (
+        <BulkPreviewTable
+          rows={preview.rows}
+          page={preview.page}
+          pageSize={preview.pageSize}
+          total={preview.count}
+          countExceeded={preview.countExceeded}
+          excluded={mode === 'filter' ? excluded : new Set(preview.rows.map((r) => r.id).filter((id) => !basket.has(id)))}
+          onToggleRow={onToggleRow}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          mode={mode}
+          basketSize={basket.size}
+          assigneesById={assigneesById}
+        />
       ) : null}
 
       <section className="rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-sm">
@@ -328,8 +524,8 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
             onClick={apply}
             disabled={
               pending ||
-              previewCount === null ||
-              previewCount === 0 ||
+              (mode === 'filter' && (!preview || effectiveCount === 0)) ||
+              (mode === 'basket' && basket.size === 0) ||
               (action === 'delete' && confirmText !== 'DELETE')
             }
             data-testid="bulk-apply"
@@ -340,8 +536,8 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
             }`}
           >
             {action === 'delete'
-              ? `Delete ${previewCount ?? 0} prospects (irreversible)`
-              : `Apply to ${previewCount ?? 0}`}
+              ? `Delete ${effectiveCount ?? 0} prospect${effectiveCount === 1 ? '' : 's'} (irreversible)`
+              : `Apply to ${effectiveCount ?? 0}`}
           </button>
         </div>
       </section>

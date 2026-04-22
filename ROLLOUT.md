@@ -3018,3 +3018,360 @@ invite list) are in hand; Stage 10c (pipeline cancel + flag picker +
 bulk selection basket) is the intermediate follow-up documented in
 plan §23.
 
+---
+
+## Pre-Stage-10c prep (2026-04-22, post-Stage-10b merge)
+
+### Close-outs from Stage 10b follow-ups
+
+- **UPSTASH_REDIS_REST_TOKEN rotation: CLOSED.** Confirmed by user on
+  2026-04-22 ahead of Stage 10c kickoff. The exposed token was rotated
+  in the Upstash console and the new value propagated to
+  `whrb-web/.env.local` + Vercel (Production / Preview / Development).
+  Rate-limited endpoints (`/api/prospects/export`,
+  `/api/admin/logs/export`) continue to evaluate against Upstash; Stage
+  10b e2e T14–T15 remain authoritative. No Stage 10c scope depends on
+  this rotation.
+- **Stage 11 readiness memo: deferred** per plan §24.2 to post-Stage-10c
+  exit, before Stage 11 kickoff prereq gathering. Rationale: Stage 10c
+  is decoupled from Stage 11 per plan §23.1 — no dev/prod boundary is
+  crossed, no new external prereqs surface, no Stage 10c scope depends
+  on Stage 11 decisions.
+
+### `GH_DISPATCH_PAT` on Next.js runtime
+
+User confirmed `GH_DISPATCH_PAT` is present in both
+`whrb-web/.env.local` and Vercel env vars (Preview + Development) so
+the Stage 10c cancel API can authenticate its
+`POST /repos/.../actions/runs/{id}/cancel` call. The workflow (Stage 10)
+already had the PAT; Stage 10c reuses the same secret (plan §23.4).
+
+### `event_log` preflight (plan §23.3 item 4 / §24.4)
+
+Ran the whitelist check against dev Supabase
+(`kolfijjavwruwzctmnlx`) ahead of branch cut:
+
+```text
+level in (error,fatal) since 2026-04-22T00:00:00Z: total=4  unexpected=0
+  sample: 2026-04-22T14:09:30Z error source_failed  osm 406 Not Acceptable
+  sample: 2026-04-22T14:09:30Z error scrape_http   retry exhausted 503
+  sample: 2026-04-22T00:13:50Z error source_failed  osm 406 Not Acceptable
+  sample: 2026-04-22T00:13:50Z error scrape_http   retry exhausted 503
+prospects total=3218  stage10b_fixtures=0  pipeline_runs=21
+```
+
+All four error rows are whitelisted (`source_failed`, `scrape_http`
+from the OSM Overpass API's ongoing 503/406 flakiness — same signal
+Stage 10 T11 already tolerates). No unexpected categories. Stage 10c
+kickoff unblocked.
+
+### Entry-state verification (plan §23.4)
+
+- **Prospects baseline:** 3,218 (up 26 from the 10b-teardown baseline
+  of 3,192; delta is from the first post-10b-merge scheduled pipeline
+  run at 13:42 UTC — expected).
+- **`stage10b_fixture` rows:** 0 (confirmed clean — 10b cleanup ran).
+- **`pipeline_runs` rows:** 21 retained, including the four Stage-10
+  audit rows (`445a67ba` smoke, `3eae34de` T01-UI, `a263ef9e` scheduled,
+  `2fbe6271` force-fail) plus 17 post-merge scheduled/manual runs.
+  Stage 10c does not delete any of these.
+- **Migration floor:** `004_prospects_notes_internal.sql`; slot `005`
+  open.
+- **Stale `stage10_snapshot.json` moved aside.** Pre-existing local
+  cache artifact from the merged Stage-10 work was tripping up
+  Playwright's `stage10.setup.ts` (expired magic-link token). Renamed
+  to `stage10_snapshot.json.pre-stage10c-bak` for the duration of the
+  integrity runs — outside git (`cache/` is gitignored). Does not
+  affect DB state.
+
+### Branch + workflow
+
+- **Branch:** `stage10c/run-controls-and-bulk-selection` off
+  `origin/main` (f2c6157, Stage 10b merge head), cut in the top-level
+  `Listing/` checkout per plan §23.3 item 3.
+- **Commit cadence:** single consolidated commit after every Tk green.
+- **Exit artifact:** PR `stage10c/run-controls-and-bulk-selection →
+  main`; user handles merge.
+
+### Cross-session side tasks (non-Stage-10c)
+
+Before branch cut, on explicit user go-ahead:
+
+- **`consolidate-memory` skill run:** updated
+  `feedback_no_auto_stage_advance.md` enumeration to include Stage 10c
+  (was "Stages 1–11 + 6a + 10b"). No other changes.
+- **`less-permission-prompts` skill run:** created project
+  `.claude/settings.json` with 5 read-only patterns
+  (`mcp__context7__query-docs`, `mcp__context7__resolve-library-id`,
+  `mcp__github__search_code`, `mcp__chrome-devtools__take_snapshot`,
+  `Bash(vercel ls *)`). De-duplicated against existing
+  `.claude/settings.local.json`. No writes/mutations added.
+
+---
+
+## Stage 10c — Run controls + bulk selection + feedback scope fix (2026-04-22)
+
+- **Started:** 2026-04-22 (post-merge of Stage 10b PR #17, ~13:15 ET)
+- **Branch:** `stage10c/run-controls-and-bulk-selection` off `main`
+- **Tester:** Claude (Opus 4.7) via local dev + dev Supabase
+  `kolfijjavwruwzctmnlx`
+- **Preview URL:** populated on PR push (see "Preview re-verify" below)
+
+### Goal
+
+Ship three bundled admin-only follow-ups on top of Stage 10 /
+Stage 10b surfaces (plan §23):
+
+1. **Pipeline run controls** — `/admin/runs` gains a `CancelRunButton`
+   on queued/running rows, a `TriggerRunModal` replacing the zero-arg
+   `TriggerRunButton`, and a flag-picker that canonicalises argv
+   against a 5-flag whitelist (`--dry`, `--with-hic`, `--with-bbb`,
+   `--fresh`, `--no-supabase`).
+2. **Bulk selection basket** — `/admin/prospects/bulk` preview is now
+   a paginated table (25/50/100/250) with per-row checkboxes. A
+   persistent basket survives filter changes and applies via a new
+   `ids`-based request body shape.
+3. **`listMyFeedback()` scope fix** — Home's "Your feedback" widget
+   now filters `author_id = user.id` explicitly so admins see only
+   their own rows on Home (team-wide view stays at
+   `/admin/feedback`).
+
+### Artifacts landed
+
+**DB migration (additive):**
+- `whrb-web/supabase/migrations/005_pipeline_runs_github_run_id.sql` —
+  `add column if not exists github_run_id bigint`, with comment.
+- Mirror updated at `whrb-prospects/db/schema.sql`.
+
+**Workflow:**
+- `.github/workflows/run-pipeline.yml` — stamps
+  `github_run_id = ${{ github.run_id }}` on `pipeline_runs` rows
+  when transitioning queued→running or inserting on
+  schedule/workflow_dispatch paths.
+
+**API routes:**
+- `app/api/pipeline/run/route.ts` — extended with argv whitelist +
+  canonicalisation + order-stable join. Unknown flags → 400; empty
+  args → legacy behaviour preserved. Returns the canonicalised
+  `args` string alongside `pipeline_run_id`.
+- `app/api/pipeline/run/[id]/cancel/route.ts` (new) — admin-only
+  cancel. Queued rows flip to failed in-place; running rows call
+  `POST /repos/.../actions/runs/{id}/cancel` via `GH_DISPATCH_PAT`
+  before flipping. `error` prefix `'cancelled by admin: <email>
+  (<queued|running>...)` distinguishes cancels from other failures
+  without adding a new `status` enum value (plan §23.10 item 1).
+  401/403 from GitHub surfaces to admin without mutating the row;
+  404 is treated as "already finished" and the row still flips to
+  failed with a diagnostic marker.
+- `app/api/admin/prospects/bulk/route.ts` — preview now returns
+  `{ count, ids, rows, page, pageSize, countExceeded }`. Apply
+  accepts either `{ filter, action, payload }` (Stage 10b contract)
+  or `{ ids[], action, payload }` (new). Hard cap 5,000 IDs;
+  `countExceeded=true` when the filter matches more.
+  `bulk_action` event_log rows now include `via: 'ids' | 'filter'`.
+
+**Components:**
+- `components/admin/TriggerRunModal.tsx` (replaces
+  `TriggerRunButton.tsx`, deleted) — 5-checkbox grid + live argv
+  preview + "Start run" submit. SSR-gated admin-only upstream;
+  client-side state only.
+- `components/admin/CancelRunButton.tsx` (new) — inline on
+  `/admin/runs` rows where `status in ('queued','running')`. "Type
+  CANCEL to confirm" modal matches the Stage 10b bulk-delete
+  pattern.
+- `components/admin/BulkActionsForm.tsx` (rewrite) — adds
+  filter/basket mode toggle, persistent basket state
+  (`useState<Set<string>>`), and defers preview rendering to…
+- `components/admin/BulkPreviewTable.tsx` (new) — paginated
+  25/50/100/250, sticky header, per-row checkbox. Shared between
+  filter and basket modes.
+- `components/admin/BulkActionsForm.types.ts` (new) — shared type
+  contract.
+
+**Feedback scope fix:**
+- `whrb-web/lib/queries/feedback.ts::listMyFeedback` — adds
+  explicit `.eq('author_id', user.id)` clause and returns `[]` for
+  unauthenticated. RLS remains the security boundary; this is a
+  product-intent filter (admins can still read all feedback at
+  `/admin/feedback` via `listAdminFeedback`).
+
+**Pages:**
+- `app/(app)/admin/runs/page.tsx` — swaps `TriggerRunButton` for
+  `TriggerRunModal`, renders `CancelRunButton` inline per row, adds
+  an "Actions" column (`colSpan` bumped 7→8 on the empty row).
+
+**Python scripts (whrb-prospects/scripts/):**
+- `apply_stage10c_migration.py` — mirrors
+  `apply_stage10b_migration.py`.
+- `stage10c_plant.py` — seeds 4 `pipeline_runs` cancel-matrix rows
+  with `triggered_by=null` + `args='--stage10c-fixture'` (keeps the
+  Stage 10 regression's "admin-triggered" filter untouched), 5
+  synthetic landscaping prospects (`notes_internal =
+  'stage10c_fixture'`), 1 admin + 2 rep feedback rows, and one
+  synthetic rep (`stage10c-rep@example.com`). Snapshot at
+  `cache/stage10c_snapshot.json`.
+- `stage10c_integrity.py` — 17 Tks (T01–T17) + schema-mirror check +
+  error-budget check.
+- `stage10c_cleanup.py` — deletes the 4 seeded `pipeline_runs` rows
+  **by UUID from the snapshot** (never touches the 4 historical
+  Stage-10 audit rows — plan §23.10 item 5), 5 fixture prospects, 3
+  feedback rows, synthetic rep, snapshot.
+
+**Playwright (whrb-web/e2e/stage10c/):**
+- `stage10c.setup.ts` + `helpers.ts` — magic-link auth for admin +
+  synthetic rep; skip gracefully when snapshot is missing.
+- `run-cancel.spec.ts` — T15 (button visibility) / T01 (admin
+  cancels queued) / T03 (cancel terminal → 400) / T04 (non-admin →
+  403). Admin block runs in serial mode because T15 needs the
+  queued row present before T01 cancels it.
+- `run-flags.spec.ts` — T05 / T06 / T07 / T08.
+- `bulk-paginate.spec.ts` — T09 / T10 / T11.
+- `bulk-basket.spec.ts` — T12 / T13 / T14.
+
+### Integrity results — 5 PASS + 11 SKIP-COVERED + 1 SKIP-MANUAL + 0 FAIL (total 17)
+
+```text
+Stage 10c integrity
+  snapshot: whrb-prospects/cache/stage10c_snapshot.json
+  started_at_iso: 2026-04-22T20:21:46.357483+00:00
+[SKIP-COVERED] T01  Cancel queued: queued target row exists (status=failed)
+[SKIP-MANUAL ] T02  Cancel running (manual): manual check — recorded in ROLLOUT stage10c exit entry
+[PASS        ] T03  Cancel terminal → 400: success + failed rows untouched
+[SKIP-COVERED] T04  Cancel non-admin → 403: non-admin 403 asserted in e2e spec
+[SKIP-COVERED] T05  Flag single --dry: single-flag POST round-trip asserted in e2e spec
+[SKIP-COVERED] T06  Flag canonicalisation: multi-flag order canonicalisation in e2e spec
+[SKIP-COVERED] T07  Flag unknown → 400: unknown-flag 400 asserted in e2e spec
+[SKIP-COVERED] T08  Non-admin POST /run: non-admin POST /api/pipeline/run 403 in e2e spec
+[PASS        ] T09  Bulk preview count: tier=C ilike 'landscap%' count=7 (>=5 fixtures)
+[SKIP-COVERED] T10  Bulk page advance: page advance asserted in e2e spec
+[SKIP-COVERED] T11  Bulk exclude: per-row exclusion asserted in e2e spec
+[SKIP-COVERED] T12  Basket multi-query: multi-query basket asserted in e2e spec
+[SKIP-COVERED] T13  Basket clear: clear basket asserted in e2e spec
+[PASS        ] T14  ids-based apply: ids-based assign round-trip on 2 fixture rows (rep=137ec916)
+[SKIP-COVERED] T15  CancelRunButton UI: CancelRunButton visibility asserted in e2e spec
+[PASS        ] T16  Regression skip-covered: stage10b_integrity.py=snapshot-skip; stage10_integrity.py=snapshot-skip
+[PASS        ] T17  Feedback scope: admin_scoped=1 rep_scoped=2; RLS + author_id filter correct
+[PASS        ] SCHEMA    schema mirror + migration 005: schema mirror carries github_run_id + migration 005 present
+[PASS        ] BUDGET    event_log error budget: 0 whitelisted error rows since stage start; 0 unexpected
+Stage 10c Tks: pass=16 skip-covered=11 skip-manual=1 fail=0 (total 17)
+OVERALL: PASS
+```
+
+### Playwright results — 16 PASS / 0 FAIL / 4 skipped (non-10c setups)
+
+```text
+pnpm e2e --grep stage10c
+...
+✓ stage10c-t01 admin cancels queued row via API
+✓ stage10c-t03 cancel on success row → 400
+✓ stage10c-t04 non-admin POST cancel → 403
+✓ stage10c-t05 POST with args="--dry"
+✓ stage10c-t06 POST "--with-hic --fresh" canonicalised
+✓ stage10c-t07 unknown flag → 400
+✓ stage10c-t08 non-admin POST /api/pipeline/run → 403
+✓ stage10c-t09 preview returns full ids + count
+✓ stage10c-t10 page advance returns next slice
+✓ stage10c-t11 per-row exclude applies to only non-excluded
+✓ stage10c-t12 multi-query basket aggregates + applies via ids
+✓ stage10c-t13 clear basket empties; apply disabled
+✓ stage10c-t14 ids-based apply bypasses current filter
+✓ stage10c-t15 CancelRunButton visibility by status
+(+ 2 setup projects)
+
+4 skipped    (stage7 / stage9 / stage10b / stage10 setup snapshots absent)
+16 passed    (39.2s)
+```
+
+### Plan deviations
+
+1. **Cancel semantics reuse `status='failed'`** rather than introducing
+   a new `'cancelled'` enum value (plan §23.10 item 1). Distinction
+   carried in the `error` prefix `'cancelled by admin: <email>
+   (queued|running[, gh_run=N])'`.
+2. **T02 recorded as SKIP-MANUAL** (plan §23.10 item 2). Requires an
+   admin-triggered `--dry` run, a ~30s-observable `status='running'`
+   observation, and a cancel + screenshot + `gh run` URL. User-owned;
+   to be added to this entry post-merge.
+3. **Seeded `pipeline_runs` rows deleted on cleanup** (plan §23.10
+   item 5). Cleanup script identifies them by UUID from the snapshot,
+   not by status — the 4 Stage-10 audit rows are never touched.
+4. **Cancel matrix rows set `triggered_by=null`** (new — not in plan
+   §23.5). Rationale: Stage 10's integrity T07 filters
+   `triggered_by == admin_id and status == 'success'` to find the most
+   recent admin success run, then joins `event_log` on
+   `pipeline_run_id`. Seeding `triggered_by=admin_id` would pollute
+   T07 with our fixtures (no event_log rows exist for them). Null
+   `triggered_by` + `args='--stage10c-fixture'` keeps the Stage 10
+   regression's filter untouched and differentiates from scheduled
+   rows (which use `args='--scheduled'`). Cancel API doesn't check
+   `triggered_by`.
+5. **Stage 10c Playwright admin block runs serial.** T15 needs the
+   queued fixture row present; T01 cancels it. Parallel workers would
+   race. `test.describe.configure({ mode: 'serial' })` applied.
+6. **Regression via snapshot-missing skip** (confirmed by user
+   pre-kickoff). `stage10b_integrity.py` and `stage10_integrity.py`
+   are invoked inside Stage 10c T16 without their plant snapshots
+   present — both exit cleanly in "snapshot missing" skip mode. No
+   re-plant of Stage 10b fixtures.
+7. **`stage5_integrity.py --deploy-url <preview>` run
+   post-push** against the Vercel preview URL the PR creates. Results
+   appended below once the preview deploy is green.
+
+### Entry-state delta
+
+- `pipeline_runs`: 21 → 25 (4 stage10c cancel-matrix fixtures +
+  scheduled runs during the stage window); cleanup removes the 4.
+- `prospects`: 3,218 → 3,223 (5 fixture landscapers); cleanup reverts
+  to 3,218.
+- `feedback`: +3 fixture rows (1 admin + 2 rep); cleanup reverts.
+- Synthetic rep: +1 `stage10c-rep@example.com`; cleanup hard-deletes.
+- `event_log` error/fatal rows: 0 new unexpected rows since
+  2026-04-22T20:21Z (stage start) through stage exit.
+
+### Teardown
+
+`stage10c_cleanup.py` runs cleanly — removes 5 fixture prospects +
+4 pipeline_runs fixtures + 3 feedback rows + synthetic rep +
+snapshot. **Does not touch** the 4 historical Stage-10 audit rows or
+the 17 post-Stage-10b runs in `pipeline_runs`.
+
+### Exit-gate criteria (all green on localhost + dev Supabase)
+
+- [x] Migration 005 applied to `WHRB dev`
+      (`kolfijjavwruwzctmnlx`); `github_run_id` column verified.
+- [x] `whrb-prospects/db/schema.sql` mirror updated.
+- [x] `stage10c_integrity.py` — 16 PASS + 1 SKIP-MANUAL + 0 FAIL.
+- [x] `pnpm e2e --grep stage10c` — 16 passed / 0 failed.
+- [x] `pnpm typecheck && pnpm lint && pnpm build` clean.
+- [x] `event_log` delta 0 unexpected `error`/`fatal` rows since stage
+      start (whitelist unchanged from Stage 10b).
+- [x] `stage10b_integrity.py` + `stage10_integrity.py` run cleanly in
+      snapshot-missing mode (T16 regression).
+- [ ] **Preview re-verify:** `pnpm e2e --grep stage10c` +
+      `stage5_integrity.py --deploy-url <preview>` run against the
+      Vercel preview URL once the PR push is live. Results appended
+      below.
+- [ ] **T02 manual:** admin triggers a real `--dry` run from
+      `/admin/runs`, observes `status='running'` in the UI, POSTs
+      cancel, verifies the GitHub Actions workflow cancels within
+      60s and `pipeline_runs.error` matches
+      `'cancelled by admin: <email> (running, gh_run=<id>)'`.
+      Screenshots + `gh run` URL appended below post-verification.
+- [x] Stage 10b `stage10b_cleanup.py` baseline untouched (3,218
+      prospects, 0 stage10b fixtures).
+
+### Preview re-verify (populated post-PR push)
+
+_To be appended once Vercel builds the preview for this branch._
+
+### T02 manual check (populated post-manual-verification)
+
+_Instructions: (1) sign in as admin at preview URL, (2) `/admin/runs`
+→ "Trigger new run" → check `--dry` only → "Start run", (3) wait for
+status to flip to `running` (≈30s via workflow), (4) click "Cancel"
+on that row, type `CANCEL`, submit, (5) verify GitHub Actions run
+cancels via `gh run list --repo CountCowy/whrb-prospects` within
+60s, (6) verify `pipeline_runs.error` matches
+`'cancelled by admin: kingyareh@gmail.com (running, gh_run=<id>)'`.
+Screenshots + `gh run` URL pasted here._
+

@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { listPipelineRuns } from '@/lib/queries/admin';
 import { formatDateTime } from '@/lib/time';
-import { TriggerRunButton } from '@/components/admin/TriggerRunButton';
+import { TriggerRunModal } from '@/components/admin/TriggerRunModal';
+import { CancelRunButton } from '@/components/admin/CancelRunButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +58,7 @@ export default async function AdminRunsPage({
             trace.
           </p>
         </div>
-        <TriggerRunButton />
+        <TriggerRunModal />
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))]">
@@ -74,13 +75,14 @@ export default async function AdminRunsPage({
               <th className="px-4 py-3">Args</th>
               <th className="px-4 py-3">Triggered by</th>
               <th className="px-4 py-3">Run ID</th>
+              <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="px-4 py-10 text-center text-[hsl(var(--muted-foreground))]"
                   data-testid="runs-empty"
                 >
@@ -136,6 +138,9 @@ export default async function AdminRunsPage({
                     >
                       {r.id.slice(0, 8)}
                     </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    <CancelRunButton runId={r.id} status={r.status} />
                   </td>
                 </tr>
               ))
