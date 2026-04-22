@@ -3352,13 +3352,15 @@ the 17 post-Stage-10b runs in `pipeline_runs`.
       `pnpm e2e --grep stage10c` against preview = 16/16 pass;
       `stage5_integrity.py --deploy-url <preview>` = 7/7 pass. Details
       below.
-- [ ] **T02 manual:** admin triggers a real `--dry` run from
-      `/admin/runs`, observes `status='running'` in the UI, POSTs
-      cancel, verifies the GitHub Actions workflow cancels within
-      60s and `pipeline_runs.error` matches
-      `'cancelled by admin: <email> (running, gh_run=<id>)'`.
-      Screenshots + `gh run` URL appended below post-verification.
-      **User-owned; blocks merge of PR #18.**
+- [~] **T02 manual — deferred to post-merge** (see Follow-up 2 below).
+      Attempted pre-merge on 2026-04-22; the `repository_dispatch`
+      workflow necessarily runs from `main`, so Stage 10c's workflow
+      changes (github_run_id stamp + args-honor) don't take effect
+      until PR #18 merges. The cancel API still flips the DB row to
+      `failed` correctly, but `pipeline_runs.github_run_id` stays
+      null and the GitHub Actions workflow can't be reached. Re-run
+      post-merge is the only path to green this Tk; a sign-off
+      checklist lives under "Post-merge checklist" below.
 - [x] Stage 10b `stage10b_cleanup.py` baseline untouched (3,218
       prospects, 0 stage10b fixtures).
 
@@ -3494,14 +3496,109 @@ download the CSV from the run — not scoped to Stage 10c.
 
 
 
-### T02 manual check (populated post-manual-verification)
+### Follow-up 2 (2026-04-22, attempted T02 + `repository_dispatch` constraint)
 
-_Instructions: (1) sign in as admin at preview URL, (2) `/admin/runs`
-→ "Trigger new run" → check `--dry` only → "Start run", (3) wait for
-status to flip to `running` (≈30s via workflow), (4) click "Cancel"
-on that row, type `CANCEL`, submit, (5) verify GitHub Actions run
-cancels via `gh run list --repo CountCowy/whrb-prospects` within
-60s, (6) verify `pipeline_runs.error` matches
-`'cancelled by admin: kingyareh@gmail.com (running, gh_run=<id>)'`.
-Screenshots + `gh run` URL pasted here._
+After Follow-up 1 landed, the user re-tried `--dry --no-supabase`
+from the preview UI to verify Stage 10c end to end. The run started
+normally, the "Cancel" button surfaced on `/admin/runs` once status
+flipped to `running`, and the API returned `ok:true` after the admin
+typed CANCEL. But inspection of GitHub Actions showed the workflow
+**still running**, not cancelled.
+
+**Root cause.** `repository_dispatch` always executes from the
+repository's **default branch** (`main`), not from the branch the
+dispatch originated on. Pre-merge of PR #18, the workflow running on
+GitHub is the pre-Stage-10c version on `main` (head `f2c6157`), which
+does not stamp `github_run_id` onto the `pipeline_runs` row and does
+not honor `args`. Consequences:
+
+- `pipeline_runs.github_run_id` stays null after the workflow's
+  Adopt step runs (the pre-Stage-10c Adopt just writes
+  `status='running' + started_at`).
+- My cancel API correctly detected `typed.status === 'running'`, then
+  saw `github_run_id === null`, and flipped the DB row to `failed`
+  with the defensive marker `(running, gh_run=null)` — visible on
+  row `134866f6`. **DB cancel succeeded; GitHub cancel was skipped
+  because there was no target.**
+- The workflow, unaware of the DB flip, continued executing
+  `pipeline.py --with-hic` (pre-Stage-10c hardcode, ignoring the
+  user's `--dry --no-supabase` choice). The admin saw the GH run
+  still in progress.
+
+**Resolution (this session).** User cancelled GH run `24806863477`
+manually via the GitHub UI. No prospects mutated (the aborted run
+didn't reach `08_supabase_sync`). The `pipeline_runs.error` column
+already shows the admin-cancel marker, so the audit trail is intact.
+
+**Why this isn't a bug in Stage 10c code.** The cancel route, the
+row-flip path, and the UI all behaved correctly under their
+documented null-github_run_id fallback (plan §23.5: "if
+`github_run_id` is null (shouldn't happen post-migration, but
+defensive)"). The plan anticipated null as a defensive case but did
+not call out that pre-merge is *always* that case for a PR whose
+workflow changes haven't landed on main.
+
+**T02 is therefore strictly a post-merge check** — documented below
+as such. The rest of Stage 10c (16/17 Tks + schema + error budget)
+remains fully verifiable pre-merge against the Vercel preview and
+has been green twice across two preview heads (`4a51751` and
+`0be1470`).
+
+### Post-merge checklist (user-owned once PR #18 merges to main)
+
+After merging PR #18, `main`'s workflow picks up migration 005's
+`github_run_id` column + the Run-pipeline step's argv honoring. Then:
+
+1. **Verify github_run_id stamping.** Trigger any run from
+   `/admin/runs` (no flags, or `--dry --no-supabase`). After the
+   workflow's Adopt step runs (~30–60 s in), the `pipeline_runs` row
+   for that run should show `github_run_id` populated with the
+   numeric run ID visible in the GitHub Actions UI. Verify via the
+   `/admin/runs/[id]` drilldown or direct query:
+   ```text
+   select id,status,github_run_id,args
+     from pipeline_runs
+     where id = '<your-run-id>';
+   ```
+2. **Verify args consumption.** The `cache/pipeline.log` upload
+   artifact's first lines should begin with
+   `[run-pipeline] invoking: python pipeline.py --dry --no-supabase`
+   (or whatever flags were chosen). If the admin selects zero flags,
+   legacy behaviour wins: `--with-hic`.
+3. **T02 full cancel-of-running.** Trigger a `--dry` run, wait for
+   `/admin/runs` status to flip to `running` (≈30–60 s), click
+   "Cancel", type `CANCEL`, submit. Within 60 s:
+   - GitHub Actions shows the workflow with `conclusion=cancelled`
+     (grey ⦸). Confirm via
+     `gh run list --repo CountCowy/whrb-prospects --workflow run-pipeline.yml --limit 3`.
+   - `pipeline_runs.error` column reads
+     `'cancelled by admin: <email> (running, gh_run=<N>)'` where
+     `<N>` matches the now-cancelled GitHub run.
+
+   Paste screenshots + the `gh run` URL into this section once
+   verified.
+
+4. **Optional: re-run the intended `--dry --no-supabase` probe** to
+   close the loop on the original scenario that surfaced
+   Follow-ups 1 + 2. Expect:
+   - Workflow completes in ≈30 s (not 9 min).
+   - `pipeline_runs.rows_upserted` = null (sync skipped).
+   - dev Supabase `prospects` count unchanged.
+
+### Stage 10c exit gate — effective state
+
+**GREEN on all automated + preview gates.** Pre-merge ceiling hit.
+
+- 16 of 17 integrity Tks green; T02 deferred post-merge with
+  mandatory checklist above.
+- Two preview re-verify cycles green (`4a51751`, `0be1470`).
+- `event_log` delta since stage start: 0 unexpected `error`/`fatal`
+  rows (whitelist unchanged from Stage 10b).
+- Dispatch-skip trigger + workflow args-honor fix landed as
+  Follow-up 1.
+- Repository_dispatch / default-branch constraint documented as
+  Follow-up 2; T02 moved to Post-merge checklist.
+
+Stage 10c implementation ends here. PR #18 (head `d84a0d8`) is the
+merge artifact. Post-merge T02 sign-off closes the stage fully.
 
