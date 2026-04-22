@@ -3347,9 +3347,10 @@ the 17 post-Stage-10b runs in `pipeline_runs`.
       start (whitelist unchanged from Stage 10b).
 - [x] `stage10b_integrity.py` + `stage10_integrity.py` run cleanly in
       snapshot-missing mode (T16 regression).
-- [ ] **Preview re-verify:** `pnpm e2e --grep stage10c` +
-      `stage5_integrity.py --deploy-url <preview>` run against the
-      Vercel preview URL once the PR push is live. Results appended
+- [x] **Preview re-verify** (2026-04-22, PR #18 head `4a51751`):
+      CI `check` + `e2e` + `Vercel` all green; manual
+      `pnpm e2e --grep stage10c` against preview = 16/16 pass;
+      `stage5_integrity.py --deploy-url <preview>` = 7/7 pass. Details
       below.
 - [ ] **T02 manual:** admin triggers a real `--dry` run from
       `/admin/runs`, observes `status='running'` in the UI, POSTs
@@ -3357,12 +3358,44 @@ the 17 post-Stage-10b runs in `pipeline_runs`.
       60s and `pipeline_runs.error` matches
       `'cancelled by admin: <email> (running, gh_run=<id>)'`.
       Screenshots + `gh run` URL appended below post-verification.
+      **User-owned; blocks merge of PR #18.**
 - [x] Stage 10b `stage10b_cleanup.py` baseline untouched (3,218
       prospects, 0 stage10b fixtures).
 
-### Preview re-verify (populated post-PR push)
+### Preview re-verify (2026-04-22, PR #18 head `4a51751`)
 
-_To be appended once Vercel builds the preview for this branch._
+Preview URL:
+`https://whrb-prospects-dev-git-stage10c-run-c53246-countcowys-projects.vercel.app`
+(Vercel deployment `Cmwjfekh1JS2CQxcvGApiTqVfcrC`).
+
+**CI gates on PR #18** — all green:
+- `check` (ruff lint): pass (52 s).
+- `check` (typecheck + lint + build): pass (1 min 29 s).
+- `e2e` (Playwright auth.setup → smoke against preview): pass (3 min 34 s).
+- `Vercel` deployment: pass.
+- `Vercel Preview Comments`: pass.
+
+**Manual preview re-verify** (re-planted stage10c fixtures; ran specs +
+stage5 deploy probe against preview URL):
+
+```text
+pnpm e2e --grep stage10c (E2E_BASE_URL=<preview>)
+  ✓ stage10c-t01 …t15 (16 passed / 0 failed / 4 skipped non-10c setups)
+  total: 21.5 s
+
+python3 scripts/stage5_integrity.py --deploy-url <preview>
+  [PASS] T01 .env populated
+  [PASS] T02 no SERVICE_ROLE leak in /_next/static/*.js
+  [PASS] T03 11 protected routes redirect to /login
+  [PASS] T04 /login renders 200
+  [PASS] T05 /auth/callback without code redirects safely
+  [PASS] T06 all 10 Stage-1 tables reachable via service role
+  [PASS] T07 /api/log rejects invalid bodies with 400
+  Automated: 7/7 pass  (EXIT=0)
+```
+
+Preview re-verify GREEN. Fixtures torn down post-verification; no
+residue on dev Supabase.
 
 ### T02 manual check (populated post-manual-verification)
 
