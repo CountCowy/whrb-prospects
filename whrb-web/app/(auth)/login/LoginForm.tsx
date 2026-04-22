@@ -3,7 +3,12 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Loader2, Mail, MailCheck } from 'lucide-react';
+
 import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Props {
   searchParams: Promise<{
@@ -21,10 +26,6 @@ export function LoginForm({ searchParams }: Props) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(Boolean(params.sent));
 
-  // Some Supabase flows (notably admin-generated magic links) land back here
-  // with `#access_token=...&refresh_token=...` in the URL hash instead of the
-  // `?code=` query param the PKCE route expects. Detect that and finish the
-  // sign-in client-side via setSession, which writes the ssr auth cookies.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const hash = window.location.hash.slice(1);
@@ -73,26 +74,13 @@ export function LoginForm({ searchParams }: Props) {
     return (
       <div className="rounded-lg border border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] p-4 text-sm">
         <div className="flex items-start gap-3">
-          <svg
-            viewBox="0 0 24 24"
-            width="18"
-            height="18"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.75"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="mt-0.5 flex-shrink-0 text-[hsl(var(--primary))]"
+          <MailCheck
+            className="mt-0.5 h-[18px] w-[18px] flex-shrink-0 text-primary"
             aria-hidden="true"
-          >
-            <rect x="2" y="4" width="20" height="16" rx="2" />
-            <path d="m22 7-10 5L2 7" />
-          </svg>
+          />
           <div>
-            <p className="font-medium text-[hsl(var(--foreground))]">
-              Magic link sent
-            </p>
-            <p className="mt-1 text-[hsl(var(--muted-foreground))]">
+            <p className="font-medium text-foreground">Magic link sent</p>
+            <p className="mt-1 text-muted-foreground">
               Check <strong>{email || 'your inbox'}</strong> and click the link
               to sign in.
             </p>
@@ -104,28 +92,46 @@ export function LoginForm({ searchParams }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      <label className="block text-sm font-medium">
-        Email
-        <input
-          type="email"
-          required
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="mt-1.5 block w-full rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--background))] px-3.5 py-2.5 text-sm shadow-[var(--shadow-sm)] transition-shadow focus:border-[hsl(var(--ring))] focus:outline-none focus:shadow-[var(--shadow-glow)]"
-          placeholder="you@example.com"
-        />
-      </label>
+      <div className="space-y-1.5">
+        <Label htmlFor="login-email">Email</Label>
+        <div className="relative">
+          <Mail
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <Input
+            id="login-email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="h-11 pl-9 text-sm"
+          />
+        </div>
+      </div>
       {params.error ? (
-        <p className="text-sm text-[hsl(var(--destructive))]">{params.error}</p>
+        <p className="text-sm text-destructive">{params.error}</p>
       ) : null}
-      <button
+      <Button
         type="submit"
+        size="lg"
         disabled={sending}
-        className="w-full rounded-lg bg-[hsl(var(--primary))] px-4 py-2.5 text-sm font-semibold text-[hsl(var(--primary-foreground))] shadow-[var(--shadow-sm)] transition-all hover:brightness-110 hover:shadow-[var(--shadow-md)] active:brightness-95 disabled:opacity-50"
+        className="w-full shadow-sm"
       >
-        {sending ? 'Sending…' : 'Send magic link'}
-      </button>
+        {sending ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Sending…
+          </>
+        ) : (
+          <>
+            <Mail className="h-4 w-4" />
+            Send magic link
+          </>
+        )}
+      </Button>
     </form>
   );
 }
