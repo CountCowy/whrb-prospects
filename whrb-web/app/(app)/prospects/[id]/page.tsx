@@ -47,6 +47,11 @@ export default async function ProspectDetailPage({
       }))}
       profileLabels={profileLabels}
       currentUserId={user.id}
+      currentUser={{
+        id: user.id,
+        email: me?.email ?? user.email ?? '',
+        display_name: me?.display_name ?? null,
+      }}
       isAdmin={Boolean(isAdmin)}
     />
   );

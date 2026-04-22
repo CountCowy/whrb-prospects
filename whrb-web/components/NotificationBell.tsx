@@ -1,0 +1,171 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { createClient } from '@/lib/supabase/client';
+import type { NotificationKind } from '@/components/NotificationInbox';
+
+interface TogglePrefs {
+  notify_assignment_toast: boolean;
+  notify_mention_toast: boolean;
+}
+
+const TOAST_PREF_COLUMN: Partial<Record<NotificationKind, keyof TogglePrefs>> = {
+  assigned: 'notify_assignment_toast',
+  unassigned: 'notify_assignment_toast',
+  note_mention: 'notify_mention_toast',
+};
+
+const DEFAULT_TOAST_PREFS: TogglePrefs = {
+  notify_assignment_toast: true,
+  notify_mention_toast: true,
+};
+
+function shortSummary(row: {
+  kind: NotificationKind;
+  payload: Record<string, unknown> | null;
+}): string {
+  const p = row.payload ?? {};
+  switch (row.kind) {
+    case 'assigned': {
+      const name = (p.prospect_name as string) ?? 'A prospect';
+      return `Assigned: ${name}`;
+    }
+    case 'unassigned': {
+      const name = (p.prospect_name as string) ?? 'A prospect';
+      return `Reassigned: ${name}`;
+    }
+    case 'note_mention':
+      return `Mentioned in a note`;
+    case 'run_complete': {
+      const status = (p.status as string) ?? 'complete';
+      return `Pipeline run ${status}`;
+    }
+    case 'feedback_status': {
+      const status = (p.status as string) ?? 'updated';
+      return `Feedback status: ${status}`;
+    }
+  }
+}
+
+export function NotificationBell({
+  userId,
+  initialUnread,
+}: {
+  userId: string;
+  initialUnread: number;
+}) {
+  const [unread, setUnread] = useState(initialUnread);
+  const prefsRef = useRef<TogglePrefs>(DEFAULT_TOAST_PREFS);
+  const mountedRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    const supabase = createClient();
+
+    (async () => {
+      const { data } = await supabase
+        .from('user_preferences')
+        .select('notify_assignment_toast,notify_mention_toast')
+        .eq('user_id', userId)
+        .maybeSingle();
+      if (!mountedRef.current) return;
+      if (data) {
+        prefsRef.current = {
+          notify_assignment_toast: data.notify_assignment_toast as boolean,
+          notify_mention_toast: data.notify_mention_toast as boolean,
+        };
+      }
+    })();
+
+    const channel = supabase
+      .channel(`notif-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_id=eq.${userId}`,
+        },
+        (payload) => {
+          if (!mountedRef.current) return;
+          setUnread((c) => c + 1);
+          const row = payload.new as {
+            kind: NotificationKind;
+            payload: Record<string, unknown> | null;
+          };
+          const toastCol = TOAST_PREF_COLUMN[row.kind];
+          const allow = toastCol ? prefsRef.current[toastCol] : false;
+          if (allow) {
+            toast(shortSummary(row), {
+              action: {
+                label: 'View',
+                onClick: () => {
+                  window.location.href = '/notifications';
+                },
+              },
+            });
+          }
+        },
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'notifications',
+          filter: `recipient_id=eq.${userId}`,
+        },
+        (payload) => {
+          if (!mountedRef.current) return;
+          const wasRead = (payload.old as { read_at?: string | null }).read_at;
+          const nowRead = (payload.new as { read_at?: string | null }).read_at;
+          if (!wasRead && nowRead) setUnread((c) => Math.max(0, c - 1));
+          if (wasRead && !nowRead) setUnread((c) => c + 1);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      mountedRef.current = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  const displayCount = unread > 99 ? '99+' : `${unread}`;
+
+  return (
+    <Link
+      href="/notifications"
+      aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
+      className="relative rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+      data-testid="notification-bell"
+      data-unread-count={unread}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      </svg>
+      {unread > 0 ? (
+        <span
+          className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[hsl(var(--primary))] px-1.5 text-[10px] font-semibold leading-none text-[hsl(var(--primary-foreground))]"
+          data-testid="notification-bell-badge"
+        >
+          {displayCount}
+        </span>
+      ) : null}
+    </Link>
+  );
+}

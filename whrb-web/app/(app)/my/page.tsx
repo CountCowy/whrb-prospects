@@ -2,8 +2,11 @@ import Link from 'next/link';
 import { SearchInput } from '@/components/SearchInput';
 import { FilterBar } from '@/components/FilterBar';
 import { ProspectTable } from '@/components/ProspectTable';
+import { ProspectCardList } from '@/components/ProspectCardList';
 import { KanbanBoard } from '@/components/KanbanBoard';
+import { KanbanMobile } from '@/components/KanbanMobile';
 import { MyClientsRealtime } from '@/components/MyClientsRealtime';
+import { ExportCurrentFilters } from '@/components/ExportCurrentFilters';
 import {
   listProspects,
   getFilterFacets,
@@ -79,6 +82,25 @@ export default async function MyClientsPage({
     priority_score: r.priority_score,
   }));
 
+  const kanbanIds = kanbanCards.map((c) => c.id);
+  let initialPresence: Record<string, number> = {};
+  if (view === 'kanban' && kanbanIds.length > 0) {
+    const since = new Date(Date.now() - 90_000).toISOString();
+    const { data: presenceRows } = await supabase
+      .from('prospect_presence')
+      .select('prospect_id,user_id,last_seen_at')
+      .in('prospect_id', kanbanIds)
+      .gte('last_seen_at', since);
+    const counts: Record<string, number> = {};
+    for (const row of presenceRows ?? []) {
+      const pid = row.prospect_id as string;
+      const uid = row.user_id as string;
+      if (!pid || uid === userId) continue;
+      counts[pid] = (counts[pid] ?? 0) + 1;
+    }
+    initialPresence = counts;
+  }
+
   return (
     <div className="space-y-6">
       <MyClientsRealtime currentUserId={userId} />
@@ -91,6 +113,11 @@ export default async function MyClientsPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ViewToggle current={view} />
+          <ExportCurrentFilters
+            endpoint="/api/prospects/export"
+            extra={{ mine: '1' }}
+            testId="export-my-clients"
+          />
           <SearchInput placeholder="Search my prospects…" />
         </div>
       </div>
@@ -104,19 +131,41 @@ export default async function MyClientsPage({
         kanbanCards.length === 0 ? (
           <EmptyState />
         ) : (
-          <KanbanBoard cards={kanbanCards} />
+          <>
+            <div className="md:hidden">
+              <KanbanMobile cards={kanbanCards} />
+            </div>
+            <div className="hidden md:block">
+              <KanbanBoard
+                cards={kanbanCards}
+                currentUserId={userId}
+                initialPresence={initialPresence}
+              />
+            </div>
+          </>
         )
       ) : (
-        <ProspectTable
-          rows={result.rows}
-          total={result.total}
-          page={result.page}
-          pageSize={result.pageSize}
-          sort={result.sort}
-          emptyTitle="No prospects assigned to you yet."
-          emptyDescription="Rows you pick up will appear here."
-          emptyAction={{ href: '/prospects?assigned=false', label: 'Browse unassigned' }}
-        />
+        <>
+          <div className="md:hidden">
+            <ProspectCardList
+              rows={result.rows}
+              emptyTitle="No prospects assigned to you yet."
+              emptyDescription="Rows you pick up will appear here."
+            />
+          </div>
+          <div className="hidden md:block">
+            <ProspectTable
+              rows={result.rows}
+              total={result.total}
+              page={result.page}
+              pageSize={result.pageSize}
+              sort={result.sort}
+              emptyTitle="No prospects assigned to you yet."
+              emptyDescription="Rows you pick up will appear here."
+              emptyAction={{ href: '/prospects?assigned=false', label: 'Browse unassigned' }}
+            />
+          </div>
+        </>
       )}
     </div>
   );

@@ -13,6 +13,7 @@ import { FieldEditor } from '@/components/FieldEditor';
 import { AssignPicker, type AssignProfile } from '@/components/AssignPicker';
 import { NotesPanel } from '@/components/NotesPanel';
 import { ActivityTab } from '@/components/ActivityTab';
+import { PresenceChips } from '@/components/PresenceChips';
 
 type Tab = 'fields' | 'notes' | 'activity';
 
@@ -48,6 +49,7 @@ export type ProspectDetailProps = {
   profiles: AssignProfile[];
   profileLabels: Record<string, string>;
   currentUserId: string;
+  currentUser: { id: string; email: string; display_name: string | null };
   isAdmin: boolean;
 };
 
@@ -58,6 +60,7 @@ export function ProspectDetail({
   profiles,
   profileLabels,
   currentUserId,
+  currentUser,
   isAdmin,
 }: ProspectDetailProps) {
   const router = useRouter();
@@ -107,6 +110,7 @@ export function ProspectDetail({
               <StateBadge state={prospect.state} />
             </div>
           </div>
+          <PresenceChips prospectId={prospect.id} currentUser={currentUser} />
         </div>
         <AssignPicker
           prospectId={prospect.id}

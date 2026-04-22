@@ -5,6 +5,7 @@ import {
   type EventLogRow,
 } from '@/lib/queries/admin';
 import { formatDateTime } from '@/lib/time';
+import { ExportCurrentFilters } from '@/components/ExportCurrentFilters';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,18 +77,25 @@ export default async function AdminLogsPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
-          Admin
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
+            Admin
+          </div>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
+            Event log
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm text-[hsl(var(--muted-foreground))]">
+            Unified stream from the pipeline, web server, and client. Use filters
+            to isolate failures; click a row linked to a pipeline run to jump to
+            its drill-down.
+          </p>
         </div>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
-          Event log
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm text-[hsl(var(--muted-foreground))]">
-          Unified stream from the pipeline, web server, and client. Use filters
-          to isolate failures; click a row linked to a pipeline run to jump to
-          its drill-down.
-        </p>
+        <ExportCurrentFilters
+          endpoint="/api/admin/logs/export"
+          testId="export-admin-logs"
+          allowedKeys={['level', 'category', 'q', 'since', 'until', 'source']}
+        />
       </div>
 
       <form

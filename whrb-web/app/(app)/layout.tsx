@@ -18,9 +18,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     .maybeSingle();
   const isAdmin = profile?.role === 'admin';
 
+  const { count: unreadCount } = await supabase
+    .from('notifications')
+    .select('id', { count: 'exact', head: true })
+    .eq('recipient_id', user.id)
+    .is('read_at', null);
+
   return (
     <div className="flex min-h-screen flex-col">
-      <Nav isAdmin={isAdmin} />
+      <Nav isAdmin={isAdmin} userId={user.id} initialUnreadCount={unreadCount ?? 0} />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-6 sm:px-6 sm:pb-32">
         {children}
       </main>

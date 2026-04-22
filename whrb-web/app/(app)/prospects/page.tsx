@@ -1,7 +1,9 @@
 import { SearchInput } from '@/components/SearchInput';
 import { FilterBar } from '@/components/FilterBar';
 import { ProspectTable } from '@/components/ProspectTable';
+import { ProspectCardList } from '@/components/ProspectCardList';
 import { AddProspectModal } from '@/components/AddProspectModal';
+import { ExportCurrentFilters } from '@/components/ExportCurrentFilters';
 import { listProspects, getFilterFacets, DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/queries/prospects';
 import { createClient } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/queries/profiles';
@@ -71,6 +73,10 @@ export default async function AllProspectsPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isAdmin ? <AddProspectModal /> : null}
+          <ExportCurrentFilters
+            endpoint="/api/prospects/export"
+            testId="export-all-prospects"
+          />
           <SearchInput />
         </div>
       </div>
@@ -80,15 +86,24 @@ export default async function AllProspectsPage({
         sources={facets.sources}
         showAssignedFacet
       />
-      <ProspectTable
-        rows={result.rows}
-        total={result.total}
-        page={result.page}
-        pageSize={result.pageSize}
-        sort={result.sort}
-        emptyTitle="No prospects yet."
-        emptyDescription="Once the pipeline runs, rows will appear here."
-      />
+      <div className="md:hidden">
+        <ProspectCardList
+          rows={result.rows}
+          emptyTitle="No prospects yet."
+          emptyDescription="Once the pipeline runs, rows will appear here."
+        />
+      </div>
+      <div className="hidden md:block">
+        <ProspectTable
+          rows={result.rows}
+          total={result.total}
+          page={result.page}
+          pageSize={result.pageSize}
+          sort={result.sort}
+          emptyTitle="No prospects yet."
+          emptyDescription="Once the pipeline runs, rows will appear here."
+        />
+      </div>
     </div>
   );
 }

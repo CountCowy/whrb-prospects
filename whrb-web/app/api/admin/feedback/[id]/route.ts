@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthed } from '@/lib/server/authz';
 import { logEvent } from '@/lib/logging/server';
+import { notify } from '@/lib/server/notifications';
 
 export const runtime = 'nodejs';
 
@@ -56,7 +57,7 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     .from('feedback')
     .update(update)
     .eq('id', id)
-    .select('id, status, admin_response')
+    .select('id, status, admin_response, author_id')
     .maybeSingle();
   if (error) {
     await logEvent({
@@ -81,5 +82,23 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     context: { id, update },
     userId: authz.user.id,
   });
-  return NextResponse.json(data);
+
+  const authorId = (data.author_id as string | null) ?? null;
+  if (authorId && authorId !== authz.user.id) {
+    await notify({
+      recipientId: authorId,
+      kind: 'feedback_status',
+      actorId: authz.user.id,
+      prospectId: null,
+      payload: {
+        feedback_id: id,
+        status: (data.status as string) ?? null,
+        admin_response: (data.admin_response as string | null) ?? null,
+      },
+    });
+  }
+
+  const { author_id: _authorId, ...responseBody } = data;
+  void _authorId;
+  return NextResponse.json(responseBody);
 }
