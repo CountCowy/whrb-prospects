@@ -3461,8 +3461,16 @@ gh run list --workflow run-pipeline.yml — no new workflow runs since
   all bypassed the Edge Function dispatch (confirmed via event_log).
 ```
 
-Preview re-verify pending on next push (see PR #18 head after
-follow-up commit).
+**Preview re-verify** (2026-04-22, PR #18 head `0be1470`):
+
+- CI on PR #18 — ruff / typecheck / e2e / Vercel all pass.
+- `pnpm e2e --grep stage10c` against preview URL — 16/16 pass.
+- `stage5_integrity.py --deploy-url <preview>` — 7/7 pass.
+- `gh run list --workflow run-pipeline.yml` — no new workflow runs
+  triggered by the Playwright test inserts (trigger-skip confirmed).
+
+Follow-up 1 closed. PR #18 still blocks on the user-owned T02 manual
+cancel-of-running verification.
 
 **`--no-supabase` clarification (user question, same session):**
 
