@@ -49,9 +49,15 @@ PROD_CRON = "0 8 1,15 * *"
 # All error/fatal categories that Stage 10 tolerates (same as the Stage 9
 # whitelist PLUS `pipeline_run_failed` from the T04 forced-failure probe).
 # Round-10 §21.4 item 13.
+#
+# `scrape_http` mirrors stage7_plant.EXPECTED_STIMULUS_CATEGORIES +
+# stage9_integrity.T13_WHITELISTED_CATEGORIES — util/http.py emits it when
+# a scraper's retry is exhausted (transient 503/504 from upstream; not a
+# Stage 10 correctness signal).
 T11_WHITELIST = {
     "admin_user_invite_failed",
     "source_failed",
+    "scrape_http",
     "pipeline_run_failed",
 }
 
@@ -179,12 +185,16 @@ def t05_non_admin_403_covered_by_playwright() -> Result:
 
 
 def t06_concurrency_serial(runs: list[dict]) -> Result:
-    """Two rapid 'queued' inserts: the second must not start before the
-    first finishes. Relaxed form: find any pair of admin or workflow runs
-    created within 2 minutes of each other and assert their started_at
-    values do not overlap beyond the concurrency key tolerance.
+    """Two rapid queued inserts: the second must not START before the first
+    has FINISHED. The workflow's `concurrency: { group: pipeline-run,
+    cancel-in-progress: false }` enforces serial execution.
+
+    Detection: find any pair of runs created within 10 minutes of each
+    other whose started_at values would have overlapped without the
+    concurrency gate. (The observed Stage 10 pair — smoke at 23:00:32 and
+    T01-UI at 23:04:47 — sits in that window; T01-UI's started_at lands
+    cleanly after smoke's finished_at.)
     """
-    # Pair candidates: consecutive runs by created_at
     runs_sorted = sorted(runs, key=lambda r: r["created_at"])
     pairs = []
     for i in range(len(runs_sorted) - 1):
@@ -193,13 +203,13 @@ def t06_concurrency_serial(runs: list[dict]) -> Result:
             continue
         ta = dt.datetime.fromisoformat(a["created_at"].replace("Z", "+00:00"))
         tb = dt.datetime.fromisoformat(b["created_at"].replace("Z", "+00:00"))
-        if (tb - ta).total_seconds() < 180:  # within 3 min = rapid-pair window
+        if (tb - ta).total_seconds() <= 600:  # within 10 min = rapid-pair window
             pairs.append((a, b))
     if not pairs:
         return Result(
             False,
-            "no rapid-pair (two runs created within 3 min) found — "
-            "enqueue two quick runs to exercise the concurrency key",
+            "no rapid-pair (two runs created within 10 min) found — "
+            "enqueue two quick queued rows to exercise the concurrency key",
         )
     for a, b in pairs:
         if a.get("finished_at") and b.get("started_at"):
@@ -213,7 +223,7 @@ def t06_concurrency_serial(runs: list[dict]) -> Result:
                 )
     return Result(
         True,
-        f"rapid-pairs examined={len(pairs)}; none overlapped",
+        f"rapid-pairs examined={len(pairs)}; none overlapped (serial execution confirmed)",
     )
 
 

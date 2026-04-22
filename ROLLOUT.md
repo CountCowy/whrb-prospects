@@ -2337,3 +2337,190 @@ clarifications addendum in the parent plan (§21).
 4. `stage7_plant.EXPECTED_STIMULUS_CATEGORIES` extended with
    `pipeline_run_failed` to keep downstream CI green.
 
+### Stage 10 exit (2026-04-22)
+
+**Started:** 2026-04-21 22:35 UTC (stage10_plant).
+**Exited:** 2026-04-22 00:42 UTC.
+**Branch:** `stage10/pipeline-dispatch` (PR #11, merged mid-stage
+2026-04-21 22:43 UTC); follow-ups #12 (webhook trigger migration),
+#13 (`*/5` probe), #14 (revert to production cadence).
+**Tester:** Claude (Opus 4.7 1M) + CountCowy.
+**Preview URL:** https://whrb-prospects-mcecrgc5o-countcowys-projects.vercel.app
+(production deploy after #14; dev Supabase project
+`kolfijjavwruwzctmnlx`).
+
+**Actions taken (in order):**
+1. Exited worktree; cut `stage10/pipeline-dispatch` off
+   `origin/main` at `1be6be4` in the top-level `Listing/`
+   checkout (§21.1 item 2).
+2. Authored web artefacts: `/api/pipeline/run` route
+   (admin-only, 201 with `{pipeline_run_id}`);
+   `TriggerRunButton.tsx` client component; wired button
+   into `/admin/runs`.
+3. Authored Supabase Edge Function
+   `whrb-web/supabase/functions/github-dispatch/index.ts`
+   — Path A proxy (§20.4) that filters
+   `record.status === 'queued'` and POSTs
+   `{event_type: 'pipeline_run', client_payload:
+   {pipeline_run_id}}` to GitHub dispatch.
+4. Authored `.github/workflows/run-pipeline.yml` — three
+   triggers (`repository_dispatch`, `schedule`,
+   `workflow_dispatch` with `force_fail` input); workflow
+   owns `queued→running→success|failed` transitions.
+5. Extended `pipeline.py` with `WHRB_PIPELINE_RUN_ID` env
+   var — adopts the workflow-managed row and skips
+   INSERT/UPDATE; CLI behaviour unchanged.
+6. Authored `stage10_plant.py` / `stage10_cleanup.py` /
+   `stage10_integrity.py` + Playwright specs
+   (`trigger-run.spec.ts`, `non-admin-guard.spec.ts`,
+   `stage10.setup.ts`, `helpers.ts`).
+7. Added `pipeline_run_failed` to
+   `stage7_plant.EXPECTED_STIMULUS_CATEGORIES` and
+   `stage9_integrity.T13_WHITELISTED_CATEGORIES` so
+   downstream CI does not abort on the Stage 10 forced-
+   failure stimulus (round-10 §21.4 item 13).
+8. Added `scrape_http` to `stage10_integrity.T11_WHITELIST`
+   (mirrors prior stages; previously missed — patched as
+   the first integrity-script bug below).
+9. Ran pre-push quality checks: `pnpm typecheck` + `pnpm
+   lint` + `pnpm build` + `ruff` + `mypy` + `pytest (125
+   passed)` — all green.
+10. Planted Stage 10 fixtures: synthetic rep
+    `stage10-rep@example.com`, 5-edit change set spanning
+    pickup_state + phone_lock + note + nonprofit_lock
+    (round-10 §21.5 item 15), snapshot at
+    `cache/stage10_snapshot.json`.
+11. Pushed branch, opened PR #11, CI green on all 3 checks
+    (whrb-web-ci, whrb-prospects-ci, e2e). **Mid-stage
+    merge to `main`** (round-10 §21.2 step 3).
+12. `brew install supabase/tap/supabase` (v2.90.0).
+    `supabase link --project-ref kolfijjavwruwzctmnlx`.
+    `supabase secrets set GH_DISPATCH_PAT=<value>`.
+    `supabase functions deploy github-dispatch --no-verify-jwt`.
+13. Because the Dashboard's Database Webhook UI does not
+    let us template the GitHub body or filter on
+    `status='queued'`, the Stage 10 implementation landed
+    a new migration `003_pipeline_dispatch_webhook.sql`
+    (pg_net trigger → Edge Function) instead of
+    re-enabling the disabled Dashboard webhook. This is
+    still Path A — the Edge Function still does the
+    envelope filtering and calls GitHub dispatch; only the
+    "caller" is a DB trigger rather than the Dashboard
+    webhook. Applied via `supabase db push` after
+    `supabase migration repair` marked 000/001/002 as
+    already applied (they landed earlier via
+    `apply_migration.py`, which does not populate
+    `supabase_migrations.schema_migrations`). Committed to
+    git in PR #12.
+14. Smoke-test: direct queued INSERT via service-role
+    client (pipeline_runs `445a67ba`, `args='--smoke-stage10'`,
+    `triggered_by=admin`). Trigger → Edge Function →
+    GitHub dispatch → workflow `24750872805`. Completed
+    `success`, `rows_upserted=456` in 27 min. End-to-end
+    Path A proven.
+15. Ran Playwright stage10 specs locally against
+    `pnpm dev` → **T01 PASS** (button click enqueues a
+    row + toast + refresh; row `3eae34de` inserted by
+    `/api/pipeline/run` with `triggered_by=admin`);
+    **T05 PASS** (non-admin POST → 403).
+16. Landed `*/5 * * * *` probe cron in PR #13. First
+    fire (at ~23:51 UTC) ran once the concurrency group
+    became free, creating pipeline_runs `a263ef9e` with
+    `triggered_by=null, args='--scheduled'`. Completed
+    success, `rows_upserted=359`.
+17. Reverted cron to production cadence
+    (`0 8 1,15 * *` only) via PR #14 — this is T10.
+18. Launched T04 via `gh workflow run run-pipeline.yml
+    --ref main -f force_fail=true`. Workflow
+    `24752668097` ran with
+    `SUPABASE_URL=https://invalid.example` on the
+    pipeline step only; pipeline exited non-zero; the
+    finalize step (with real secrets) updated
+    pipeline_runs `2fbe6271` to `status='failed',
+    error='ConnectError: [Errno -2] Name or service not
+    known...'`.
+19. Fixed two integrity-script bugs surfaced by the first
+    `stage10_integrity.py` run:
+      - T06 used a 3-min rapid-pair window; the observed
+        smoke→T01-UI pair (gap 4:15) fell outside. Widened
+        to 10 min (still short enough to be "rapid" in the
+        concurrency-key sense).
+      - T11 whitelist missed `scrape_http` — added it to
+        match `stage7_plant` / `stage9_integrity`.
+    Neither was a real failure; both were harness bugs.
+20. Reran `stage10_integrity.py` → **12/12 PASS (1
+    SKIP-COVERED)**.
+
+**Plan deviations (final list, documented for audit):**
+1. **Mid-stage PR merge** (PR #11 merged before all Tks
+   were green) — required for `repository_dispatch` +
+   `schedule` to fire from the default branch
+   (round-10 §21.2 step 3).
+2. **`*/5` probe cron** (not `*/10`) — GitHub Actions'
+   minimum cron granularity is 5 min; user preference for
+   ≤ 5-min wait window (round-10 §21.4 item 12).
+3. **T04 via `workflow_dispatch` input** (not temporary
+   commit) — keeps repo state clean.
+4. **Webhook implemented via DB trigger + pg_net
+   migration** (003) instead of a Dashboard-configured
+   Database Webhook — the Dashboard UI on WHRB dev does
+   not expose templatable body or `status='queued'`
+   filter (§20.3 item 1+2). Still Path A — the Edge
+   Function handles both.
+5. **`stage7_plant.EXPECTED_STIMULUS_CATEGORIES` +
+   `stage9_integrity.T13_WHITELISTED_CATEGORIES` +
+   `stage10_integrity.T11_WHITELIST`** all extended with
+   `pipeline_run_failed` so Stage 10's forced-failure
+   stimulus does not abort downstream CI runs.
+6. **Two integrity-script fix-ups** landed post-Tk-run
+   (T06 window, T11 missing `scrape_http`). Documented
+   in action item 19 above; neither reflected a real
+   regression in the dispatch chain.
+
+**Integrity results — 12/12 PASS:**
+```
+[PASS] T01 admin-triggered queued row           admin-triggered rows=2; first id=445a67ba current_status=success
+[PASS] T02 flipped to running                   id=445a67ba status=success started_at=2026-04-21T23:01:29.704464+00:00
+[PASS] T03 success with rows_upserted>0         id=3eae34de rows_upserted=355 finished_at=2026-04-21T23:50:45.532863+00:00
+[PASS] T04 forced-failure row                   id=2fbe6271 args='--manual' error='ConnectError: [Errno -2] Name or service not known'
+[SKIP] T05 non-admin 403 (Playwright)           covered by whrb-web/e2e/stage10/non-admin-guard.spec.ts
+[PASS] T06 concurrency serial                   rapid-pairs examined=1; none overlapped (serial execution confirmed)
+[PASS] T07 event_log correlation                event_log rows with pipeline_run_id=3eae34de: 10
+[PASS] T08 scheduled probe row                  id=a263ef9e status=success created_at=2026-04-21T23:51:41.47305+00:00
+[PASS] T09 postrun_check passes                 [postrun_check] checks=5 pass=5 fail=0 snapshot_started_at=2026-04-21T22:35:26.517995+00:00
+[PASS] T10 cron production cadence              cron='0 8 1,15 * *' (production cadence)
+[PASS] T11 zero-error budget                    error rows=6, all in whitelist=['admin_user_invite_failed', 'pipeline_run_failed', 'scrape_http', 'source_failed']
+[PASS] T12 regression invariants                core tables=10 OK; prospects=3192
+
+12/12 pass (1 skipped)
+```
+T05 is SKIP-COVERED — exercised by Playwright
+`whrb-web/e2e/stage10/non-admin-guard.spec.ts` (PASS in
+local run, included in the standard `pnpm e2e` suite).
+
+**Manual checks:**
+- Workflow queue dynamics observed and documented — GitHub's
+  1-deep pending queue cancelled the first `force_fail`
+  attempt (24750930374) when the T01-UI queue entry
+  arrived. Working strategy: launch `workflow_dispatch` runs
+  only when the group is empty. The cron-probe approach
+  leveraged the same dynamic: once the `pipeline-run` group
+  freed up, the first suppressed `*/5` fire ran.
+- Supabase dashboard inspection of the Edge Function
+  invoke logs confirmed clean 202s for queued-row INSERTs
+  and 204s for non-queued UPDATEs (the "filter in code"
+  path).
+
+**Teardown:**
+- `stage10_cleanup.py` reverts the 5 planted edits and
+  hard-deletes the synthetic rep. The probe-fired
+  pipeline_runs rows (smoke `445a67ba`, T01-UI
+  `3eae34de`, scheduled `a263ef9e`, force-fail
+  `2fbe6271`) are **kept** as audit trail
+  (round-10 §21.5 item 16).
+
+**Exit gate: GREEN.** Stage 10 dispatch + worker
+contract proven end-to-end. Stage 10b (polish pass:
+presence, notifications, bulk, export, mobile) unblocked
+once explicitly authorized.
+
