@@ -1,4 +1,5 @@
 import { LoginForm } from './LoginForm';
+import { Logo } from '@/components/Logo';
 
 export default async function LoginPage({
   searchParams,
@@ -20,8 +21,7 @@ export default async function LoginPage({
       />
       <div className="relative w-full max-w-md">
         <div className="mb-6 flex items-center justify-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/whrb-logo.svg" alt="WHRB" className="h-9 w-auto" />
+          <Logo className="h-9 w-auto" />
           <span className="text-xs font-medium uppercase tracking-[0.22em] text-[hsl(var(--muted-foreground))]">
             Sales
           </span>

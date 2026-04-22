@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { SignOutButton } from '@/components/SignOutButton';
+import { Logo } from '@/components/Logo';
 
 const TABS = [
   { href: '/', label: 'Home' },
@@ -48,8 +49,7 @@ export function Nav({
     <header className="sticky top-0 z-40 border-b border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))]/80 backdrop-blur-md supports-[backdrop-filter]:bg-[hsl(var(--background))]/70">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2" aria-label="WHRB Sales home">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/whrb-logo.svg" alt="WHRB" className="h-7 w-auto" />
+          <Logo />
           <span className="hidden text-xs font-medium uppercase tracking-widest text-[hsl(var(--muted-foreground))] sm:inline">
             Sales
           </span>
