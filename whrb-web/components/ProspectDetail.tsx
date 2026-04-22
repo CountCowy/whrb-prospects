@@ -87,13 +87,13 @@ export function ProspectDetail({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href="/prospects"
-          className="text-xs font-medium uppercase tracking-widest text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]"
+          className="text-xs font-medium tracking-widest text-[hsl(var(--muted-foreground))] uppercase hover:text-[hsl(var(--foreground))]"
         >
           ← All Prospects
         </Link>
         <span
           data-testid="stage-badge"
-          className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] px-3 py-1 text-[11px] font-medium uppercase tracking-widest text-[hsl(var(--primary))]"
+          className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] px-3 py-1 text-[11px] font-medium tracking-widest text-[hsl(var(--primary))] uppercase"
         >
           Stage 7 · Editable
         </span>
@@ -102,7 +102,7 @@ export function ProspectDetail({
       <header className="space-y-3 rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-[var(--shadow-sm)]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="text-2xl font-semibold tracking-tight break-words sm:text-3xl">
               {prospect.company_name}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
@@ -128,7 +128,12 @@ export function ProspectDetail({
         />
       </header>
 
-      <nav role="tablist" aria-label="Detail tabs" className="flex gap-2" data-testid="detail-tabs">
+      <nav
+        role="tablist"
+        aria-label="Detail tabs"
+        className="flex gap-1 border-b border-[hsl(var(--border-subtle))]"
+        data-testid="detail-tabs"
+      >
         {(['fields', 'notes', 'activity'] as Tab[]).map((key) => (
           <button
             key={key}
@@ -137,10 +142,10 @@ export function ProspectDetail({
             aria-selected={tab === key}
             data-testid={`tab-${key}`}
             onClick={() => setTab(key)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+            className={`relative -mb-px px-4 py-2.5 text-sm font-medium transition-colors ${
               tab === key
-                ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                ? 'text-[hsl(var(--primary))] after:absolute after:inset-x-0 after:bottom-0 after:h-[2px] after:bg-[hsl(var(--primary))]'
+                : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]/60 hover:text-[hsl(var(--foreground))]'
             }`}
           >
             {key === 'fields' ? 'Fields' : key === 'notes' ? 'Notes' : 'Activity'}
@@ -149,10 +154,7 @@ export function ProspectDetail({
       </nav>
 
       {tab === 'fields' ? (
-        <section
-          className="grid gap-4 lg:grid-cols-2"
-          data-testid="detail-fields"
-        >
+        <section className="grid gap-4 lg:grid-cols-2" data-testid="detail-fields">
           <Panel title="Company">
             <FieldEditor
               prospectId={prospect.id}
@@ -422,10 +424,10 @@ function ReadOnlyField({
 }) {
   return (
     <div className="grid grid-cols-3 items-baseline gap-3 py-2">
-      <dt className="col-span-1 text-[11px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+      <dt className="col-span-1 text-[11px] font-medium tracking-wider text-[hsl(var(--muted-foreground))] uppercase">
         {label}
       </dt>
-      <dd className="col-span-2 break-words text-sm text-[hsl(var(--foreground))]">
+      <dd className="col-span-2 text-sm break-words text-[hsl(var(--foreground))]">
         {value === null || value === undefined || value === '' ? (
           <span className="text-[hsl(var(--muted-foreground))]">—</span>
         ) : (

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { createClient } from '@/lib/supabase/client';
 import type { NotificationKind } from '@/components/NotificationInbox';
@@ -144,23 +145,10 @@ export function NotificationBell({
       data-testid="notification-bell"
       data-unread-count={unread}
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="18"
-        height="18"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-      </svg>
+      <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
       {unread > 0 ? (
         <span
-          className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[hsl(var(--primary))] px-1.5 text-[10px] font-semibold leading-none text-[hsl(var(--primary-foreground))]"
+          className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[hsl(var(--primary))] px-1.5 text-[10px] leading-none font-semibold text-[hsl(var(--primary-foreground))]"
           data-testid="notification-bell-badge"
         >
           {displayCount}

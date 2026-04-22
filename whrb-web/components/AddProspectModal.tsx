@@ -2,6 +2,10 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Plus, X } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 
 const EMPTY_FORM = {
   company_name: '',
@@ -48,139 +52,106 @@ export function AddProspectModal() {
 
   return (
     <>
-      <button
+      <Button
         type="button"
+        size="sm"
+        variant="primary"
+        leadingIcon={Plus}
         onClick={() => setOpen(true)}
         data-testid="add-prospect-button"
-        className="rounded-md border border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--primary-foreground))]"
       >
-        + Add prospect
-      </button>
+        Add prospect
+      </Button>
       {open ? (
         <div
           role="dialog"
           aria-modal="true"
           data-testid="add-prospect-modal"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setOpen(false);
+          }}
         >
-          <div className="w-full max-w-md space-y-4 rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-xl">
-            <div className="flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold">Add prospect</h2>
+          <div className="w-full max-w-md space-y-4 rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-6 shadow-[var(--shadow-lg)]">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold tracking-tight">Add prospect</h2>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Close"
-                className="text-xs text-[hsl(var(--muted-foreground))]"
+                className="rounded-md p-1 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
               >
-                ✕
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
             <div className="space-y-3">
-              <Field
-                label="Company name"
-                required
+              <Input
+                label="Company name *"
                 value={form.company_name}
-                onChange={(v) => setForm({ ...form, company_name: v })}
-                testid="add-company-name"
+                onChange={(e) => setForm({ ...form, company_name: e.target.value })}
+                data-testid="add-company-name"
               />
-              <div className="flex items-center gap-2">
-                <label className="text-[11px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                  Tier
-                </label>
-                <select
-                  value={form.tier}
-                  onChange={(e) =>
-                    setForm({ ...form, tier: e.target.value as 'A' | 'B' | 'C' })
-                  }
-                  data-testid="add-tier"
-                  className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-sm"
-                >
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                </select>
-              </div>
-              <Field
+              <Select
+                label="Tier"
+                value={form.tier}
+                onChange={(e) => setForm({ ...form, tier: e.target.value as 'A' | 'B' | 'C' })}
+                data-testid="add-tier"
+              >
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+              </Select>
+              <Input
                 label="Phone (optional)"
                 value={form.company_phone}
-                onChange={(v) => setForm({ ...form, company_phone: v })}
-                testid="add-phone"
+                onChange={(e) => setForm({ ...form, company_phone: e.target.value })}
+                data-testid="add-phone"
               />
-              <Field
+              <Input
                 label="Website (optional)"
                 value={form.website}
-                onChange={(v) => setForm({ ...form, website: v })}
-                testid="add-website"
+                onChange={(e) => setForm({ ...form, website: e.target.value })}
+                data-testid="add-website"
               />
-              <Field
+              <Input
                 label="Category (optional)"
                 value={form.category}
-                onChange={(v) => setForm({ ...form, category: v })}
-                testid="add-category"
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                data-testid="add-category"
               />
-              <Field
+              <Input
                 label="ZIP (optional)"
                 value={form.zip}
-                onChange={(v) => setForm({ ...form, zip: v })}
-                testid="add-zip"
+                onChange={(e) => setForm({ ...form, zip: e.target.value })}
+                data-testid="add-zip"
               />
             </div>
             {error ? (
-              <p data-testid="add-prospect-error" className="text-xs text-red-600 dark:text-red-300">
+              <p
+                data-testid="add-prospect-error"
+                className="text-xs text-[hsl(var(--destructive))]"
+              >
                 {error}
               </p>
             ) : null}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-md border border-[hsl(var(--border))] bg-transparent px-3 py-1 text-xs font-medium text-[hsl(var(--muted-foreground))]"
-              >
+            <div className="flex justify-end gap-2 pt-1">
+              <Button type="button" size="sm" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                size="sm"
+                variant="primary"
                 onClick={submit}
                 disabled={pending || !form.company_name.trim()}
                 data-testid="add-prospect-submit"
-                className="rounded-md border border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary))] px-3 py-1 text-xs font-medium text-[hsl(var(--primary-foreground))] disabled:opacity-50"
               >
                 {pending ? 'Creating…' : 'Create'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       ) : null}
     </>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  required,
-  testid,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  required?: boolean;
-  testid?: string;
-}) {
-  return (
-    <label className="block space-y-1 text-sm">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-        {label}
-        {required ? ' *' : ''}
-      </span>
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        data-testid={testid}
-        className="w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1"
-      />
-    </label>
   );
 }
