@@ -7,6 +7,7 @@ import { KanbanBoard } from '@/components/KanbanBoard';
 import { KanbanMobile } from '@/components/KanbanMobile';
 import { MyClientsRealtime } from '@/components/MyClientsRealtime';
 import { ExportCurrentFilters } from '@/components/ExportCurrentFilters';
+import { MobilePageSizeGuard } from '@/components/MobilePageSizeGuard';
 import {
   listProspects,
   getFilterFacets,
@@ -33,6 +34,16 @@ function parseSort(sp: SearchParams): { field: string; dir: 'asc' | 'desc' } {
 function parsePageSize(sp: SearchParams): number {
   const raw = Number(firstString(sp.pageSize));
   return (PAGE_SIZES as readonly number[]).includes(raw) ? raw : DEFAULT_PAGE_SIZE;
+}
+
+function currentSearchString(sp: SearchParams): string {
+  const out = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (v === undefined) continue;
+    if (Array.isArray(v)) for (const item of v) out.append(k, item);
+    else out.set(k, v);
+  }
+  return out.toString();
 }
 
 export default async function MyClientsPage({
@@ -104,6 +115,7 @@ export default async function MyClientsPage({
   return (
     <div className="space-y-6">
       <MyClientsRealtime currentUserId={userId} />
+      <MobilePageSizeGuard />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
@@ -149,6 +161,11 @@ export default async function MyClientsPage({
           <div className="md:hidden">
             <ProspectCardList
               rows={result.rows}
+              total={result.total}
+              page={result.page}
+              pageSize={result.pageSize}
+              basePath="/my"
+              currentSearch={currentSearchString(sp)}
               emptyTitle="No prospects assigned to you yet."
               emptyDescription="Rows you pick up will appear here."
             />

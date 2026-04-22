@@ -86,43 +86,39 @@ export function PresenceChips({
     };
   }, [prospectId, currentUser.id, currentUser.email, currentUser.display_name]);
 
-  // Self still appears in the strip — reps want confirmation their presence is
-  // registered before checking with a teammate. Visually distinguished.
-  if (participants.length === 0) return null;
+  // Only surface OTHER viewers. A user alone on a page shouldn't see a
+  // "Viewing" chip for themselves — it's visual clutter and users on
+  // iOS read it as an avatar decoration stuck on the title.
+  const others = participants.filter((p) => p.user_id !== currentUser.id);
+  if (others.length === 0) return null;
 
   return (
     <div
       className="flex items-center gap-1.5"
-      aria-label="Viewers"
+      aria-label="Other viewers"
       data-testid="presence-chips"
-      data-count={participants.length}
+      data-count={others.length}
     >
       <span className="text-[10px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
         Viewing
       </span>
       <div className="flex -space-x-1.5">
-        {participants.slice(0, 5).map((p) => {
-          const isSelf = p.user_id === currentUser.id;
+        {others.slice(0, 5).map((p) => {
           const label = p.display_name?.trim() || p.email;
           return (
             <span
               key={p.user_id}
-              title={isSelf ? `${label} (you)` : label}
+              title={label}
               data-testid="presence-chip"
-              data-self={isSelf ? '1' : '0'}
-              className={`inline-flex h-7 w-7 items-center justify-center rounded-full border-2 text-[10px] font-semibold ${
-                isSelf
-                  ? 'border-[hsl(var(--background))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                  : 'border-[hsl(var(--background))] bg-[hsl(var(--muted))] text-[hsl(var(--foreground))]'
-              }`}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-[hsl(var(--background))] bg-[hsl(var(--muted))] text-[10px] font-semibold text-[hsl(var(--foreground))]"
             >
               {initials(label)}
             </span>
           );
         })}
-        {participants.length > 5 ? (
+        {others.length > 5 ? (
           <span className="inline-flex h-7 items-center justify-center rounded-full border-2 border-[hsl(var(--background))] bg-[hsl(var(--muted))] px-2 text-[10px] font-semibold text-[hsl(var(--foreground))]">
-            +{participants.length - 5}
+            +{others.length - 5}
           </span>
         ) : null}
       </div>

@@ -60,10 +60,10 @@ export default async function AdminRunsPage({
         <TriggerRunButton />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))]">
+      <div className="overflow-x-auto rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))]">
         <table
           data-testid="runs-table"
-          className="w-full border-collapse text-sm"
+          className="w-full min-w-[720px] border-collapse text-sm"
         >
           <thead className="bg-[hsl(var(--muted))]/50 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
             <tr>

@@ -183,8 +183,8 @@ export default async function AdminLogsPage({
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))]">
-        <table data-testid="logs-table" className="w-full border-collapse text-sm">
+      <div className="overflow-x-auto rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))]">
+        <table data-testid="logs-table" className="w-full min-w-[720px] border-collapse text-sm">
           <thead className="bg-[hsl(var(--muted))]/50 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
             <tr>
               <th className="px-4 py-3">Time</th>

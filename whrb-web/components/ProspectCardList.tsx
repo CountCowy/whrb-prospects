@@ -5,11 +5,32 @@ import { StateBadge } from '@/components/StateBadge';
 
 type Props = {
   rows: Prospect[];
+  total?: number;
+  page?: number;
+  pageSize?: number;
+  basePath?: string;
+  currentSearch?: string;
   emptyTitle?: string;
   emptyDescription?: string;
 };
 
-export function ProspectCardList({ rows, emptyTitle, emptyDescription }: Props) {
+function buildPageHref(basePath: string, currentSearch: string, nextPage: number): string {
+  const sp = new URLSearchParams(currentSearch);
+  sp.set('page', String(nextPage));
+  const q = sp.toString();
+  return q ? `${basePath}?${q}` : basePath;
+}
+
+export function ProspectCardList({
+  rows,
+  total,
+  page,
+  pageSize,
+  basePath,
+  currentSearch,
+  emptyTitle,
+  emptyDescription,
+}: Props) {
   if (rows.length === 0) {
     return (
       <div
@@ -26,7 +47,15 @@ export function ProspectCardList({ rows, emptyTitle, emptyDescription }: Props) 
     );
   }
 
+  const showPagination =
+    total !== undefined && page !== undefined && pageSize !== undefined && basePath;
+  const totalPages = showPagination ? Math.max(1, Math.ceil((total ?? 0) / (pageSize ?? 1))) : 1;
+  const canPrev = showPagination && (page ?? 1) > 1;
+  const canNext = showPagination && (page ?? 1) < totalPages;
+  const searchStr = currentSearch ?? '';
+
   return (
+    <>
     <ul
       data-testid="prospect-card-list"
       className="divide-y divide-[hsl(var(--border-subtle))] overflow-hidden rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))]"
@@ -78,5 +107,36 @@ export function ProspectCardList({ rows, emptyTitle, emptyDescription }: Props) 
         </li>
       ))}
     </ul>
+    {showPagination ? (
+      <div
+        data-testid="prospect-card-list-pagination"
+        className="mt-3 flex items-center justify-between gap-3 text-xs text-[hsl(var(--muted-foreground))]"
+      >
+        <span>
+          Page {page} of {totalPages} · {total} match{total === 1 ? '' : 'es'}
+        </span>
+        <div className="flex gap-2">
+          {canPrev ? (
+            <Link
+              href={buildPageHref(basePath!, searchStr, (page ?? 2) - 1)}
+              data-testid="prospect-card-list-prev"
+              className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 font-medium hover:bg-[hsl(var(--muted))]"
+            >
+              ← Prev
+            </Link>
+          ) : null}
+          {canNext ? (
+            <Link
+              href={buildPageHref(basePath!, searchStr, (page ?? 1) + 1)}
+              data-testid="prospect-card-list-next"
+              className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 font-medium hover:bg-[hsl(var(--muted))]"
+            >
+              Next →
+            </Link>
+          ) : null}
+        </div>
+      </div>
+    ) : null}
+    </>
   );
 }

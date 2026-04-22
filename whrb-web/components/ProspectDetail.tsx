@@ -100,9 +100,9 @@ export function ProspectDetail({
       </div>
 
       <header className="space-y-3 rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-[var(--shadow-sm)]">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">
               {prospect.company_name}
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
@@ -110,7 +110,9 @@ export function ProspectDetail({
               <StateBadge state={prospect.state} />
             </div>
           </div>
-          <PresenceChips prospectId={prospect.id} currentUser={currentUser} />
+          <div className="shrink-0">
+            <PresenceChips prospectId={prospect.id} currentUser={currentUser} />
+          </div>
         </div>
         <AssignPicker
           prospectId={prospect.id}
