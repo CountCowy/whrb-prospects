@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { Nav } from '@/components/Nav';
 import { FeedbackButton } from '@/components/FeedbackButton';
+import { CommandPalette } from '@/components/CommandPalette';
 import { createClient } from '@/lib/supabase/server';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -31,6 +32,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <FeedbackButton />
+      <CommandPalette isAdmin={isAdmin} />
     </div>
   );
 }
