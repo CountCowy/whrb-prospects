@@ -12,27 +12,30 @@ test.describe('stage10c run-flags', () => {
   test.describe('admin', () => {
     test.use({ storageState: ADMIN_STORAGE });
 
-    test('stage10c-t05 POST with args="--dry" → 201, args canonicalised on row', async ({
+    test('stage10c-t05 POST with args="--dry --stage10c-fixture" → 201, args canonicalised on row, dispatch skipped', async ({
       request,
       baseURL,
     }) => {
       const service = serviceClient();
+      // The --stage10c-fixture sentinel tells migration 006's
+      // dispatch_pipeline_run() to skip this row, so the Edge Function +
+      // GitHub Actions workflow never fire for test inserts.
       const res = await request.post(`${baseURL}/api/pipeline/run`, {
-        data: { args: '--dry' },
+        data: { args: '--dry --stage10c-fixture' },
       });
       expect(res.status()).toBe(201);
       const body = (await res.json()) as { pipeline_run_id: string; args: string };
-      expect(body.args).toBe('--dry');
+      // Canonical order: '--dry' precedes '--stage10c-fixture' per FLAG_WHITELIST.
+      expect(body.args).toBe('--dry --stage10c-fixture');
       const row = await service
         .from('pipeline_runs')
         .select('args,triggered_by,status')
         .eq('id', body.pipeline_run_id)
         .maybeSingle();
-      expect(row.data?.args).toBe('--dry');
+      expect(row.data?.args).toBe('--dry --stage10c-fixture');
       expect(row.data?.status).toBe('queued');
-      // Cleanup — mark as failed so the queued row doesn't trigger the
-      // Edge Function dispatch chain on the dev DB. This is a disposable
-      // test fixture, not part of stage10c's audit trail.
+      // Cleanup — mark as failed so the row drops off the queued view.
+      // Dispatch was skipped by migration 006, so no workflow to cancel.
       await service
         .from('pipeline_runs')
         .update({
@@ -43,24 +46,24 @@ test.describe('stage10c run-flags', () => {
         .eq('id', body.pipeline_run_id);
     });
 
-    test('stage10c-t06 POST "--with-hic --fresh" → args canonicalised to whitelist order', async ({
+    test('stage10c-t06 POST "--with-hic --fresh --stage10c-fixture" → args canonicalised to whitelist order, dispatch skipped', async ({
       request,
       baseURL,
     }) => {
       const service = serviceClient();
       const res = await request.post(`${baseURL}/api/pipeline/run`, {
-        data: { args: '--with-hic --fresh' },
+        data: { args: '--fresh --stage10c-fixture --with-hic' },
       });
       expect(res.status()).toBe(201);
       const body = (await res.json()) as { pipeline_run_id: string; args: string };
-      // Canonical order: '--with-hic' precedes '--fresh' per FLAG_WHITELIST.
-      expect(body.args).toBe('--with-hic --fresh');
+      // Canonical order from FLAG_WHITELIST: --with-hic, --fresh, --stage10c-fixture.
+      expect(body.args).toBe('--with-hic --fresh --stage10c-fixture');
       const row = await service
         .from('pipeline_runs')
         .select('args')
         .eq('id', body.pipeline_run_id)
         .maybeSingle();
-      expect(row.data?.args).toBe('--with-hic --fresh');
+      expect(row.data?.args).toBe('--with-hic --fresh --stage10c-fixture');
       await service
         .from('pipeline_runs')
         .update({

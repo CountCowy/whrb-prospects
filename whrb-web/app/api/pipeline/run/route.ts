@@ -9,7 +9,18 @@ export const runtime = 'nodejs';
 // Stage 10c: tightly-scoped argv whitelist. Any token outside this set → 400.
 // Order of canonicalisation matches this array so `pipeline_runs.args` is
 // stable across runs that pass the same flag set in different orders.
-const FLAG_WHITELIST = ['--dry', '--with-hic', '--with-bbb', '--fresh', '--no-supabase'] as const;
+// `--stage10c-fixture` is a test-only sentinel: the dispatch trigger
+// (migration 006) skips any row whose args contains it, so Playwright can
+// exercise the endpoint without polluting the GitHub Actions queue. The
+// workflow also strips it defensively before invoking pipeline.py.
+const FLAG_WHITELIST = [
+  '--dry',
+  '--with-hic',
+  '--with-bbb',
+  '--fresh',
+  '--no-supabase',
+  '--stage10c-fixture',
+] as const;
 const FLAG_SET = new Set<string>(FLAG_WHITELIST);
 
 const Body = z

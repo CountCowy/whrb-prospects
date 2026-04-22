@@ -112,9 +112,23 @@ jobs:
               if not run_id:
                   print('::error::failed to insert pipeline_runs row', file=sys.stderr)
                   sys.exit(1)
-          print(f'[pipeline_runs] run_id={run_id} github_run_id={gh_run_id}')
+          # Stage 10c: read back the `args` column for repository_dispatch so
+          # the Run pipeline step below can honor admin-selected flags.
+          # Schedule / workflow_dispatch paths keep the hardcoded --with-hic
+          # invocation (those `args` values are markers like '--scheduled',
+          # not real pipeline.py flags).
+          args_out = ''
+          if event == 'repository_dispatch':
+              fetched = sb.table('pipeline_runs').select('args').eq('id', run_id).single().execute()
+              raw = (fetched.data or {}).get('args') or ''
+              # Defensive: strip the --stage10c-fixture sentinel if it
+              # slipped through the dispatch-skip trigger.
+              tokens = [t for t in raw.split() if t and t != '--stage10c-fixture']
+              args_out = ' '.join(tokens)
+          print(f'[pipeline_runs] run_id={run_id} github_run_id={gh_run_id} args={args_out!r}')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f'run_id={run_id}\n')
+              f.write(f'args={args_out}\n')
           PY
 
       - name: Run pipeline
@@ -129,11 +143,25 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ (github.event_name == 'workflow_dispatch' && inputs.force_fail == true) && 'invalid' || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           WHRB_PIPELINE_RUN_ID: ${{ steps.runrow.outputs.run_id }}
+          # Stage 10c: admin-selected flags from /admin/runs (empty for
+          # schedule / workflow_dispatch paths; defaults to --with-hic below).
+          PIPELINE_ARGS_RAW: ${{ steps.runrow.outputs.args }}
+          EVENT_NAME: ${{ github.event_name }}
           PYTHONUNBUFFERED: '1'
         run: |
           set -o pipefail
           mkdir -p cache
-          python pipeline.py --with-hic 2>&1 | tee cache/pipeline.log
+          # Stage 10c: honor admin-selected args on repository_dispatch.
+          # Every token in PIPELINE_ARGS_RAW is server-side whitelist-validated
+          # so word-splitting is safe. Empty args → legacy `--with-hic`.
+          if [ "$EVENT_NAME" = "repository_dispatch" ] && [ -n "$PIPELINE_ARGS_RAW" ]; then
+            echo "[run-pipeline] invoking: python pipeline.py $PIPELINE_ARGS_RAW"
+            # shellcheck disable=SC2086  # intentional word-split on validated argv
+            python pipeline.py $PIPELINE_ARGS_RAW 2>&1 | tee cache/pipeline.log
+          else
+            echo "[run-pipeline] invoking: python pipeline.py --with-hic (legacy)"
+            python pipeline.py --with-hic 2>&1 | tee cache/pipeline.log
+          fi
 
       - name: Finalize pipeline_runs row
         if: always()

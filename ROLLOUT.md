@@ -3397,6 +3397,95 @@ python3 scripts/stage5_integrity.py --deploy-url <preview>
 Preview re-verify GREEN. Fixtures torn down post-verification; no
 residue on dev Supabase.
 
+### Follow-up 1 (2026-04-22, post-first-admin-trigger incident)
+
+User-reported issue: an admin-triggered run from the preview UI with
+`--dry --no-supabase` stayed in `status='queued'` indefinitely.
+Investigation via `gh run list` + `pipeline_runs` + `event_log`
+surfaced two bugs:
+
+1. **Dispatch trigger didn't discriminate fixture rows.** Playwright
+   T05/T06 insert real `pipeline_runs` rows via the API. The
+   `dispatch_pipeline_run()` function fired on every insert, so the
+   Edge Function dispatched two test rows to GitHub Actions. The
+   workflow's `concurrency: pipeline-run` group (`cancel-in-progress:
+   false`) blocked the user's subsequent admin trigger behind the
+   test workflow runs. User cancelled both workflows manually via the
+   UI's CancelRunButton (confirming the admin-cancel path works end to
+   end — the `error` column recorded `'cancelled by admin:
+   yconstant@college.harvard.edu (queued)'` correctly).
+2. **Workflow did not honor `args` from the row.**
+   `run-pipeline.yml:125` hardcoded `python pipeline.py --with-hic`
+   regardless of the `args` field. The admin's `--dry --no-supabase`
+   choice was therefore cosmetic — the worker would still run a full
+   `--with-hic` build. Plan §23.6 T05 demands the workflow honor the
+   flag; my Stage 10c Playwright spec only asserted
+   `pipeline_runs.args` on the row, not the worker invocation. Real
+   gap.
+
+**Patches:**
+
+- **Migration 006 —
+  `whrb-web/supabase/migrations/006_pipeline_dispatch_skip_fixtures.sql`**:
+  `create or replace function dispatch_pipeline_run()` adds a guard
+  `if args like '%--stage10c-fixture%' then return new` above the
+  `net.http_post(...)` call. Applied to dev via
+  `apply_stage10c_followup_migration.py`.
+- **`whrb-web/app/api/pipeline/run/route.ts`**: add
+  `--stage10c-fixture` to `FLAG_WHITELIST`. Admin-only sentinel;
+  server validates + canonicalises + passes through to the row. Not a
+  real `pipeline.py` flag — the workflow strips it defensively.
+- **`.github/workflows/run-pipeline.yml`**:
+  - Adopt step reads back the `args` column for `repository_dispatch`
+    (empty string for schedule / workflow_dispatch), strips the
+    fixture sentinel, and exposes the result as
+    `steps.runrow.outputs.args`.
+  - Run pipeline step branches on event: `repository_dispatch` with
+    non-empty args → `python pipeline.py $PIPELINE_ARGS_RAW` (safe
+    word-split on whitelist-validated tokens). Otherwise legacy
+    `python pipeline.py --with-hic`.
+- **`whrb-web/e2e/stage10c/run-flags.spec.ts`**: T05/T06 now POST with
+  `--stage10c-fixture` appended so the dispatch-skip guard fires. DB
+  assertions still verify the canonicalised `args` string on the row;
+  workflow dispatch is asserted implicitly via `gh run list` staying
+  quiet (no new workflow runs after the test suite).
+
+**Re-verification (localhost):**
+
+```text
+stage10c_integrity.py — 16 PASS + 1 SKIP-MANUAL + 0 FAIL (total 17)
+pnpm e2e --grep stage10c — 16 passed / 0 failed (45.4s)
+pnpm typecheck && pnpm lint clean
+gh run list --workflow run-pipeline.yml — no new workflow runs since
+  the user's cancel; pipeline_runs rows with --stage10c-fixture in args
+  all bypassed the Edge Function dispatch (confirmed via event_log).
+```
+
+Preview re-verify pending on next push (see PR #18 head after
+follow-up commit).
+
+**`--no-supabase` clarification (user question, same session):**
+
+The worker is GitHub Actions, not Vercel. Vercel only hosts the
+Next.js UI + `/api` routes. On `--no-supabase`:
+- `pipeline.py` runs all scrapers + dedupe + enrichment normally on
+  the `ubuntu-latest` runner.
+- `output/whrb_prospects.csv` is written to the runner's ephemeral
+  disk, then discarded when the job ends (today's
+  `actions/upload-artifact` step only archives `*.log`, not the CSV).
+- Phase `08_supabase_sync` is skipped — dev `prospects` + `event_log`
+  untouched.
+- The finalize step still updates `pipeline_runs.status` +
+  `rows_upserted` (0 in this case) because it parses
+  `cache/pipeline.log`, independent of Supabase sync.
+
+So `--no-supabase` is useful for "wake up, scrape, don't push"
+smoke-testing. A future follow-up could widen the
+`upload-artifact` pattern to include `output/*.csv` so admins can
+download the CSV from the run — not scoped to Stage 10c.
+
+
+
 ### T02 manual check (populated post-manual-verification)
 
 _Instructions: (1) sign in as admin at preview URL, (2) `/admin/runs`
