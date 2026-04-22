@@ -4,6 +4,11 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getAuthed } from '@/lib/server/authz';
 import { logEvent } from '@/lib/logging/server';
+import {
+  extractMentionEmailPrefixes,
+  notify,
+  resolveMentionRecipients,
+} from '@/lib/server/notifications';
 
 export const runtime = 'nodejs';
 
@@ -152,6 +157,37 @@ export async function PATCH(
       context: { prospect_id: prospectId, note_id: noteId, actor_id: user.id },
       userId: user.id,
     });
+  }
+
+  // Fan out note_mention notifications for mentions that are NEW in this edit
+  // (i.e., present in the new body but not in the previous body). This
+  // mirrors Slack's re-edit behaviour — repeating a mention in an edit
+  // does not re-notify.
+  if (body !== undefined) {
+    const newBody = body.trim();
+    const oldPrefixes = new Set(extractMentionEmailPrefixes(note.body ?? ''));
+    const newPrefixes = extractMentionEmailPrefixes(newBody).filter(
+      (p) => !oldPrefixes.has(p),
+    );
+    if (newPrefixes.length > 0) {
+      const recipients = await resolveMentionRecipients(newPrefixes);
+      for (const r of recipients) {
+        if (r.id === user.id) continue;
+        await notify({
+          recipientId: r.id,
+          kind: 'note_mention',
+          actorId: user.id,
+          prospectId,
+          payload: {
+            note_id: noteId,
+            actor_id: user.id,
+            actor_email: user.email,
+            mention_email_prefix: r.email.split('@')[0],
+            via: 'edit',
+          },
+        });
+      }
+    }
   }
 
   return NextResponse.json({ ok: true, id: noteId });

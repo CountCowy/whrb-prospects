@@ -3,6 +3,11 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthed } from '@/lib/server/authz';
 import { logEvent } from '@/lib/logging/server';
+import {
+  extractMentionEmailPrefixes,
+  notify,
+  resolveMentionRecipients,
+} from '@/lib/server/notifications';
 
 export const runtime = 'nodejs';
 
@@ -37,12 +42,13 @@ export async function POST(
   }
 
   const supabase = await createClient();
+  const trimmedBody = parsed.data.body.trim();
   const { data, error } = await supabase
     .from('prospect_notes')
     .insert({
       prospect_id: prospectId,
       author_id: user.id,
-      body: parsed.data.body.trim(),
+      body: trimmedBody,
     })
     .select('id,created_at')
     .single();
@@ -57,5 +63,26 @@ export async function POST(
     });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const prefixes = extractMentionEmailPrefixes(trimmedBody);
+  if (prefixes.length > 0) {
+    const recipients = await resolveMentionRecipients(prefixes);
+    for (const r of recipients) {
+      if (r.id === user.id) continue;
+      await notify({
+        recipientId: r.id,
+        kind: 'note_mention',
+        actorId: user.id,
+        prospectId,
+        payload: {
+          note_id: data.id,
+          actor_id: user.id,
+          actor_email: user.email,
+          mention_email_prefix: r.email.split('@')[0],
+        },
+      });
+    }
+  }
+
   return NextResponse.json({ id: data.id, created_at: data.created_at }, { status: 201 });
 }

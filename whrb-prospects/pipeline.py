@@ -208,6 +208,90 @@ def _start_pipeline_run(argv: list[str]) -> str | None:
         return None
 
 
+def _fanout_run_complete_notifications(
+    run_id: str | None,
+    *,
+    status: str,
+    rows_upserted: int | None,
+    error: str | None,
+) -> None:
+    """Stage 10b: insert a `run_complete` notifications row for every admin
+    whose `user_preferences.notify_run_complete_email` is true.
+
+    Runs in both the CLI finalize path and the workflow-managed early-return
+    path — the workflow itself does not own fan-out, only the pipeline_runs
+    UPDATE. Fire-and-forget: any failure is logged but does not bubble up.
+    """
+    if not run_id:
+        return
+    import os
+
+    try:
+        from supabase import create_client
+
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+        if not url or not key:
+            return
+        client = create_client(url, key)
+
+        admins = (
+            client.table("profiles")
+            .select("id,deactivated_at")
+            .eq("role", "admin")
+            .execute()
+            .data
+            or []
+        )
+        admin_ids = [
+            a["id"] for a in admins if not a.get("deactivated_at")
+        ]
+        if not admin_ids:
+            return
+
+        prefs_rows = (
+            client.table("user_preferences")
+            .select("user_id,notify_run_complete_email")
+            .in_("user_id", admin_ids)
+            .execute()
+            .data
+            or []
+        )
+        prefs = {r["user_id"]: r["notify_run_complete_email"] for r in prefs_rows}
+
+        recipients: list[str] = []
+        for aid in admin_ids:
+            # Default for notify_run_complete_email is false per 000_init.sql
+            if prefs.get(aid, False):
+                recipients.append(aid)
+
+        if not recipients:
+            return
+
+        payload = {
+            "pipeline_run_id": run_id,
+            "status": status,
+            "rows_upserted": rows_upserted,
+            "error": (error or "")[:400] or None,
+        }
+        rows_to_insert = [
+            {
+                "recipient_id": rid,
+                "kind": "run_complete",
+                "actor_id": None,
+                "prospect_id": None,
+                "payload": payload,
+            }
+            for rid in recipients
+        ]
+        client.table("notifications").insert(rows_to_insert).execute()
+        print(
+            f"[run_complete] fanned out {len(rows_to_insert)} notification(s) to admins"
+        )
+    except Exception as e:
+        print(f"[run_complete] fan-out failed: {type(e).__name__}: {e}")
+
+
 def _finish_pipeline_run(run_id: str | None, *, status: str, rows_upserted: int | None, error: str | None) -> None:
     if not run_id:
         return
@@ -222,6 +306,9 @@ def _finish_pipeline_run(run_id: str | None, *, status: str, rows_upserted: int 
             "[pipeline_summary] "
             f"status={status} rows_upserted={rows_upserted if rows_upserted is not None else ''} "
             f"error={(error or '').replace(chr(10), ' ')[:400]}"
+        )
+        _fanout_run_complete_notifications(
+            run_id, status=status, rows_upserted=rows_upserted, error=error
         )
         return
     try:
@@ -241,6 +328,10 @@ def _finish_pipeline_run(run_id: str | None, *, status: str, rows_upserted: int 
         client.table("pipeline_runs").update(patch).eq("id", run_id).execute()
     except Exception as e:
         print(f"[pipeline_runs] failed to finalize: {type(e).__name__}: {e}")
+
+    _fanout_run_complete_notifications(
+        run_id, status=status, rows_upserted=rows_upserted, error=error
+    )
 
 
 def main(argv: list[str]) -> None:

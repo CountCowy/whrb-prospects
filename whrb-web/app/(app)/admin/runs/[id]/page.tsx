@@ -118,10 +118,10 @@ export default async function PipelineRunDetailPage({ params }: RouteParams) {
 
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Events ({events.length})</h2>
-        <div className="mt-3 overflow-hidden rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))]">
+        <div className="mt-3 overflow-x-auto rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))]">
           <table
             data-testid="run-events"
-            className="w-full border-collapse text-sm"
+            className="w-full min-w-[720px] border-collapse text-sm"
           >
             <thead className="bg-[hsl(var(--muted))]/50 text-left text-[11px] font-medium uppercase tracking-[0.14em] text-[hsl(var(--muted-foreground))]">
               <tr>

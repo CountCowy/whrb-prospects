@@ -22,7 +22,7 @@ test('stage7-t01 pickup propagates to My Clients via Realtime', async ({ browser
   const detailPage = await ctx.newPage();
 
   await myPage.goto('/my');
-  await expect(myPage.locator(`a[href="/prospects/${prospect.id}"]`)).toHaveCount(0);
+  await expect(myPage.locator(`[data-testid="prospect-table-wrap"] a[href="/prospects/${prospect.id}"]`)).toHaveCount(0);
 
   await detailPage.goto(`/prospects/${prospect.id}`);
   const assignResponse = detailPage.waitForResponse(
@@ -37,11 +37,11 @@ test('stage7-t01 pickup propagates to My Clients via Realtime', async ({ browser
   // update lands. Fall back to a reload after 6s if Realtime doesn't
   // deliver — the contract is "eventually visible".
   await expect(async () => {
-    const count = await myPage.locator(`a[href="/prospects/${prospect.id}"]`).count();
+    const count = await myPage.locator(`[data-testid="prospect-table-wrap"] a[href="/prospects/${prospect.id}"]`).count();
     if (count === 0) await myPage.reload();
     expect(count).toBeGreaterThanOrEqual(0);
   }).toPass({ timeout: 15_000 });
-  await expect(myPage.locator(`a[href="/prospects/${prospect.id}"]`)).toHaveCount(1);
+  await expect(myPage.locator(`[data-testid="prospect-table-wrap"] a[href="/prospects/${prospect.id}"]`)).toHaveCount(1);
 
   // Cleanup.
   await svc

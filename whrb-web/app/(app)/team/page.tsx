@@ -51,31 +51,54 @@ export default async function TeamPage({
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Team</h1>
         </div>
-        <div
-          role="tablist"
-          aria-label="Sort"
-          data-testid="team-sort"
-          className="inline-flex rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-0.5"
-        >
-          {SORTS.map((s) => {
-            const active = sort === s.key;
-            return (
-              <Link
-                key={s.key}
-                href={`/team?sort=${s.key}`}
-                role="tab"
-                aria-selected={active}
-                data-testid={`team-sort-${s.key}`}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  active
-                    ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                    : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
-                }`}
-              >
-                {s.label}
-              </Link>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <span
+            className="text-[11px] font-medium uppercase tracking-widest text-[hsl(var(--muted-foreground))]"
+            aria-hidden="true"
+          >
+            Sort by
+          </span>
+          <div
+            role="tablist"
+            aria-label="Sort team members by"
+            data-testid="team-sort"
+            className="inline-flex rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-0.5"
+          >
+            {SORTS.map((s) => {
+              const active = sort === s.key;
+              return (
+                <Link
+                  key={s.key}
+                  href={`/team?sort=${s.key}`}
+                  role="tab"
+                  aria-selected={active}
+                  data-testid={`team-sort-${s.key}`}
+                  className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    active
+                      ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
+                      : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
+                  }`}
+                >
+                  {s.label}
+                  {active ? (
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="10"
+                      height="10"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </div>
       <div

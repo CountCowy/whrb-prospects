@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   DndContext,
@@ -15,6 +15,7 @@ import {
 } from '@dnd-kit/core';
 import { STATE_ORDER } from '@/components/StateBadge';
 import { TierBadge } from '@/components/TierBadge';
+import { createClient } from '@/lib/supabase/client';
 
 export type KanbanCard = {
   id: string;
@@ -23,6 +24,8 @@ export type KanbanCard = {
   state: string;
   priority_score: number | null;
 };
+
+type PresenceMap = Record<string, number>;
 
 const STATE_LABELS: Record<string, string> = {
   researching: 'Researching',
@@ -34,19 +37,82 @@ const STATE_LABELS: Record<string, string> = {
   dead: 'Dead',
 };
 
+const PRESENCE_STALE_MS = 90_000;
+
 type KanbanProps = {
   cards: KanbanCard[];
+  currentUserId: string;
+  initialPresence?: PresenceMap;
 };
 
-export function KanbanBoard({ cards }: KanbanProps) {
+export function KanbanBoard({ cards, currentUserId, initialPresence = {} }: KanbanProps) {
   const router = useRouter();
   const [local, setLocal] = useState<KanbanCard[]>(cards);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const [presenceCount, setPresenceCount] = useState<PresenceMap>(initialPresence);
+  // Track the most recent last_seen_at per (prospect_id, user_id) so the
+  // stale sweep can drop viewers whose heartbeat lapsed past 90 s.
+  const entriesRef = useRef<Map<string, number>>(new Map());
+
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
+
+  const cardIds = cards.map((c) => c.id);
+
+  useEffect(() => {
+    if (cardIds.length === 0) return;
+    const supabase = createClient();
+    const cardIdSet = new Set(cardIds);
+
+    const recalc = () => {
+      const now = Date.now();
+      const counts: PresenceMap = {};
+      for (const [key, ts] of entriesRef.current.entries()) {
+        if (now - ts > PRESENCE_STALE_MS) {
+          entriesRef.current.delete(key);
+          continue;
+        }
+        const prospectId = key.split('|')[0];
+        counts[prospectId] = (counts[prospectId] ?? 0) + 1;
+      }
+      setPresenceCount(counts);
+    };
+
+    const apply = (row: { prospect_id?: string; user_id?: string; last_seen_at?: string }) => {
+      const pid = row.prospect_id;
+      const uid = row.user_id;
+      const ts = row.last_seen_at ? Date.parse(row.last_seen_at) : Date.now();
+      if (!pid || !uid) return;
+      if (!cardIdSet.has(pid)) return;
+      if (uid === currentUserId) return;
+      entriesRef.current.set(`${pid}|${uid}`, ts);
+      recalc();
+    };
+
+    const channel = supabase
+      .channel('kanban-presence')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'prospect_presence' },
+        (payload) => apply(payload.new as never),
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'prospect_presence' },
+        (payload) => apply(payload.new as never),
+      )
+      .subscribe();
+
+    const sweep = setInterval(recalc, 15_000);
+
+    return () => {
+      clearInterval(sweep);
+      void supabase.removeChannel(channel);
+    };
+  }, [cardIds, currentUserId]);
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -93,6 +159,7 @@ export function KanbanBoard({ cards }: KanbanProps) {
                 key={state}
                 state={state}
                 cards={columnCards}
+                presence={presenceCount}
               />
             );
           })}
@@ -105,9 +172,11 @@ export function KanbanBoard({ cards }: KanbanProps) {
 function KanbanColumn({
   state,
   cards,
+  presence,
 }: {
   state: string;
   cards: KanbanCard[];
+  presence: PresenceMap;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: state });
   return (
@@ -134,7 +203,11 @@ function KanbanColumn({
       </div>
       <div className="space-y-2">
         {cards.map((card) => (
-          <KanbanCardView key={card.id} card={card} />
+          <KanbanCardView
+            key={card.id}
+            card={card}
+            presentCount={presence[card.id] ?? 0}
+          />
         ))}
         {cards.length === 0 ? (
           <p
@@ -149,7 +222,13 @@ function KanbanColumn({
   );
 }
 
-function KanbanCardView({ card }: { card: KanbanCard }) {
+function KanbanCardView({
+  card,
+  presentCount,
+}: {
+  card: KanbanCard;
+  presentCount: number;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: card.id,
   });
@@ -168,6 +247,7 @@ function KanbanCardView({ card }: { card: KanbanCard }) {
       data-testid="kanban-card"
       data-card-id={card.id}
       data-card-state={card.state}
+      data-presence-count={presentCount}
       className="cursor-grab rounded-lg border border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))] p-2 text-sm shadow-[var(--shadow-sm)] active:cursor-grabbing"
     >
       <div className="flex items-start justify-between gap-2">
@@ -181,7 +261,17 @@ function KanbanCardView({ card }: { card: KanbanCard }) {
         >
           {card.company_name}
         </Link>
-        {card.tier ? <TierBadge tier={card.tier} /> : null}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {presentCount > 0 ? (
+            <span
+              aria-label={`${presentCount} other viewer${presentCount === 1 ? '' : 's'}`}
+              title={`${presentCount} other viewer${presentCount === 1 ? '' : 's'}`}
+              data-testid="kanban-presence-dot"
+              className="inline-flex h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_hsl(var(--background))]"
+            />
+          ) : null}
+          {card.tier ? <TierBadge tier={card.tier} /> : null}
+        </div>
       </div>
       {card.priority_score !== null && card.priority_score !== undefined ? (
         <p className="mt-1 text-[11px] text-[hsl(var(--muted-foreground))]">

@@ -37,8 +37,23 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
     };
   }, [value, params, pathname, router]);
 
+  // Wrap the input in a form so iOS dismisses the soft keyboard on Return.
+  // Native form-submit behaviour blurs the active input; we still
+  // preventDefault to stop a page reload and rely on the existing debounced
+  // URL push for filtering. Calling .blur() explicitly covers edge cases
+  // where the submit doesn't fire (e.g., other keyboards that don't emit
+  // a submit event on Enter).
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
   return (
-    <div className="relative w-full sm:max-w-sm">
+    <form
+      role="search"
+      onSubmit={(e) => {
+        e.preventDefault();
+        inputRef.current?.blur();
+      }}
+      className="relative w-full sm:max-w-sm"
+    >
       <svg
         viewBox="0 0 24 24"
         width="16"
@@ -55,11 +70,19 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
         <path d="m20 20-3.5-3.5" />
       </svg>
       <input
+        ref={inputRef}
         type="search"
         aria-label="Search prospects"
         placeholder={placeholder}
         value={value}
+        enterKeyHint="search"
         onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            (e.currentTarget as HTMLInputElement).blur();
+          }
+        }}
         className="w-full rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--surface))] py-2 pl-9 pr-9 text-sm text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:border-[hsl(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/0.2)]"
       />
       {value && (
@@ -75,6 +98,6 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
           </svg>
         </button>
       )}
-    </div>
+    </form>
   );
 }

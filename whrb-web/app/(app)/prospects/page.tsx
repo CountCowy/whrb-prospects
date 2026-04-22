@@ -1,7 +1,10 @@
 import { SearchInput } from '@/components/SearchInput';
 import { FilterBar } from '@/components/FilterBar';
 import { ProspectTable } from '@/components/ProspectTable';
+import { ProspectCardList } from '@/components/ProspectCardList';
 import { AddProspectModal } from '@/components/AddProspectModal';
+import { ExportCurrentFilters } from '@/components/ExportCurrentFilters';
+import { MobilePageSizeGuard } from '@/components/MobilePageSizeGuard';
 import { listProspects, getFilterFacets, DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/queries/prospects';
 import { createClient } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/queries/profiles';
@@ -24,6 +27,16 @@ function parseSort(sp: SearchParams): { field: string; dir: 'asc' | 'desc' } {
 function parsePageSize(sp: SearchParams): number {
   const raw = Number(firstString(sp.pageSize));
   return (PAGE_SIZES as readonly number[]).includes(raw) ? raw : DEFAULT_PAGE_SIZE;
+}
+
+function currentSearchString(sp: SearchParams): string {
+  const out = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (v === undefined) continue;
+    if (Array.isArray(v)) for (const item of v) out.append(k, item);
+    else out.set(k, v);
+  }
+  return out.toString();
 }
 
 export default async function AllProspectsPage({
@@ -62,6 +75,7 @@ export default async function AllProspectsPage({
 
   return (
     <div className="space-y-6">
+      <MobilePageSizeGuard />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-[hsl(var(--muted-foreground))]">
@@ -71,6 +85,10 @@ export default async function AllProspectsPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isAdmin ? <AddProspectModal /> : null}
+          <ExportCurrentFilters
+            endpoint="/api/prospects/export"
+            testId="export-all-prospects"
+          />
           <SearchInput />
         </div>
       </div>
@@ -80,15 +98,29 @@ export default async function AllProspectsPage({
         sources={facets.sources}
         showAssignedFacet
       />
-      <ProspectTable
-        rows={result.rows}
-        total={result.total}
-        page={result.page}
-        pageSize={result.pageSize}
-        sort={result.sort}
-        emptyTitle="No prospects yet."
-        emptyDescription="Once the pipeline runs, rows will appear here."
-      />
+      <div className="md:hidden">
+        <ProspectCardList
+          rows={result.rows}
+          total={result.total}
+          page={result.page}
+          pageSize={result.pageSize}
+          basePath="/prospects"
+          currentSearch={currentSearchString(sp)}
+          emptyTitle="No prospects yet."
+          emptyDescription="Once the pipeline runs, rows will appear here."
+        />
+      </div>
+      <div className="hidden md:block">
+        <ProspectTable
+          rows={result.rows}
+          total={result.total}
+          page={result.page}
+          pageSize={result.pageSize}
+          sort={result.sort}
+          emptyTitle="No prospects yet."
+          emptyDescription="Once the pipeline runs, rows will appear here."
+        />
+      </div>
     </div>
   );
 }

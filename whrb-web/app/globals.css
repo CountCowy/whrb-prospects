@@ -159,3 +159,24 @@ body {
 ::selection {
   background: hsl(var(--primary) / 0.25);
 }
+
+/* iOS Safari force-zooms on focus into any text input whose computed
+ * font-size is < 16px, and does not restore zoom on blur / submit.
+ * Our `text-sm` (14px) form controls triggered it. Force 16px on
+ * mobile viewports so the zoom never kicks in. Desktop sizes unchanged. */
+@media (max-width: 767px) {
+  input[type='text'],
+  input[type='email'],
+  input[type='tel'],
+  input[type='url'],
+  input[type='search'],
+  input[type='number'],
+  input[type='password'],
+  input[type='datetime-local'],
+  input[type='date'],
+  input:not([type]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}

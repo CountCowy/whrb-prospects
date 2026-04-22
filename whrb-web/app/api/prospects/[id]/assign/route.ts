@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { getAuthed } from '@/lib/server/authz';
 import { logEvent } from '@/lib/logging/server';
+import { notify } from '@/lib/server/notifications';
 
 export const runtime = 'nodejs';
 
@@ -36,15 +38,29 @@ export async function PATCH(
   }
 
   const supabase = await createClient();
+  const service = createServiceClient();
+
+  const { data: before, error: beforeErr } = await service
+    .from('prospects')
+    .select('id, assigned_to, company_name')
+    .eq('id', id)
+    .maybeSingle();
+  if (beforeErr || !before) {
+    return NextResponse.json(
+      { error: beforeErr?.message ?? 'Prospect not found.' },
+      { status: beforeErr ? 500 : 404 },
+    );
+  }
+
+  const previousAssignee = before.assigned_to as string | null;
+  const newAssignee = parsed.data.assigned_to;
+
   const update = {
-    assigned_to: parsed.data.assigned_to,
-    assigned_at: parsed.data.assigned_to ? new Date().toISOString() : null,
+    assigned_to: newAssignee,
+    assigned_at: newAssignee ? new Date().toISOString() : null,
   };
 
-  const { error } = await supabase
-    .from('prospects')
-    .update(update)
-    .eq('id', id);
+  const { error } = await supabase.from('prospects').update(update).eq('id', id);
   if (error) {
     await logEvent({
       source: 'web_server',
@@ -56,5 +72,32 @@ export async function PATCH(
     });
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ ok: true, id, assigned_to: parsed.data.assigned_to });
+
+  const payloadBase = {
+    prospect_id: id,
+    prospect_name: (before.company_name as string) ?? null,
+    actor_id: user.id,
+    actor_email: user.email,
+  };
+
+  if (previousAssignee && previousAssignee !== newAssignee) {
+    await notify({
+      recipientId: previousAssignee,
+      kind: 'unassigned',
+      actorId: user.id,
+      prospectId: id,
+      payload: { ...payloadBase, new_assignee: newAssignee },
+    });
+  }
+  if (newAssignee && newAssignee !== previousAssignee) {
+    await notify({
+      recipientId: newAssignee,
+      kind: 'assigned',
+      actorId: user.id,
+      prospectId: id,
+      payload: { ...payloadBase, previous_assignee: previousAssignee },
+    });
+  }
+
+  return NextResponse.json({ ok: true, id, assigned_to: newAssignee });
 }
