@@ -49,6 +49,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|whrb-logo.svg|whrb-logo-dark.svg|robots.txt|sitemap.xml|api/).*)',
+    // T1: media-kit-2026.pdf is intentionally public (anyone with the link
+    // can download). Annual swap: rename to media-kit-<year>.pdf and update
+    // the regex below + the MEDIA_KIT_PDF_FILENAME constant in
+    // app/(app)/media-kit/page.tsx.
+    '/((?!_next/static|_next/image|favicon.ico|whrb-logo.svg|whrb-logo-dark.svg|media-kit-2026.pdf|robots.txt|sitemap.xml|api/).*)',
   ],
 };

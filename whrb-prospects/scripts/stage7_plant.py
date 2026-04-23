@@ -61,17 +61,23 @@ ADMIN_EMAIL = "kingyareh@gmail.com"
 CANONICAL_SEEDS = {"Boston Ballet", "Museum of Fine Arts", "Massachusetts Bay Transportation Authority"}
 
 # Mirrors stage9_integrity.T13_WHITELISTED_CATEGORIES (plus Stage 10's
-# `pipeline_run_failed` from the round-10 §21.4 item 13 clarification).
+# `pipeline_run_failed` from the round-10 §21.4 item 13 clarification,
+# plus Stage 10c's `admin_cancel_run_failed` from the post-merge T02
+# PAT-scope sign-off — see ROLLOUT.md "Post-merge T02 sign-off" section).
 # These categories are expected stimuli of later-stage test harnesses and
 # must not abort a Stage 7 plant.
 # - admin_user_invite_failed: Stage 9 invite retries hitting dev-SMTP rate limits
 # - source_failed / scrape_http: pipeline scrape retries on transient 4xx/5xx
 # - pipeline_run_failed: Stage 10 T04 forced-failure probe
+# - admin_cancel_run_failed: Stage 10c post-merge T02 PAT-scope incident
+#   (two error events documented in the Stage 10c sign-off; the PAT was
+#   subsequently fixed so no new events are generated).
 EXPECTED_STIMULUS_CATEGORIES: tuple[str, ...] = (
     "admin_user_invite_failed",
     "source_failed",
     "scrape_http",
     "pipeline_run_failed",
+    "admin_cancel_run_failed",
 )
 
 # The 15 lockable field names as defined in plan §16.3 item 9.

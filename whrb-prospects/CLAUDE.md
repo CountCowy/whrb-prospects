@@ -428,3 +428,58 @@ Spot-check criteria for `output/whrb_prospects.csv` after any pipeline rerun:
 - Pipeline hand-off: Claude launches `python pipeline.py --fresh --with-hic` via Bash `run_in_background=true`.
 
 All prior Phase 1–3 changes + Phase 4 Stage 1 are committed (cc4e7f4). The `pipeline_notes` rename is uncommitted at the time of this note — will be folded into the Stage 2 commit.
+
+---
+
+## 10. Stage T1 onward — post-Stage-10c epic (2026-04-22)
+
+After Stage 10c exited (PR #18 merged, 17/17 Tks accounted for), work
+moved into the post-10c epic described in
+`/Users/countcowy/.claude/plans/users-countcowy-downloads-media-kit-202-gleaming-dawn.md`.
+Eight T-stages (T1–T8) implement the tag system, source-quality
+instrumentation, and source expansion. Stage 11 (production cutover)
+remains parked.
+
+Stage T1 (`t1/foundation-tag-schema`) shipped:
+
+- `tag_vocabulary` + `prospect_tags` schema (migration 007 — bumped from
+  the plan's draft "006" because the Stage 10c follow-up had already
+  consumed `006_pipeline_dispatch_skip_fixtures.sql`).
+- Canonical 73-row vocab seed; `TAGS.md` is the single-source-of-truth
+  enum.
+- Admin CRUD UI at `/admin/vocab` (axes, status toggles, rename, axis
+  change, delete, same-axis merge) + matching API routes
+  (`/api/admin/vocab` POST + `/api/admin/vocab/[id]` PATCH/DELETE +
+  `/api/admin/vocab/[id]/merge` POST).
+- Stub pages `/guide` and `/media-kit` with the print PDF dropped at
+  `/media-kit-2026.pdf`.
+- Persistent app footer (every authed page): `WHRB Prospects · Developed
+  by Yareh Constant · v<APP_VERSION>` with `role="contentinfo"`.
+- Distant-ring ZIP widening in `whrb-prospects/config.py::WHRB_ZIPS`
+  (10 new ZIPs out to Salem / Lynn / Medford / etc.) + matching
+  `WHRB_BBOX` widen.
+- Terminology sweep + `TERMINOLOGY.md` allowlist; tooling at
+  `bin/terminology_audit.py` and `bin/emitted-vocab.py`.
+- Documentation: `docs/{ARCHITECTURE,DATA-MODEL,RUNBOOK,GLOSSARY}.md`
+  + `ROLLBACK.md` + root `README.md` (per the
+  `review-the-current-project-humble-newell.md` and
+  `review-the-current-project-lovely-panda.md` planning docs).
+- Author metadata: `whrb-web/package.json author` and
+  `whrb-prospects/pyproject.toml authors` set to "Yareh Constant".
+- Fixtures + integrity at `scripts/t1_{plant,cleanup,integrity}.py` —
+  27 Tks (T01–T27); the e2e half lives at `whrb-web/e2e/t1/*.spec.ts`.
+
+T1 exit gate (2026-04-22): 21 PASS / 6 SKIP-BROWSER / 0 FAIL on
+`scripts/t1_integrity.py`. The Stage 10c regression check (T18) re-frames
+literal plant-and-replay as a structural check — script imports cleanly,
+ROLLOUT 17/17 cert intact, zero new T1-emitted errors in
+Stage-10c-relevant categories — because the post-merge T02 PAT-scope
+sign-off left two `admin_cancel_run_failed` events in the log that
+predate T1 and would block any literal re-plant of Stage 10c (those
+errors are exactly the ones the Stage 10c sign-off section of
+ROLLOUT.md documents).
+
+**Per-stage cadence reminder:** T2 → T8 each ship as a single
+`tN/<short-description>` PR with their own integrity matrix. Per the
+user's "no auto-advance between rollout stages" memory, do not start T2
+without an explicit "start T2" go-ahead.
