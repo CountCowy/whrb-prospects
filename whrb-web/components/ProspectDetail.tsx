@@ -14,6 +14,11 @@ import { AssignPicker, type AssignProfile } from '@/components/AssignPicker';
 import { NotesPanel } from '@/components/NotesPanel';
 import { ActivityTab } from '@/components/ActivityTab';
 import { PresenceChips } from '@/components/PresenceChips';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 type Tab = 'fields' | 'notes' | 'activity';
 
@@ -91,60 +96,66 @@ export function ProspectDetail({
         >
           ← All Prospects
         </Link>
-        <span
+        <Badge
           data-testid="stage-badge"
-          className="inline-flex items-center gap-2 rounded-full border border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] px-3 py-1 text-[11px] font-medium uppercase tracking-widest text-[hsl(var(--primary))]"
+          variant="outline"
+          className="gap-2 rounded-full border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] px-3 py-1 text-[11px] font-medium uppercase tracking-widest text-[hsl(var(--primary))]"
         >
           Stage 7 · Editable
-        </span>
+        </Badge>
       </div>
 
-      <header className="space-y-3 rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-[var(--shadow-sm)]">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1">
-            <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">
-              {prospect.company_name}
-            </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-[hsl(var(--muted-foreground))]">
-              <TierBadge tier={prospect.tier} />
-              <StateBadge state={prospect.state} />
+      <Card className="shadow-[var(--shadow-sm)]">
+        <CardContent className="space-y-3 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <h1 className="break-words text-2xl font-semibold tracking-tight sm:text-3xl">
+                {prospect.company_name}
+              </h1>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <TierBadge tier={prospect.tier} />
+                <StateBadge state={prospect.state} />
+              </div>
+            </div>
+            <div className="shrink-0">
+              <PresenceChips prospectId={prospect.id} currentUser={currentUser} />
             </div>
           </div>
-          <div className="shrink-0">
-            <PresenceChips prospectId={prospect.id} currentUser={currentUser} />
-          </div>
-        </div>
-        <AssignPicker
-          prospectId={prospect.id}
-          currentAssignee={assigneeProfile}
-          currentUserId={currentUserId}
-          profiles={profiles}
-        />
-        <StateSelect
-          prospectId={prospect.id}
-          current={prospect.state}
-          editable={editable}
-          onChanged={refresh}
-        />
-      </header>
+          <Separator />
+          <AssignPicker
+            prospectId={prospect.id}
+            currentAssignee={assigneeProfile}
+            currentUserId={currentUserId}
+            profiles={profiles}
+          />
+          <StateSelect
+            prospectId={prospect.id}
+            current={prospect.state}
+            editable={editable}
+            onChanged={refresh}
+          />
+        </CardContent>
+      </Card>
 
       <nav role="tablist" aria-label="Detail tabs" className="flex gap-2" data-testid="detail-tabs">
         {(['fields', 'notes', 'activity'] as Tab[]).map((key) => (
-          <button
+          <Button
             key={key}
             type="button"
             role="tab"
             aria-selected={tab === key}
+            variant="ghost"
+            size="sm"
             data-testid={`tab-${key}`}
             onClick={() => setTab(key)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === key
-                ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                : 'text-[hsl(var(--muted-foreground))] hover:text-[hsl(var(--foreground))]'
-            }`}
+            className={cn(
+              'text-sm font-medium',
+              tab === key &&
+                'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]',
+            )}
           >
             {key === 'fields' ? 'Fields' : key === 'notes' ? 'Notes' : 'Activity'}
-          </button>
+          </Button>
         ))}
       </nav>
 
@@ -402,14 +413,16 @@ function Panel({
   className?: string;
 }) {
   return (
-    <div
-      className={`rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-[var(--shadow-sm)] ${
-        className ?? ''
-      }`}
-    >
-      <h2 className="mb-2 text-base font-semibold tracking-tight">{title}</h2>
-      <dl className="divide-y divide-[hsl(var(--border-subtle))]">{children}</dl>
-    </div>
+    <Card className={cn('shadow-[var(--shadow-sm)]', className)}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base font-semibold tracking-tight">
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <dl className="divide-y divide-[hsl(var(--border-subtle))]">{children}</dl>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -468,9 +481,9 @@ function StateSelect({
   }
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="state-picker">
-      <span className="text-[hsl(var(--muted-foreground))]">State:</span>
+      <span className="text-muted-foreground">State:</span>
       <select
-        className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-sm disabled:opacity-50"
+        className="flex h-8 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
         value={current}
         onChange={(e) => change(e.target.value)}
         disabled={!editable || pending}
@@ -483,7 +496,7 @@ function StateSelect({
         ))}
       </select>
       {error ? (
-        <span className="text-xs text-red-600 dark:text-red-300" data-testid="state-error">
+        <span className="text-xs text-destructive" data-testid="state-error">
           {error}
         </span>
       ) : null}

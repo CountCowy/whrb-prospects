@@ -1,7 +1,12 @@
 'use client';
 
+import { Search as SearchIcon, X as XIcon } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 const DEBOUNCE_MS = 250;
 
@@ -13,9 +18,9 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
   const [value, setValue] = useState(initial);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPushed = useRef(initial);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    // Keep the input aligned with the URL when the user navigates back/forward.
     setValue(params.get('q') ?? '');
     lastPushed.current = params.get('q') ?? '';
   }, [params]);
@@ -27,7 +32,6 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
       const next = new URLSearchParams(params.toString());
       if (value) next.set('q', value);
       else next.delete('q');
-      // Reset page to 1 on any new query.
       next.delete('page');
       lastPushed.current = value;
       router.push(`${pathname}?${next.toString()}`);
@@ -37,14 +41,7 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
     };
   }, [value, params, pathname, router]);
 
-  // Wrap the input in a form so iOS dismisses the soft keyboard on Return.
-  // Native form-submit behaviour blurs the active input; we still
-  // preventDefault to stop a page reload and rely on the existing debounced
-  // URL push for filtering. Calling .blur() explicitly covers edge cases
-  // where the submit doesn't fire (e.g., other keyboards that don't emit
-  // a submit event on Enter).
-  const inputRef = useRef<HTMLInputElement | null>(null);
-
+  // Wrap in a form so iOS dismisses the soft keyboard on Return.
   return (
     <form
       role="search"
@@ -54,22 +51,11 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
       }}
       className="relative w-full sm:max-w-sm"
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="16"
-        height="16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+      <SearchIcon
         aria-hidden="true"
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
-      >
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-3.5-3.5" />
-      </svg>
-      <input
+        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+      />
+      <Input
         ref={inputRef}
         type="search"
         aria-label="Search prospects"
@@ -83,21 +69,20 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
             (e.currentTarget as HTMLInputElement).blur();
           }
         }}
-        className="w-full rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--surface))] py-2 pl-9 pr-9 text-sm text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:border-[hsl(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/0.2)]"
+        className={cn('pl-9 pr-9')}
       />
-      {value && (
-        <button
+      {value ? (
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           onClick={() => setValue('')}
           aria-label="Clear search"
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+          className="absolute right-1 top-1/2 h-7 w-7 -translate-y-1/2"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m18 6-12 12" />
-            <path d="m6 6 12 12" />
-          </svg>
-        </button>
-      )}
+          <XIcon className="h-3.5 w-3.5" />
+        </Button>
+      ) : null}
     </form>
   );
 }

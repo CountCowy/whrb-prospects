@@ -1,7 +1,16 @@
 'use client';
 
+import { Download } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 type Props = {
   endpoint: string;
@@ -16,12 +25,10 @@ export function ExportButton({
   label = 'Export',
   testId = 'export-button',
 }: Props) {
-  const [open, setOpen] = useState(false);
   const [pending, setPending] = useState<'csv' | 'xlsx' | null>(null);
 
   async function run(format: 'csv' | 'xlsx') {
     setPending(format);
-    setOpen(false);
     try {
       const qp = new URLSearchParams();
       qp.set('format', format);
@@ -56,52 +63,41 @@ export function ExportButton({
 
   return (
     <div className="relative inline-block" data-testid={testId}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        disabled={pending !== null}
-        className="inline-flex items-center gap-1.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-3 py-1.5 text-sm font-medium text-[hsl(var(--foreground))] transition-colors hover:bg-[hsl(var(--muted))] disabled:opacity-50"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          width="14"
-          height="14"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M12 3v12" />
-          <path d="M7 10l5 5 5-5" />
-          <path d="M5 21h14" />
-        </svg>
-        <span>{pending ? `Generating ${pending.toUpperCase()}…` : label}</span>
-      </button>
-      {open ? (
-        <div
-          role="menu"
-          className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] shadow-lg"
-        >
-          <button
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
             type="button"
-            onClick={() => run('csv')}
+            variant="ghost"
+            size="sm"
+            disabled={pending !== null}
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>
+              {pending ? `Generating ${pending.toUpperCase()}…` : label}
+            </span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-36">
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              void run('csv');
+            }}
             data-testid={`${testId}-csv`}
-            className="block w-full px-3 py-2 text-left text-sm hover:bg-[hsl(var(--muted))]"
           >
             CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => run('xlsx')}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              void run('xlsx');
+            }}
             data-testid={`${testId}-xlsx`}
-            className="block w-full px-3 py-2 text-left text-sm hover:bg-[hsl(var(--muted))]"
           >
             XLSX
-          </button>
-        </div>
-      ) : null}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

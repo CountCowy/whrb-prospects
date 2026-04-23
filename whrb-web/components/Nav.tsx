@@ -2,11 +2,23 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Menu, Settings as SettingsIcon } from 'lucide-react';
 import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { SignOutButton } from '@/components/SignOutButton';
 import { Logo } from '@/components/Logo';
+import { cn } from '@/lib/utils';
 
 const TABS = [
   { href: '/', label: 'Home' },
@@ -30,29 +42,12 @@ export function Nav({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const tabs = isAdmin ? [...TABS, { href: '/admin/sources', label: 'Admin' }] : TABS;
 
-  const settingsIcon = (
-    <svg
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
-
   return (
     <header className="sticky top-0 z-40 border-b border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))]/80 backdrop-blur-md supports-[backdrop-filter]:bg-[hsl(var(--background))]/70">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2" aria-label="WHRB Sales home">
           <Logo />
-          <span className="hidden text-xs font-medium uppercase tracking-widest text-[hsl(var(--muted-foreground))] sm:inline">
+          <span className="hidden text-xs font-medium uppercase tracking-widest text-muted-foreground sm:inline">
             Sales
           </span>
         </Link>
@@ -61,120 +56,120 @@ export function Nav({
             const active =
               tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
             return (
-              <Link
+              <Button
                 key={tab.href}
-                href={tab.href}
-                aria-current={active ? 'page' : undefined}
-                className={`relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                asChild
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'h-8 text-sm font-medium',
                   active
-                    ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                    : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'
-                }`}
+                    ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
               >
-                {tab.label}
-              </Link>
+                <Link
+                  href={tab.href}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  {tab.label}
+                </Link>
+              </Button>
             );
           })}
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
           <NotificationBell userId={userId} initialUnread={initialUnreadCount} />
-          {/* Settings gear + Sign out are desktop-only on the nav.
-              On mobile the settings link lives inside the hamburger drawer
-              and sign-out is available at /settings/notifications. */}
-          <Link
-            href="/settings/notifications"
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
             aria-label="Settings"
-            className="hidden rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] md:inline-flex"
+            className="hidden md:inline-flex"
           >
-            {settingsIcon}
-          </Link>
+            <Link href="/settings/notifications">
+              <SettingsIcon className="h-[18px] w-[18px]" />
+            </Link>
+          </Button>
           <ThemeToggle />
           <div className="hidden md:inline-flex">
             <SignOutButton variant="nav" testId="nav-sign-out" />
           </div>
-          {/* Mobile hamburger — right-aligned (after bell + theme). Opens a
-              drawer with tabs + Settings link + Sign-out. */}
-          <button
-            type="button"
-            onClick={() => setDrawerOpen((v) => !v)}
-            aria-label="Toggle navigation menu"
-            aria-expanded={drawerOpen}
-            className="rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] md:hidden"
-            data-testid="nav-hamburger"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              width="22"
-              height="22"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
+          <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <SheetTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Toggle navigation menu"
+                className="md:hidden"
+                data-testid="nav-hamburger"
+              >
+                <Menu className="h-[22px] w-[22px]" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side="right"
+              className="w-[300px] sm:w-[380px]"
+              data-testid="nav-mobile-drawer"
             >
-              {drawerOpen ? (
-                <>
-                  <path d="M6 6l12 12" />
-                  <path d="M6 18L18 6" />
-                </>
-              ) : (
-                <>
-                  <path d="M4 6h16" />
-                  <path d="M4 12h16" />
-                  <path d="M4 18h16" />
-                </>
-              )}
-            </svg>
-          </button>
+              <SheetHeader>
+                <SheetTitle>Menu</SheetTitle>
+              </SheetHeader>
+              <nav aria-label="Mobile navigation" className="mt-4">
+                <ul className="flex flex-col gap-1">
+                  {tabs.map((tab) => {
+                    const active =
+                      tab.href === '/'
+                        ? pathname === '/'
+                        : pathname.startsWith(tab.href);
+                    return (
+                      <li key={tab.href}>
+                        <Button
+                          asChild
+                          variant="ghost"
+                          className={cn(
+                            'w-full justify-start text-sm font-medium',
+                            active
+                              ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]'
+                              : 'text-muted-foreground hover:text-foreground',
+                          )}
+                          onClick={() => setDrawerOpen(false)}
+                        >
+                          <Link
+                            href={tab.href}
+                            aria-current={active ? 'page' : undefined}
+                          >
+                            {tab.label}
+                          </Link>
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <Separator className="my-3" />
+                <Button
+                  asChild
+                  variant="ghost"
+                  onClick={() => setDrawerOpen(false)}
+                  data-testid="nav-mobile-settings"
+                  className={cn(
+                    'w-full justify-start gap-2 text-sm font-medium',
+                    pathname.startsWith('/settings')
+                      ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]'
+                      : 'text-foreground',
+                  )}
+                >
+                  <Link href="/settings/notifications">
+                    <SettingsIcon className="h-4 w-4" />
+                    <span>Settings</span>
+                  </Link>
+                </Button>
+              </nav>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
-      {drawerOpen ? (
-        <nav
-          aria-label="Mobile navigation"
-          className="border-t border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))] md:hidden"
-          data-testid="nav-mobile-drawer"
-        >
-          <ul className="flex flex-col gap-1 p-2">
-            {tabs.map((tab) => {
-              const active =
-                tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
-              return (
-                <li key={tab.href}>
-                  <Link
-                    href={tab.href}
-                    aria-current={active ? 'page' : undefined}
-                    onClick={() => setDrawerOpen(false)}
-                    className={`block rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                      active
-                        ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                        : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'
-                    }`}
-                  >
-                    {tab.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="border-t border-[hsl(var(--border-subtle))] p-2">
-            <Link
-              href="/settings/notifications"
-              onClick={() => setDrawerOpen(false)}
-              data-testid="nav-mobile-settings"
-              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                pathname.startsWith('/settings')
-                  ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                  : 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]'
-              }`}
-            >
-              <span className="inline-flex h-4 w-4 items-center justify-center">
-                {settingsIcon}
-              </span>
-              <span>Settings</span>
-            </Link>
-          </div>
-        </nav>
-      ) : null}
     </header>
   );
 }

@@ -8,6 +8,7 @@ import { ColumnVisibilityMenu, type ColumnDef } from '@/components/ColumnVisibil
 import { TierBadge } from '@/components/TierBadge';
 import { StateBadge } from '@/components/StateBadge';
 import { formatDate } from '@/lib/time';
+import { Button } from '@/components/ui/button';
 
 export const PAGE_SIZES = [25, 50, 100, 250] as const;
 
@@ -235,13 +236,13 @@ export function ProspectTable({
           {total.toLocaleString()} prospect{total === 1 ? '' : 's'} · page {clampedPage} of {totalPages}
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-xs text-[hsl(var(--muted-foreground))]">
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             Rows
             <select
               value={pageSize}
               onChange={onPageSizeChange}
               data-testid="page-size"
-              className="rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--surface))] px-2 py-1 text-xs text-[hsl(var(--foreground))]"
+              className="flex h-8 rounded-md border border-input bg-transparent px-2 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               {PAGE_SIZES.map((n) => (
                 <option key={n} value={n}>
@@ -327,27 +328,31 @@ export function ProspectTable({
           {Math.min(total, clampedPage * pageSize)} of {total.toLocaleString()}
         </div>
         <div className="flex items-center gap-1">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             data-testid="page-prev"
             onClick={() => goPage(Math.max(1, clampedPage - 1))}
             disabled={clampedPage <= 1}
-            className="rounded-md border border-[hsl(var(--border))] px-2.5 py-1 text-xs font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] disabled:opacity-40"
+            className="h-8 text-xs"
           >
             Prev
-          </button>
+          </Button>
           <span className="px-2 text-xs tabular-nums">
             {clampedPage} / {totalPages}
           </span>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             data-testid="page-next"
             onClick={() => goPage(Math.min(totalPages, clampedPage + 1))}
             disabled={clampedPage >= totalPages}
-            className="rounded-md border border-[hsl(var(--border))] px-2.5 py-1 text-xs font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] disabled:opacity-40"
+            className="h-8 text-xs"
           >
             Next
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -382,22 +387,21 @@ function EmptyState({
       </p>
       <div className="mt-4 flex items-center gap-2">
         {hasFilters ? (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={onClear}
             data-testid="empty-clear-filters"
-            className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--muted))]"
+            className="text-xs"
           >
             Clear all filters
-          </button>
+          </Button>
         ) : (
           action && (
-            <Link
-              href={action.href}
-              className="rounded-md bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--primary-foreground))] hover:opacity-90"
-            >
-              {action.label}
-            </Link>
+            <Button asChild size="sm" className="text-xs">
+              <Link href={action.href}>{action.label}</Link>
+            </Button>
           )
         )}
       </div>

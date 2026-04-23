@@ -2,7 +2,15 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import type { VocabAxis, VocabRow, VocabStatus } from '@/lib/queries/vocab';
+
+// Shared native-select styling so it lines up with shadcn Input height.
+const SELECT_CLASS =
+  'flex h-9 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
 
 const AXES: ReadonlyArray<VocabAxis> = [
   'sector',
@@ -159,14 +167,15 @@ export function VocabManager({ initialRows }: { initialRows: VocabRow[] }) {
         className="flex flex-col gap-2 rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-4 sm:flex-row sm:items-end"
         data-testid="vocab-create-form"
       >
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs text-[hsl(var(--muted-foreground))]">
+        <div className="flex flex-col gap-1 text-sm">
+          <Label htmlFor="vocab-create-axis" className="text-xs text-muted-foreground">
             Axis
-          </span>
+          </Label>
           <select
+            id="vocab-create-axis"
             name="axis"
             defaultValue="other"
-            className="rounded-md border border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))] px-2 py-1.5 text-sm"
+            className={SELECT_CLASS}
             data-testid="vocab-create-axis"
           >
             {AXES.map((a) => (
@@ -175,27 +184,27 @@ export function VocabManager({ initialRows }: { initialRows: VocabRow[] }) {
               </option>
             ))}
           </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs text-[hsl(var(--muted-foreground))]">
+        </div>
+        <div className="flex flex-col gap-1 text-sm">
+          <Label htmlFor="vocab-create-value" className="text-xs text-muted-foreground">
             Value
-          </span>
-          <input
+          </Label>
+          <Input
+            id="vocab-create-value"
             name="value"
             placeholder="lower_snake_case"
             pattern="[a-z0-9_]+"
-            className="rounded-md border border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))] px-2 py-1.5 text-sm"
             data-testid="vocab-create-value"
           />
-        </label>
-        <button
+        </div>
+        <Button
           type="submit"
+          size="sm"
           disabled={busy}
-          className="rounded-md bg-[hsl(var(--primary))] px-3 py-1.5 text-sm font-medium text-[hsl(var(--primary-foreground))] disabled:opacity-50"
           data-testid="vocab-create-submit"
         >
           Add tag
-        </button>
+        </Button>
       </form>
 
       {/* Pending admin review at top */}
@@ -225,32 +234,38 @@ export function VocabManager({ initialRows }: { initialRows: VocabRow[] }) {
                 <code className="font-mono">{row.axis}</code>
                 <span className="text-[hsl(var(--muted-foreground))]">/</span>
                 <code className="font-mono font-semibold">{row.value}</code>
-                <button
+                <Button
                   type="button"
-                  className="ml-auto rounded-md border px-2 py-1 text-xs"
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-7 text-xs"
                   onClick={() => handlePatch(row.id, { status: 'active' })}
                   data-testid="vocab-approve"
                 >
                   Approve
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="rounded-md border px-2 py-1 text-xs"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
                   onClick={() =>
                     handlePatch(row.id, { status: 'deprecated' })
                   }
                   data-testid="vocab-reject"
                 >
                   Reject
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="rounded-md border px-2 py-1 text-xs text-red-600"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs text-destructive hover:bg-destructive/10"
                   onClick={() => handleDelete(row)}
                   data-testid="vocab-delete"
                 >
                   Delete
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -305,7 +320,7 @@ export function VocabManager({ initialRows }: { initialRows: VocabRow[] }) {
                               status: e.target.value as VocabStatus,
                             })
                           }
-                          className="ml-2 rounded border border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))] px-1 py-0.5 text-xs"
+                          className={`${SELECT_CLASS} ml-2 h-7 px-1 py-0.5 text-xs`}
                           data-testid="vocab-status-select"
                         >
                           {STATUSES.map((s) => (
@@ -315,30 +330,36 @@ export function VocabManager({ initialRows }: { initialRows: VocabRow[] }) {
                           ))}
                         </select>
                         <div className="ml-auto flex gap-1">
-                          <button
+                          <Button
                             type="button"
-                            className="rounded border px-2 py-0.5 text-xs"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
                             onClick={() => setEditingId(row.id)}
                             data-testid="vocab-edit"
                           >
                             Edit
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
-                            className="rounded border px-2 py-0.5 text-xs"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
                             onClick={() => handleMerge(row)}
                             data-testid="vocab-merge"
                           >
                             Merge…
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
-                            className="rounded border px-2 py-0.5 text-xs text-red-600"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs text-destructive hover:bg-destructive/10"
                             onClick={() => handleDelete(row)}
                             data-testid="vocab-delete"
                           >
                             Delete
-                          </button>
+                          </Button>
                         </div>
                       </>
                     )}
@@ -366,17 +387,17 @@ function EditRowForm({
   const [axis, setAxis] = useState<VocabAxis>(row.axis);
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <input
+      <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
         pattern="[a-z0-9_]+"
-        className="rounded border border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))] px-2 py-1 text-sm"
+        className="h-8 text-sm"
         data-testid="vocab-edit-value"
       />
       <select
         value={axis}
         onChange={(e) => setAxis(e.target.value as VocabAxis)}
-        className="rounded border border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))] px-2 py-1 text-sm"
+        className={`${SELECT_CLASS} h-8`}
         data-testid="vocab-edit-axis"
       >
         {AXES.map((a) => (
@@ -385,9 +406,10 @@ function EditRowForm({
           </option>
         ))}
       </select>
-      <button
+      <Button
         type="button"
-        className="rounded bg-[hsl(var(--primary))] px-2 py-1 text-xs text-[hsl(var(--primary-foreground))]"
+        size="sm"
+        className="h-7 text-xs"
         onClick={() => {
           const patch: Partial<VocabRow> = {};
           if (value.trim() !== row.value) patch.value = value.trim();
@@ -401,15 +423,17 @@ function EditRowForm({
         data-testid="vocab-edit-save"
       >
         Save
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
-        className="rounded border px-2 py-1 text-xs"
+        variant="outline"
+        size="sm"
+        className="h-7 text-xs"
         onClick={onCancel}
         data-testid="vocab-edit-cancel"
       >
         Cancel
-      </button>
+      </Button>
     </div>
   );
 }

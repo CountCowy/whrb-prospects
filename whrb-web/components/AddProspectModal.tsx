@@ -3,6 +3,18 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
 const EMPTY_FORM = {
   company_name: '',
   tier: 'C' as 'A' | 'B' | 'C',
@@ -47,111 +59,111 @@ export function AddProspectModal() {
   }
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        data-testid="add-prospect-button"
-        className="rounded-md border border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--primary-foreground))]"
-      >
-        + Add prospect
-      </button>
-      {open ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          data-testid="add-prospect-modal"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          size="sm"
+          data-testid="add-prospect-button"
         >
-          <div className="w-full max-w-md space-y-4 rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-5 shadow-xl">
-            <div className="flex items-baseline justify-between">
-              <h2 className="text-lg font-semibold">Add prospect</h2>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                aria-label="Close"
-                className="text-xs text-[hsl(var(--muted-foreground))]"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="space-y-3">
-              <Field
-                label="Company name"
-                required
-                value={form.company_name}
-                onChange={(v) => setForm({ ...form, company_name: v })}
-                testid="add-company-name"
-              />
-              <div className="flex items-center gap-2">
-                <label className="text-[11px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-                  Tier
-                </label>
-                <select
-                  value={form.tier}
-                  onChange={(e) =>
-                    setForm({ ...form, tier: e.target.value as 'A' | 'B' | 'C' })
-                  }
-                  data-testid="add-tier"
-                  className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1 text-sm"
-                >
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                </select>
-              </div>
-              <Field
-                label="Phone (optional)"
-                value={form.company_phone}
-                onChange={(v) => setForm({ ...form, company_phone: v })}
-                testid="add-phone"
-              />
-              <Field
-                label="Website (optional)"
-                value={form.website}
-                onChange={(v) => setForm({ ...form, website: v })}
-                testid="add-website"
-              />
-              <Field
-                label="Category (optional)"
-                value={form.category}
-                onChange={(v) => setForm({ ...form, category: v })}
-                testid="add-category"
-              />
-              <Field
-                label="ZIP (optional)"
-                value={form.zip}
-                onChange={(v) => setForm({ ...form, zip: v })}
-                testid="add-zip"
-              />
-            </div>
-            {error ? (
-              <p data-testid="add-prospect-error" className="text-xs text-red-600 dark:text-red-300">
-                {error}
-              </p>
-            ) : null}
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="rounded-md border border-[hsl(var(--border))] bg-transparent px-3 py-1 text-xs font-medium text-[hsl(var(--muted-foreground))]"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={pending || !form.company_name.trim()}
-                data-testid="add-prospect-submit"
-                className="rounded-md border border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary))] px-3 py-1 text-xs font-medium text-[hsl(var(--primary-foreground))] disabled:opacity-50"
-              >
-                {pending ? 'Creating…' : 'Create'}
-              </button>
-            </div>
+          + Add prospect
+        </Button>
+      </DialogTrigger>
+      <DialogContent
+        data-testid="add-prospect-modal"
+        className="max-w-md"
+      >
+        <DialogHeader>
+          <DialogTitle>Add prospect</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field
+            label="Company name"
+            required
+            value={form.company_name}
+            onChange={(v) => setForm({ ...form, company_name: v })}
+            testid="add-company-name"
+            id="add-company-name"
+          />
+          <div className="flex items-center gap-2">
+            <Label
+              htmlFor="add-tier"
+              className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+            >
+              Tier
+            </Label>
+            <select
+              id="add-tier"
+              value={form.tier}
+              onChange={(e) =>
+                setForm({ ...form, tier: e.target.value as 'A' | 'B' | 'C' })
+              }
+              data-testid="add-tier"
+              className="h-9 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="A">A</option>
+              <option value="B">B</option>
+              <option value="C">C</option>
+            </select>
           </div>
+          <Field
+            label="Phone (optional)"
+            value={form.company_phone}
+            onChange={(v) => setForm({ ...form, company_phone: v })}
+            testid="add-phone"
+            id="add-phone"
+          />
+          <Field
+            label="Website (optional)"
+            value={form.website}
+            onChange={(v) => setForm({ ...form, website: v })}
+            testid="add-website"
+            id="add-website"
+          />
+          <Field
+            label="Category (optional)"
+            value={form.category}
+            onChange={(v) => setForm({ ...form, category: v })}
+            testid="add-category"
+            id="add-category"
+          />
+          <Field
+            label="ZIP (optional)"
+            value={form.zip}
+            onChange={(v) => setForm({ ...form, zip: v })}
+            testid="add-zip"
+            id="add-zip"
+          />
         </div>
-      ) : null}
-    </>
+        {error ? (
+          <p
+            data-testid="add-prospect-error"
+            className="text-xs text-destructive"
+          >
+            {error}
+          </p>
+        ) : null}
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setOpen(false)}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={submit}
+            disabled={pending || !form.company_name.trim()}
+            data-testid="add-prospect-submit"
+          >
+            {pending ? 'Creating…' : 'Create'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -161,26 +173,31 @@ function Field({
   onChange,
   required,
   testid,
+  id,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   required?: boolean;
   testid?: string;
+  id?: string;
 }) {
   return (
-    <label className="block space-y-1 text-sm">
-      <span className="text-[11px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+    <div className="block space-y-1">
+      <Label
+        htmlFor={id}
+        className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+      >
         {label}
         {required ? ' *' : ''}
-      </span>
-      <input
+      </Label>
+      <Input
+        id={id}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         data-testid={testid}
-        className="w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1"
       />
-    </label>
+    </div>
   );
 }
