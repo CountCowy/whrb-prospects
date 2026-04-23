@@ -1,6 +1,8 @@
 import Link from 'next/link';
 
-export const dynamic = 'force-static';
+// Stays dynamic — the parent (app) layout reads auth cookies; force-static
+// here would disable that and route /media-kit back to /.
+export const dynamic = 'force-dynamic';
 
 // The PDF filename is intentionally hard-coded as a sibling of `/public/`.
 // On the annual swap, rename the file in `whrb-web/public/` and update this

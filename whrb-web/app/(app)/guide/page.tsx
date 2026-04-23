@@ -1,4 +1,6 @@
-export const dynamic = 'force-static';
+// Stays dynamic — the parent (app) layout reads auth cookies; force-static
+// here would disable that and route /guide back to /.
+export const dynamic = 'force-dynamic';
 
 export default function GuidePage() {
   return (
