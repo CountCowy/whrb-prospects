@@ -21,6 +21,12 @@ type Props = {
   emptyTitle?: string;
   emptyDescription?: string;
   emptyAction?: { href: string; label: string };
+  /**
+   * Optional extras rendered in the table-controls row, to the right of
+   * Rows + Columns. /prospects injects a vertical Separator + Export;
+   * other callers (e.g. /my) pass nothing.
+   */
+  controlsSlot?: React.ReactNode;
 };
 
 type ColDef = ColumnDef & {
@@ -169,6 +175,7 @@ export function ProspectTable({
   emptyTitle,
   emptyDescription,
   emptyAction,
+  controlsSlot,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -252,6 +259,7 @@ export function ProspectTable({
             </select>
           </label>
           <ColumnVisibilityMenu columns={allColumns} onChange={setVisible} />
+          {controlsSlot}
         </div>
       </div>
       <div

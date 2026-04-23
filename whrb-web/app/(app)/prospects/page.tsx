@@ -5,6 +5,7 @@ import { ProspectCardList } from '@/components/ProspectCardList';
 import { AddProspectModal } from '@/components/AddProspectModal';
 import { ExportCurrentFilters } from '@/components/ExportCurrentFilters';
 import { MobilePageSizeGuard } from '@/components/MobilePageSizeGuard';
+import { Separator } from '@/components/ui/separator';
 import { listProspects, getFilterFacets, DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/queries/prospects';
 import { createClient } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/queries/profiles';
@@ -85,10 +86,6 @@ export default async function AllProspectsPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {isAdmin ? <AddProspectModal /> : null}
-          <ExportCurrentFilters
-            endpoint="/api/prospects/export"
-            testId="export-all-prospects"
-          />
           <SearchInput />
         </div>
       </div>
@@ -119,6 +116,15 @@ export default async function AllProspectsPage({
           sort={result.sort}
           emptyTitle="No prospects yet."
           emptyDescription="Once the pipeline runs, rows will appear here."
+          controlsSlot={
+            <>
+              <Separator orientation="vertical" className="h-5" />
+              <ExportCurrentFilters
+                endpoint="/api/prospects/export"
+                testId="export-all-prospects"
+              />
+            </>
+          }
         />
       </div>
     </div>
