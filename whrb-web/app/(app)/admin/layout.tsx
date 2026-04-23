@@ -42,6 +42,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           ['/admin/sources', 'Sources'],
           ['/admin/runs', 'Runs'],
           ['/admin/users', 'Users'],
+          ['/admin/vocab', 'Vocab'],
           ['/admin/logs', 'Logs'],
           ['/admin/feedback', 'Feedback'],
           ['/admin/prospects/bulk', 'Bulk'],

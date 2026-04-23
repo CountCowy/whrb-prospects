@@ -382,3 +382,54 @@ create policy p_presence_self on prospect_presence for all
 -- =========================================================================
 -- End of 000_init.sql
 -- =========================================================================
+
+-- =========================================================================
+-- Stage T1: 007_tag_schema.sql (mirrored read-only reference)
+-- Canonical: whrb-web/supabase/migrations/007_tag_schema.sql
+-- See that file for the authoritative DDL. This block exists so a Python
+-- developer reading the mirror sees the full picture without leaving the
+-- pipeline tree.
+-- =========================================================================
+
+create table if not exists public.tag_vocabulary (
+  id uuid primary key default gen_random_uuid(),
+  axis text not null check (axis in (
+    'sector','operating_model','genre','affiliation','cadence',
+    'daypart_fit','history','compliance','other'
+  )),
+  value text not null,
+  status text not null default 'active' check (status in (
+    'active','pending_admin_review','deprecated'
+  )),
+  replacement_id uuid references public.tag_vocabulary(id) on delete set null,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (axis, value)
+);
+
+create index if not exists idx_tag_vocabulary_axis_status
+  on public.tag_vocabulary (axis, status);
+
+create table if not exists public.prospect_tags (
+  id uuid primary key default gen_random_uuid(),
+  prospect_id uuid not null references public.prospects(id) on delete cascade,
+  tag_id uuid not null references public.tag_vocabulary(id),
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  locked_by uuid references auth.users(id) on delete set null,
+  locked_at timestamptz,
+  unique (prospect_id, tag_id)
+);
+
+create index if not exists idx_prospect_tags_prospect_id
+  on public.prospect_tags (prospect_id);
+create index if not exists idx_prospect_tags_tag_id
+  on public.prospect_tags (tag_id);
+
+-- notifications.kind extended with 'tag_vocab_pending'.
+-- Triggers + RLS + merge_tag_vocabulary RPC: see canonical migration.
+
+-- =========================================================================
+-- End of 007_tag_schema.sql mirror
+-- =========================================================================

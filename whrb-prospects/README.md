@@ -1,8 +1,15 @@
 # whrb-prospects
 
+*Developed by Yareh Constant.*
+
 Boston-area ad sales prospect builder for **WHRB 95.3 FM** (Harvard Radio Broadcasting).
 
 Pulls local business data from **free, public sources only**, enriches with decision-maker contact info, and exports a CSV of leads ready for outreach.
+
+For the full system map (pipeline + Supabase + web app), see
+[`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md). For the schema, see
+[`../docs/DATA-MODEL.md`](../docs/DATA-MODEL.md). For operations, see
+[`../docs/RUNBOOK.md`](../docs/RUNBOOK.md).
 
 ## Free-API-only constraint
 

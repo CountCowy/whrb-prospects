@@ -1,7 +1,17 @@
 """Shared configuration: ZIPs, categories, thresholds."""
 
-# WHRB 95.3 signal-strong ZIPs
+# WHRB 95.3 signal area — three concentric rings per the 2025 media kit.
+#
+# - Local ring: Cambridge / Somerville / Brookline / Boston core / inner suburbs.
+#   (The original WHRB_ZIPS list, unchanged.)
+# - Distant ring: outer suburbs out to ~25 miles where the signal is reliable
+#   in cars and indoors with a decent receiver. Added in Stage T1
+#   (gleaming-dawn §1.3 #19) to widen scraper coverage to the full Distant ring.
+# - Fringe ring (Manchester NH, Hartford, Providence) is intentionally NOT
+#   added to WHRB_ZIPS — it surfaces only via the `affiliation:new_england_regional`
+#   tag in T2+, never as a geographic filter.
 WHRB_ZIPS = [
+    # --- Local ring (unchanged) ----------------------------------------
     # Cambridge
     "02138", "02139", "02140", "02141", "02142",
     # Somerville
@@ -12,10 +22,25 @@ WHRB_ZIPS = [
     "02115", "02116", "02118", "02130", "02134", "02135", "02215",
     # Belmont / Watertown / Arlington
     "02472", "02474", "02476", "02478",
+    # --- Distant ring (new in Stage T1) --------------------------------
+    # North Shore inner suburbs
+    "01970",  # Salem
+    "01960",  # Peabody
+    "01901",  # Lynn
+    "02151",  # Revere
+    "02150",  # Chelsea
+    "02149",  # Everett
+    "02148",  # Malden
+    "02155",  # Medford
+    "02176",  # Melrose
+    "01890",  # Winchester
 ]
 
-# Bounding box covering the WHRB ZIP list (min_lat, min_lon, max_lat, max_lon)
-WHRB_BBOX = (42.3200, -71.1700, 42.4100, -71.0500)
+# Bounding box covering the WHRB ZIP list (min_lat, min_lon, max_lat, max_lon).
+# Widened in Stage T1 to include the Distant ring north-shore inner suburbs
+# (Salem 42.52, Peabody 42.53, Lynn 42.46, Winchester 42.45). Western and
+# southern bounds unchanged.
+WHRB_BBOX = (42.3200, -71.1700, 42.5500, -70.8500)
 
 # Tier A — anchor sponsors (arts, institutions, premium retail)
 # Tier B — mid-market independents (restaurants, boutiques, professional services)

@@ -1,10 +1,14 @@
 # whrb-web
 
+*Developed by Yareh Constant.*
+
 Next.js 15 app for the WHRB 95.3 FM sales team — magic-link auth, Crimson-accented theming, unified event logging against the existing Supabase `WHRB dev` project.
 
-This is the Stage-5 skeleton of the 12-stage rollout described in
-`/Users/countcowy/.claude/plans/soft-crafting-tulip.md`. Data-grid, kanban,
-admin console, and notifications land in later stages.
+This is one half of the WHRB Prospects monorepo (the sales console);
+the Python pipeline that fills it lives in
+[`../whrb-prospects/`](../whrb-prospects/). For the full system map see
+[`../docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md). Per-stage progress
+log lives in [`../ROLLOUT.md`](../ROLLOUT.md).
 
 ## Stack
 

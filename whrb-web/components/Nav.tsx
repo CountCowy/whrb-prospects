@@ -11,6 +11,8 @@ import { Logo } from '@/components/Logo';
 const TABS = [
   { href: '/', label: 'Home' },
   { href: '/prospects', label: 'All Prospects' },
+  { href: '/media-kit', label: 'Media Kit' },
+  { href: '/guide', label: 'Guide' },
   { href: '/my', label: 'My Clients' },
   { href: '/team', label: 'Team' },
 ];

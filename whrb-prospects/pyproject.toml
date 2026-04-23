@@ -3,6 +3,8 @@ name = "whrb-prospects"
 version = "0.1.0"
 description = "WHRB 95.3 FM Boston-area ad-sales prospect pipeline."
 requires-python = ">=3.11"
+authors = [{ name = "Yareh Constant" }]
+license = { text = "Proprietary — Harvard Radio Broadcasting Co., Inc." }
 
 [tool.ruff]
 target-version = "py311"
