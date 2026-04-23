@@ -20,7 +20,6 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
-import datetime as dt
 import hashlib
 import json
 import os
@@ -29,11 +28,8 @@ import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import psycopg2
-import psycopg2.extras
-import requests
 from dotenv import load_dotenv
 from supabase import create_client
 
