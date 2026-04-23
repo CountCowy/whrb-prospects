@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { Search, X } from 'lucide-react';
 
 const DEBOUNCE_MS = 250;
 
@@ -54,21 +55,10 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
       }}
       className="relative w-full sm:max-w-sm"
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="16"
-        height="16"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+      <Search
         aria-hidden="true"
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
-      >
-        <circle cx="11" cy="11" r="7" />
-        <path d="m20 20-3.5-3.5" />
-      </svg>
+        className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+      />
       <input
         ref={inputRef}
         type="search"
@@ -83,19 +73,16 @@ export function SearchInput({ placeholder = 'Search prospects…' }: { placehold
             (e.currentTarget as HTMLInputElement).blur();
           }
         }}
-        className="w-full rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--surface))] py-2 pl-9 pr-9 text-sm text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:border-[hsl(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/0.2)]"
+        className="w-full rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--surface))] py-2 pr-9 pl-9 text-sm text-[hsl(var(--foreground))] shadow-[var(--shadow-xs)] transition-colors placeholder:text-[hsl(var(--muted-foreground))] focus:border-[hsl(var(--primary))] focus:ring-2 focus:ring-[hsl(var(--ring)/0.2)] focus:outline-none"
       />
       {value && (
         <button
           type="button"
           onClick={() => setValue('')}
           aria-label="Clear search"
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+          className="absolute top-1/2 right-2 -translate-y-1/2 rounded-md p-1 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
         >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="m18 6-12 12" />
-            <path d="m6 6 12 12" />
-          </svg>
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
       )}
     </form>

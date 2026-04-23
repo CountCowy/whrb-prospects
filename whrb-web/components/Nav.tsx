@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { Menu, Settings, X } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { SignOutButton } from '@/components/SignOutButton';
@@ -30,36 +31,18 @@ export function Nav({
   const [drawerOpen, setDrawerOpen] = useState(false);
   const tabs = isAdmin ? [...TABS, { href: '/admin/sources', label: 'Admin' }] : TABS;
 
-  const settingsIcon = (
-    <svg
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
-
   return (
-    <header className="sticky top-0 z-40 border-b border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))]/80 backdrop-blur-md supports-[backdrop-filter]:bg-[hsl(var(--background))]/70">
+    <header className="sticky top-0 z-40 border-b border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))]/85 backdrop-blur-md supports-[backdrop-filter]:bg-[hsl(var(--background))]/70">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2" aria-label="WHRB Sales home">
           <Logo />
-          <span className="hidden text-xs font-medium uppercase tracking-widest text-[hsl(var(--muted-foreground))] sm:inline">
+          <span className="hidden text-xs font-medium tracking-[0.18em] text-[hsl(var(--muted-foreground))] uppercase sm:inline">
             Sales
           </span>
         </Link>
-        <nav className="ml-2 hidden gap-1 md:flex" aria-label="Primary">
+        <nav className="ml-2 hidden gap-0.5 md:flex" aria-label="Primary">
           {tabs.map((tab) => {
-            const active =
-              tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
+            const active = tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
             return (
               <Link
                 key={tab.href}
@@ -67,7 +50,7 @@ export function Nav({
                 aria-current={active ? 'page' : undefined}
                 className={`relative rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                   active
-                    ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
+                    ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] after:absolute after:inset-x-3 after:-bottom-[13px] after:h-[2px] after:rounded-full after:bg-[hsl(var(--primary))]'
                     : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'
                 }`}
               >
@@ -86,7 +69,7 @@ export function Nav({
             aria-label="Settings"
             className="hidden rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] md:inline-flex"
           >
-            {settingsIcon}
+            <Settings className="h-[18px] w-[18px]" aria-hidden="true" />
           </Link>
           <ThemeToggle />
           <div className="hidden md:inline-flex">
@@ -102,29 +85,11 @@ export function Nav({
             className="rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] md:hidden"
             data-testid="nav-hamburger"
           >
-            <svg
-              viewBox="0 0 24 24"
-              width="22"
-              height="22"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              aria-hidden="true"
-            >
-              {drawerOpen ? (
-                <>
-                  <path d="M6 6l12 12" />
-                  <path d="M6 18L18 6" />
-                </>
-              ) : (
-                <>
-                  <path d="M4 6h16" />
-                  <path d="M4 12h16" />
-                  <path d="M4 18h16" />
-                </>
-              )}
-            </svg>
+            {drawerOpen ? (
+              <X className="h-[22px] w-[22px]" aria-hidden="true" />
+            ) : (
+              <Menu className="h-[22px] w-[22px]" aria-hidden="true" />
+            )}
           </button>
         </div>
       </div>
@@ -136,8 +101,7 @@ export function Nav({
         >
           <ul className="flex flex-col gap-1 p-2">
             {tabs.map((tab) => {
-              const active =
-                tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
+              const active = tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
               return (
                 <li key={tab.href}>
                   <Link
@@ -167,9 +131,7 @@ export function Nav({
                   : 'text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))]'
               }`}
             >
-              <span className="inline-flex h-4 w-4 items-center justify-center">
-                {settingsIcon}
-              </span>
+              <Settings className="h-4 w-4" aria-hidden="true" />
               <span>Settings</span>
             </Link>
           </div>
