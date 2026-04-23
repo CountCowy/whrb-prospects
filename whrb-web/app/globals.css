@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -405,5 +406,19 @@ body {
   textarea,
   select {
     font-size: 16px;
+  }
+}
+
+/* Respect users who set the OS-level reduced-motion preference. Kills
+ * animation / transition durations across the board so motion-sensitive
+ * users don't see the framer-motion + tw-animate-css flourishes. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

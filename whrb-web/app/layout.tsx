@@ -5,6 +5,7 @@ import './globals.css';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { GlobalErrorHandlers } from '@/components/GlobalErrorHandlers';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { Toaster } from 'sonner';
 
 const inter = Inter({
@@ -23,9 +24,11 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     <html lang="en" suppressHydrationWarning className={inter.variable}>
       <body className="min-h-screen bg-[hsl(var(--background))] font-sans antialiased">
         <ThemeProvider>
-          <GlobalErrorHandlers />
-          <ErrorBoundary>{children}</ErrorBoundary>
-          <Toaster richColors position="top-right" />
+          <TooltipProvider delayDuration={200}>
+            <GlobalErrorHandlers />
+            <ErrorBoundary>{children}</ErrorBoundary>
+            <Toaster richColors position="top-right" />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>
