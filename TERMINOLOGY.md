@@ -41,7 +41,7 @@ new `underwri*` string, add a row.**
 | `whrb-prospects/CLAUDE.md` | 12 | "FCC-compliant underwriting announcements" | Legal-frame noun, accurate FCC term. CLAUDE.md is internal handoff doc, ICP rationale, not rep-facing UI. |
 | `whrb-prospects/CLAUDE.md` | 56 | "WCRB/WGBH underwriting" | Process-noun reference to peer-station programs reps may have heard of. Internal doc. |
 | `whrb-prospects/CLAUDE.md` | 60 | "FCC underwriting rules" | Legal-frame noun. Internal doc. |
-| `whrb-web/app/(app)/media-kit/page.tsx` | 32 | "FCC underwriting framework" | Process-noun used in body copy that explains *why* we use the term "sponsor". Acceptable per §1.3 #14 — frame noun, not buyer noun. |
+| `whrb-web/app/(app)/media-kit/page.tsx` | 34 | "FCC underwriting framework" | Process-noun used in body copy that explains *why* we use the term "sponsor". Acceptable per §1.3 #14 — frame noun, not buyer noun. |
 | `README.md` | 14 | "underwriting announcements" | Repo-root README's "Why this exists" block. FCC-frame noun. Stranger-friendly explanation of the legal regime. |
 | `docs/GLOSSARY.md` | 156 | `**\`underwriting\`** — FCC framework noun.` | Glossary entry that *defines* the term and points readers at TERMINOLOGY.md. Self-referential by design. |
 
