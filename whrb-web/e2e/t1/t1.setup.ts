@@ -77,12 +77,30 @@ setup('t1 · authenticate admin + synthetic rep', async ({ page, baseURL }) => {
 
   const snap = loadSnapshot();
   const adminEmail = process.env.E2E_ADMIN_EMAIL ?? 'kingyareh@gmail.com';
+
+  // Defensive: reset the synthetic rep's role + deactivation flag so repeat
+  // runs are deterministic (an integrity-run side-effect could have promoted
+  // the rep, and t1-t11 needs role='rep' to assert the 403 page).
+  const service = createClient(
+    requireEnv('SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_URL'),
+    requireEnv('SUPABASE_SERVICE_ROLE_KEY'),
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  await service
+    .from('profiles')
+    .update({ role: 'rep', deactivated_at: null })
+    .eq('id', snap.rep_id);
+
   await landMagiclink({
     page,
     baseURL,
     email: adminEmail,
     storagePath: ADMIN_STORAGE,
   });
+  // Clear cookies between auths — without this the rep magic-link lands on a
+  // page that already carries the admin's session cookie and the LoginForm
+  // hash-token handler is short-circuited by the middleware redirect.
+  await page.context().clearCookies();
   await landMagiclink({
     page,
     baseURL,
