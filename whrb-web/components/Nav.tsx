@@ -37,10 +37,10 @@ type Tab = { href: string; label: string; icon: LucideIcon };
 const TABS: Tab[] = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/prospects', label: 'All Prospects', icon: LayoutGrid },
-  { href: '/media-kit', label: 'Media Kit', icon: FileText },
-  { href: '/guide', label: 'Guide', icon: BookOpen },
   { href: '/my', label: 'My Clients', icon: UserCircle2 },
   { href: '/team', label: 'Team', icon: Users },
+  { href: '/media-kit', label: 'Media Kit', icon: FileText },
+  { href: '/guide', label: 'Guide', icon: BookOpen },
 ];
 
 export function Nav({

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { getHomeStats } from '@/lib/queries/prospects';
 import { listRecentActivity } from '@/lib/queries/notes';
@@ -63,20 +64,20 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <section className="accent-gradient -mx-4 -mt-6 rounded-none px-4 pb-8 pt-10 sm:-mx-6 sm:rounded-b-3xl sm:px-6">
+      <section className="accent-gradient -mx-4 -mt-6 rounded-none px-4 pt-12 pb-10 sm:-mx-6 sm:rounded-b-3xl sm:px-6">
         <div className="mx-auto max-w-7xl">
           <Badge
             variant="outline"
-            className="gap-2 rounded-full border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] px-3 py-1 text-xs font-medium uppercase tracking-widest text-[hsl(var(--primary))]"
+            className="gap-2 rounded-full border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] px-3 py-1 text-xs font-medium tracking-[0.14em] text-[hsl(var(--primary))] uppercase"
           >
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[hsl(var(--primary))]" />
             WHRB 95.3 FM · Sales
           </Badge>
-          <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h1 className="mt-5 text-[2rem] leading-[1.05] font-semibold tracking-[-0.02em] sm:text-[2.75rem]">
             Welcome, <span className="text-[hsl(var(--primary))]">{firstName}</span>
             <span className="text-muted-foreground">.</span>
           </h1>
-          <p className="mt-2 text-sm text-muted-foreground">{now}</p>
+          <p className="mt-3 text-sm text-muted-foreground">{now}</p>
         </div>
       </section>
 
@@ -96,7 +97,6 @@ export default async function HomePage() {
                       'border-[hsl(var(--primary-soft-border))]',
                       'bg-gradient-to-br from-[hsl(var(--surface))] to-[hsl(var(--primary-soft)/0.4)]',
                       'hover:shadow-[var(--shadow-md)]',
-                      'sm:col-span-2 sm:row-span-2 lg:col-span-2',
                     ]
                   : [
                       'border-[hsl(var(--border-subtle))]',
@@ -108,17 +108,27 @@ export default async function HomePage() {
               {hero ? null : (
                 <div
                   aria-hidden="true"
-                  className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-[hsl(var(--primary))] to-transparent opacity-0 transition-opacity group-hover:opacity-80"
+                  className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-[hsl(var(--primary))] to-transparent opacity-30 transition-opacity group-hover:opacity-80"
                 />
               )}
               <CardContent className={cn('p-5', hero && 'sm:p-7')}>
-                <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-                  {label}
+                <div className="flex items-start justify-between">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    {label}
+                  </div>
+                  {href ? (
+                    <ArrowUpRight
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                    />
+                  ) : null}
                 </div>
                 <div className="mt-3 font-semibold tabular-nums text-foreground">
                   <span
                     className={cn(
-                      hero ? 'text-5xl' : 'text-3xl',
+                      hero
+                        ? 'text-[3.5rem] leading-none tracking-[-0.02em]'
+                        : 'text-3xl',
                     )}
                     data-testid={`${testid}-value`}
                   >
@@ -146,12 +156,25 @@ export default async function HomePage() {
               </CardContent>
             </Card>
           );
+          // Grid child carries the row/col span — putting the span classes
+          // on the inner Card is a no-op because Card is not a direct grid
+          // item. Link (or the fallback div) IS the direct child.
+          const spanClass = hero ? 'sm:col-span-2 sm:row-span-2 lg:col-span-2' : '';
           return href ? (
-            <Link key={label} href={href} className="block">
+            <Link
+              key={label}
+              href={href}
+              className={cn(
+                'block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]',
+                spanClass,
+              )}
+            >
               {content}
             </Link>
           ) : (
-            <div key={label}>{content}</div>
+            <div key={label} className={spanClass}>
+              {content}
+            </div>
           );
         })}
       </section>

@@ -24,6 +24,7 @@ export type CommandRoute = {
 
 export const COMMAND_PALETTE_ROUTES: CommandRoute[] = [
   // --- Navigate ----------------------------------------------------------
+  // Order mirrors the desktop nav (components/Nav.tsx TABS).
   { href: '/', label: 'Home', section: 'Navigate' },
   { href: '/prospects', label: 'All Prospects', section: 'Navigate' },
   { href: '/my', label: 'My Clients', section: 'Navigate' },
