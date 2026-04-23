@@ -21,6 +21,21 @@ test.describe('Stage 6 — Home', () => {
     }
   });
 
+  test('T01b hero flag: "Total prospects" is the sole hero tile', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('tile-total')).toHaveAttribute('data-hero', 'true');
+    for (const id of [
+      'tile-tier-a',
+      'tile-unassigned',
+      'tile-nonprofit',
+      'tile-my-assigned',
+      'tile-with-email',
+      'tile-recent-7d',
+    ]) {
+      await expect(page.getByTestId(id)).toHaveAttribute('data-hero', 'false');
+    }
+  });
+
   test('T02 recent activity feed renders notes OR empty-state', async ({ page }) => {
     // Stage 6 plant (its own tear-down now gone) seeded 12 notes; Stage 7
     // CI planting seeds 2 notes. Unplanted runs return 0. Accept any of:
