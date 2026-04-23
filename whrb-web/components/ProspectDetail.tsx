@@ -15,9 +15,14 @@ import { NotesPanel } from '@/components/NotesPanel';
 import { ActivityTab } from '@/components/ActivityTab';
 import { PresenceChips } from '@/components/PresenceChips';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 
 type Tab = 'fields' | 'notes' | 'activity';
@@ -137,33 +142,28 @@ export function ProspectDetail({
         </CardContent>
       </Card>
 
-      <nav role="tablist" aria-label="Detail tabs" className="flex gap-2" data-testid="detail-tabs">
-        {(['fields', 'notes', 'activity'] as Tab[]).map((key) => (
-          <Button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            variant="ghost"
-            size="sm"
-            data-testid={`tab-${key}`}
-            onClick={() => setTab(key)}
-            className={cn(
-              'text-sm font-medium',
-              tab === key &&
-                'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]',
-            )}
-          >
-            {key === 'fields' ? 'Fields' : key === 'notes' ? 'Notes' : 'Activity'}
-          </Button>
-        ))}
-      </nav>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as Tab)}
+        data-testid="detail-tabs"
+      >
+        <TabsList aria-label="Detail tabs">
+          <TabsTrigger value="fields" data-testid="tab-fields">
+            Fields
+          </TabsTrigger>
+          <TabsTrigger value="notes" data-testid="tab-notes">
+            Notes
+          </TabsTrigger>
+          <TabsTrigger value="activity" data-testid="tab-activity">
+            Activity
+          </TabsTrigger>
+        </TabsList>
 
-      {tab === 'fields' ? (
-        <section
-          className="grid gap-4 lg:grid-cols-2"
-          data-testid="detail-fields"
-        >
+        <TabsContent value="fields" className="mt-4">
+          <section
+            className="grid gap-4 lg:grid-cols-2"
+            data-testid="detail-fields"
+          >
           <Panel title="Company">
             <FieldEditor
               prospectId={prospect.id}
@@ -383,22 +383,27 @@ export function ProspectDetail({
             <ReadOnlyField label="Created source" value={prospect.created_source} />
             <ReadOnlyField label="Pipeline notes" value={prospect.pipeline_notes} />
           </Panel>
-        </section>
-      ) : null}
+          </section>
+        </TabsContent>
 
-      {tab === 'notes' ? (
-        <NotesPanel
-          prospectId={prospect.id}
-          initialNotes={notes}
-          currentUserId={currentUserId}
-          isAdmin={isAdmin}
-          authorLabels={profileLabels}
-        />
-      ) : null}
+        <TabsContent value="notes" className="mt-4">
+          <NotesPanel
+            prospectId={prospect.id}
+            initialNotes={notes}
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            authorLabels={profileLabels}
+          />
+        </TabsContent>
 
-      {tab === 'activity' ? (
-        <ActivityTab entries={activity} profiles={profileLabels} isAdmin={isAdmin} />
-      ) : null}
+        <TabsContent value="activity" className="mt-4">
+          <ActivityTab
+            entries={activity}
+            profiles={profileLabels}
+            isAdmin={isAdmin}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -3,6 +3,11 @@
 import { useCallback } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+
 export type FilterOption = { value: string; label: string };
 
 export type FilterFacet = {
@@ -20,6 +25,12 @@ const NONPROFIT: FilterOption[] = [
   { value: 'true', label: 'Nonprofit' },
   { value: 'false', label: 'For-profit / unknown' },
 ];
+
+// Native <select> styled to match shadcn Input height + border.
+// Kept native (not Radix Select) on purpose: native pickers give the
+// mobile platform-appropriate UX for free.
+const SELECT_CLASS =
+  'flex h-9 min-w-32 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
 
 export function FilterBar({
   tiers,
@@ -75,21 +86,23 @@ export function FilterBar({
   const activeCount = facets.filter((f) => params.get(f.key)).length;
 
   return (
-    <div
-      data-testid="filter-bar"
-      className="flex flex-wrap items-end gap-2"
-    >
+    <div data-testid="filter-bar" className="flex flex-wrap items-end gap-2">
       {facets.map((f) => {
         const value = params.get(f.key) ?? '';
+        const labelClass =
+          'text-[11px] font-medium uppercase tracking-wider text-muted-foreground';
         if (f.type === 'select') {
           return (
-            <label key={f.key} className="flex flex-col gap-1 text-[11px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-              {f.label}
+            <div key={f.key} className="flex flex-col gap-1">
+              <Label htmlFor={`filter-${f.key}`} className={labelClass}>
+                {f.label}
+              </Label>
               <select
+                id={`filter-${f.key}`}
                 data-testid={`filter-${f.key}`}
                 value={value}
                 onChange={(e) => set(f.key, e.target.value)}
-                className="min-w-32 rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--surface))] px-2 py-1.5 text-sm font-normal normal-case tracking-normal text-[hsl(var(--foreground))] focus:border-[hsl(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/0.2)]"
+                className={SELECT_CLASS}
               >
                 <option value="">Any</option>
                 {f.options!.map((o) => (
@@ -98,13 +111,16 @@ export function FilterBar({
                   </option>
                 ))}
               </select>
-            </label>
+            </div>
           );
         }
         return (
-          <label key={f.key} className="flex flex-col gap-1 text-[11px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
-            {f.label}
-            <input
+          <div key={f.key} className="flex flex-col gap-1">
+            <Label htmlFor={`filter-${f.key}`} className={labelClass}>
+              {f.label}
+            </Label>
+            <Input
+              id={`filter-${f.key}`}
               type="text"
               data-testid={`filter-${f.key}`}
               defaultValue={value}
@@ -113,20 +129,22 @@ export function FilterBar({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') set(f.key, (e.target as HTMLInputElement).value.trim());
               }}
-              className="w-24 rounded-md border border-[hsl(var(--input))] bg-[hsl(var(--surface))] px-2 py-1.5 text-sm font-normal normal-case tracking-normal text-[hsl(var(--foreground))] focus:border-[hsl(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/0.2)]"
+              className={cn('w-24 text-sm font-normal normal-case tracking-normal')}
             />
-          </label>
+          </div>
         );
       })}
       {activeCount > 0 && (
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={clearAll}
           data-testid="clear-filters"
-          className="self-end rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+          className="self-end text-xs"
         >
           Clear {activeCount} filter{activeCount === 1 ? '' : 's'}
-        </button>
+        </Button>
       )}
     </div>
   );

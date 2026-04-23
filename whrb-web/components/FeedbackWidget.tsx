@@ -4,6 +4,17 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
+
 const CATEGORIES = [
   { value: 'bug', label: 'Bug' },
   { value: 'idea', label: 'Idea' },
@@ -30,7 +41,9 @@ export function FeedbackWidget({ variant = 'inline', open, onClose }: Props) {
 
   useEffect(() => {
     if (variant === 'modal' && open) {
-      setTimeout(() => textareaRef.current?.focus(), 10);
+      // Radix Dialog autofocus lands on the first focusable — bias to the
+      // body textarea so the user can type immediately.
+      setTimeout(() => textareaRef.current?.focus(), 50);
     }
   }, [variant, open]);
 
@@ -77,65 +90,75 @@ export function FeedbackWidget({ variant = 'inline', open, onClose }: Props) {
       className="flex flex-col gap-3"
     >
       <div className="flex flex-wrap items-center gap-3">
-        <label className="text-[11px] font-medium uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+        <Label className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
           Category
-        </label>
-        <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Feedback category">
+        </Label>
+        <div
+          className="flex flex-wrap gap-1"
+          role="radiogroup"
+          aria-label="Feedback category"
+        >
           {CATEGORIES.map((c) => {
             const active = category === c.value;
             return (
-              <button
+              <Button
                 key={c.value}
                 type="button"
                 role="radio"
+                variant="outline"
+                size="sm"
                 aria-checked={active}
                 data-testid={`feedback-category-${c.value}`}
                 onClick={() => setCategory(c.value)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                className={cn(
+                  'h-7 rounded-full px-3 text-xs font-medium',
                   active
-                    ? 'border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                    : 'border-[hsl(var(--border))] text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'
-                }`}
+                    ? 'border-[hsl(var(--primary-soft-border))] bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]'
+                    : 'text-muted-foreground',
+                )}
               >
                 {c.label}
-              </button>
+              </Button>
             );
           })}
         </div>
       </div>
-      <textarea
+      <Textarea
         ref={textareaRef}
         data-testid="feedback-body"
         value={body}
         onChange={(e) => setBody(e.target.value.slice(0, MAX))}
         placeholder="What happened / what would help?"
-        className="min-h-[96px] w-full resize-y rounded-lg border border-[hsl(var(--input))] bg-[hsl(var(--surface))] px-3 py-2 text-sm text-[hsl(var(--foreground))] placeholder:text-[hsl(var(--muted-foreground))] focus:border-[hsl(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary)/0.2)]"
+        className="min-h-[96px] resize-y"
       />
       <div className="flex items-center justify-between">
         <span
-          className="text-[11px] text-[hsl(var(--muted-foreground))]"
+          className="text-[11px] text-muted-foreground"
           data-testid="feedback-count"
         >
           {body.trim().length}/{MAX}
         </span>
         <div className="flex items-center gap-2">
           {variant === 'modal' && (
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={onClose}
-              className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+              className="text-xs"
             >
               Cancel
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             type="submit"
+            size="sm"
             data-testid="feedback-submit"
             disabled={submitting || body.trim().length === 0}
-            className="rounded-md bg-[hsl(var(--primary))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--primary-foreground))] transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="text-xs"
           >
             {submitting ? 'Sending…' : 'Send feedback'}
-          </button>
+          </Button>
         </div>
       </div>
     </form>
@@ -149,11 +172,11 @@ export function FeedbackWidget({ variant = 'inline', open, onClose }: Props) {
       >
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold tracking-tight">Send feedback</h2>
-          <span className="text-[11px] font-medium uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
+          <span className="text-[11px] font-medium uppercase tracking-widest text-muted-foreground">
             Bugs · ideas · data fixes
           </span>
         </div>
-        <p className="mt-1 mb-4 text-sm text-[hsl(var(--muted-foreground))]">
+        <p className="mt-1 mb-4 text-sm text-muted-foreground">
           Anything off? Noting a wrong phone number, missed sponsor, or half-broken view helps fix it quickly.
         </p>
         {form}
@@ -161,35 +184,26 @@ export function FeedbackWidget({ variant = 'inline', open, onClose }: Props) {
     );
   }
 
-  if (!open) return null;
+  // Modal variant now uses shadcn Dialog (Radix-backed) so focus-trap,
+  // ESC-close, backdrop-click, and ARIA `aria-modal="true"` + `role="dialog"`
+  // come for free. Preserves the `feedback-modal` testid for e2e.
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label="Send feedback"
-      data-testid="feedback-modal"
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-4 pt-24 sm:items-center sm:pb-0"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose?.();
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) onClose?.();
       }}
     >
-      <div className="w-full max-w-lg rounded-2xl border border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-5 shadow-[var(--shadow-md)]">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-base font-semibold tracking-tight">Send feedback</h2>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="rounded-md p-1 text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="m18 6-12 12" />
-              <path d="m6 6 12 12" />
-            </svg>
-          </button>
-        </div>
+      <DialogContent
+        aria-label="Send feedback"
+        data-testid="feedback-modal"
+        className="max-w-lg"
+      >
+        <DialogHeader>
+          <DialogTitle>Send feedback</DialogTitle>
+        </DialogHeader>
         {form}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
