@@ -3602,3 +3602,72 @@ After merging PR #18, `main`'s workflow picks up migration 005's
 Stage 10c implementation ends here. PR #18 (head `d84a0d8`) is the
 merge artifact. Post-merge T02 sign-off closes the stage fully.
 
+### Post-merge T02 sign-off (2026-04-22)
+
+T02 (cancel-of-running, plan §23.6) closed green post-merge. Stage
+10c now fully exited — 17/17 Tks accounted for.
+
+**First attempt surfaced a PAT scope gap.** After PR #18 merged to
+`main`, admin triggered a `--dry` run via `/admin/runs` → row flipped
+to `running` with `github_run_id` stamped (confirming workflow step 2
+of the Post-merge checklist is satisfied). Admin clicked Cancel,
+typed `CANCEL`, submitted. Cancel API returned 502 with the message
+`"GitHub rejected cancel (403). Check GH_DISPATCH_PAT scope."` — the
+cancel route's documented 401/403 fall-through (plan §23.5, route
+[cancel/route.ts:144-165](whrb-web/app/api/pipeline/run/%5Bid%5D/cancel/route.ts)).
+DB row correctly left in `running` (plan §23.5: "surface the error to
+the admin and do NOT flip our row").
+
+**Root cause.** `GH_DISPATCH_PAT` was provisioned at Stage 10 as a
+fine-grained PAT with `Contents: Read and write` + `Metadata: Read`
+(ROLLOUT line 2126–2132) — the minimum viable scope for
+`POST /repos/.../dispatches`. GitHub's
+`POST /repos/.../actions/runs/{run_id}/cancel` endpoint requires
+`Actions: Read and write` on fine-grained PATs, which was never
+granted because Stage 10 only exercised dispatch. Stage 10c's
+planning (§23.4: "reuse the Actions-side PAT — no new secret
+provisioning") conflated secret-value reuse with scope reuse; the
+required permission set is broader for cancel than for dispatch.
+
+**Fix.** Edit the existing fine-grained PAT in place at
+GitHub → Settings → Developer settings → Personal access tokens →
+Fine-grained tokens → `GH_DISPATCH_PAT` → add
+`Actions: Read and write` → save. Fine-grained permission edits take
+effect immediately without regenerating the token value, so no
+secret rotation / Vercel re-propagation / Supabase Edge Function
+update was needed. Expiry unchanged (2026-07-20 per ROLLOUT:2133).
+
+**Retry — green.** Admin re-triggered a `--dry` run, waited for
+`running`, clicked Cancel, typed `CANCEL`. Cancel API returned
+`ok:true` with `gh_cancel:'ok'`; the GitHub Actions workflow
+transitioned to `conclusion=cancelled` within 60s;
+`pipeline_runs.error` recorded
+`cancelled by admin: <email> (running, gh_run=<N>)`. User confirmed
+"the run cancel worked properly."
+
+**Post-merge checklist status:**
+
+- [x] Item 1 — `github_run_id` stamping confirmed (observed on the
+      T02 row pre-cancel).
+- [x] Item 2 — args consumption confirmed (the `--dry` run invoked
+      `python pipeline.py --dry` per the workflow Adopt log).
+- [x] Item 3 — T02 cancel-of-running verified end to end (per
+      above).
+- [ ] Item 4 — optional `--dry --no-supabase` smoke re-run left to
+      admin discretion; not gating.
+
+**Exit-gate update.** The `[~]` marker on T02 in the Stage 10c
+exit-gate checklist above (line 3355) is superseded by this
+sign-off; Stage 10c is now **fully green on all 17 Tks** (16
+automated + preview + 1 manual post-merge).
+
+**Plan deviation.** Stage 10c's secret-provisioning statement
+("reuse the Actions-side PAT — no new secret provisioning", plan
+§23.4) was accurate for the token value but missed that the fine-
+grained PAT's existing scope was insufficient for the cancel call.
+Captured as a lesson for future stages that add new GitHub API
+surfaces: validate the endpoint's fine-grained permission
+requirement against the current PAT's granted permissions, not just
+the token's existence. Logged in the plan file as Round-15 §26
+(`read-users-countcowy-claude-plans-soft-c-velvety-sonnet.md`).
+
