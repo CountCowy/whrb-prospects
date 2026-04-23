@@ -2,7 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, Settings as SettingsIcon } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  BookOpen,
+  FileText,
+  Home,
+  LayoutGrid,
+  Menu,
+  Settings as SettingsIcon,
+  ShieldCheck,
+  UserCircle2,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -20,13 +32,15 @@ import { SignOutButton } from '@/components/SignOutButton';
 import { Logo } from '@/components/Logo';
 import { cn } from '@/lib/utils';
 
-const TABS = [
-  { href: '/', label: 'Home' },
-  { href: '/prospects', label: 'All Prospects' },
-  { href: '/media-kit', label: 'Media Kit' },
-  { href: '/guide', label: 'Guide' },
-  { href: '/my', label: 'My Clients' },
-  { href: '/team', label: 'Team' },
+type Tab = { href: string; label: string; icon: LucideIcon };
+
+const TABS: Tab[] = [
+  { href: '/', label: 'Home', icon: Home },
+  { href: '/prospects', label: 'All Prospects', icon: LayoutGrid },
+  { href: '/media-kit', label: 'Media Kit', icon: FileText },
+  { href: '/guide', label: 'Guide', icon: BookOpen },
+  { href: '/my', label: 'My Clients', icon: UserCircle2 },
+  { href: '/team', label: 'Team', icon: Users },
 ];
 
 export function Nav({
@@ -40,7 +54,9 @@ export function Nav({
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const tabs = isAdmin ? [...TABS, { href: '/admin/sources', label: 'Admin' }] : TABS;
+  const tabs: Tab[] = isAdmin
+    ? [...TABS, { href: '/admin/sources', label: 'Admin', icon: ShieldCheck }]
+    : TABS;
 
   return (
     <header className="sticky top-0 z-40 border-b border-[hsl(var(--border-subtle))] bg-[hsl(var(--background))]/80 backdrop-blur-md supports-[backdrop-filter]:bg-[hsl(var(--background))]/70">
@@ -53,28 +69,31 @@ export function Nav({
         </Link>
         <nav className="ml-2 hidden gap-1 md:flex" aria-label="Primary">
           {tabs.map((tab) => {
+            const Icon = tab.icon;
             const active =
               tab.href === '/' ? pathname === '/' : pathname.startsWith(tab.href);
             return (
-              <Button
+              <Link
                 key={tab.href}
-                asChild
-                variant="ghost"
-                size="sm"
+                href={tab.href}
+                aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'h-8 text-sm font-medium',
+                  'relative flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
                   active
-                    ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]'
-                    : 'text-muted-foreground hover:text-foreground',
+                    ? 'text-[hsl(var(--primary))]'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                 )}
               >
-                <Link
-                  href={tab.href}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  {tab.label}
-                </Link>
-              </Button>
+                {active ? (
+                  <motion.span
+                    layoutId="nav-pill"
+                    className="absolute inset-0 -z-10 rounded-md bg-[hsl(var(--primary-soft))]"
+                    transition={{ type: 'spring', duration: 0.35, bounce: 0.2 }}
+                  />
+                ) : null}
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                <span>{tab.label}</span>
+              </Link>
             );
           })}
         </nav>
@@ -119,52 +138,46 @@ export function Nav({
               <nav aria-label="Mobile navigation" className="mt-4">
                 <ul className="flex flex-col gap-1">
                   {tabs.map((tab) => {
+                    const Icon = tab.icon;
                     const active =
                       tab.href === '/'
                         ? pathname === '/'
                         : pathname.startsWith(tab.href);
                     return (
                       <li key={tab.href}>
-                        <Button
-                          asChild
-                          variant="ghost"
-                          className={cn(
-                            'w-full justify-start text-sm font-medium',
-                            active
-                              ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]'
-                              : 'text-muted-foreground hover:text-foreground',
-                          )}
+                        <Link
+                          href={tab.href}
+                          aria-current={active ? 'page' : undefined}
                           onClick={() => setDrawerOpen(false)}
+                          className={cn(
+                            'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                            active
+                              ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
+                              : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                          )}
                         >
-                          <Link
-                            href={tab.href}
-                            aria-current={active ? 'page' : undefined}
-                          >
-                            {tab.label}
-                          </Link>
-                        </Button>
+                          <Icon className="h-4 w-4" aria-hidden="true" />
+                          <span>{tab.label}</span>
+                        </Link>
                       </li>
                     );
                   })}
                 </ul>
                 <Separator className="my-3" />
-                <Button
-                  asChild
-                  variant="ghost"
+                <Link
+                  href="/settings/notifications"
                   onClick={() => setDrawerOpen(false)}
                   data-testid="nav-mobile-settings"
                   className={cn(
-                    'w-full justify-start gap-2 text-sm font-medium',
+                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                     pathname.startsWith('/settings')
-                      ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]'
-                      : 'text-foreground',
+                      ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
+                      : 'text-foreground hover:bg-muted',
                   )}
                 >
-                  <Link href="/settings/notifications">
-                    <SettingsIcon className="h-4 w-4" />
-                    <span>Settings</span>
-                  </Link>
-                </Button>
+                  <SettingsIcon className="h-4 w-4" aria-hidden="true" />
+                  <span>Settings</span>
+                </Link>
               </nav>
             </SheetContent>
           </Sheet>
