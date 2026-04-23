@@ -158,7 +158,11 @@ export function NotificationBell({
         href="/notifications"
         aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
       >
-        <Bell className="h-[18px] w-[18px]" aria-hidden="true" />
+        {/* Bell size is controlled by Button variant="icon"'s
+            `[&_svg]:size-4` cva rule — don't set an arbitrary h-/w-
+            here, or JIT class ordering will race with shadcn's default
+            and the icon can render at 16px OR 18px across builds. */}
+        <Bell aria-hidden="true" />
         {unread > 0 ? (
           <span
             className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-none text-primary-foreground"

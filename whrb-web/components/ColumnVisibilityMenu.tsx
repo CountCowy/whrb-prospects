@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -90,31 +91,36 @@ export function ColumnVisibilityMenu({ columns, onChange }: Props) {
           <DropdownMenuLabel className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
             Show columns
           </DropdownMenuLabel>
-          <button
-            type="button"
-            onClick={reset}
+          <DropdownMenuItem
+            onSelect={(e) => {
+              // Don't close the menu — reset is a modifier, not a navigation.
+              e.preventDefault();
+              reset();
+            }}
             data-testid="column-reset"
-            className="text-[10px] font-medium uppercase tracking-widest text-primary hover:underline"
+            className="cursor-pointer px-2 py-1 text-[10px] font-medium uppercase tracking-widest text-primary hover:!bg-transparent hover:underline focus:!bg-transparent"
           >
             Reset
-          </button>
+          </DropdownMenuItem>
         </div>
         <DropdownMenuSeparator />
-        <div className="p-1">
-          {columns.map((c) => (
-            <label
-              key={c.key}
-              className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
-            >
-              <Checkbox
-                checked={visible.has(c.key)}
-                onCheckedChange={() => toggle(c.key)}
-                data-testid={`column-toggle-${c.key}`}
-              />
-              {c.label}
-            </label>
-          ))}
-        </div>
+        {columns.map((c) => (
+          <DropdownMenuCheckboxItem
+            key={c.key}
+            checked={visible.has(c.key)}
+            onCheckedChange={() => toggle(c.key)}
+            onSelect={(e) => {
+              // Keep the menu open so the user can toggle multiple columns
+              // in one session. Radix's default behaviour is to close on
+              // select — we override with preventDefault.
+              e.preventDefault();
+            }}
+            data-testid={`column-toggle-${c.key}`}
+            className="cursor-pointer"
+          >
+            {c.label}
+          </DropdownMenuCheckboxItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );

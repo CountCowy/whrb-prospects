@@ -95,7 +95,12 @@ export default async function HomePage() {
                 hero
                   ? [
                       'border-[hsl(var(--primary-soft-border))]',
-                      'bg-gradient-to-br from-[hsl(var(--surface))] to-[hsl(var(--primary-soft)/0.4)]',
+                      // NB: use the raw --primary channel triple + alpha here.
+                      // `--primary-soft` already bakes in its own alpha, so
+                      // `hsl(var(--primary-soft)/0.4)` would emit a malformed
+                      // `hsl(H S L / α / 0.4)` and the gradient stop is
+                      // dropped silently by every browser.
+                      'bg-gradient-to-br from-[hsl(var(--surface))] to-[hsl(var(--primary)/0.12)]',
                       'hover:shadow-[var(--shadow-md)]',
                     ]
                   : [

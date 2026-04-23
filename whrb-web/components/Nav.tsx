@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   UserCircle2,
   Users,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -26,6 +27,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { NotificationBell } from '@/components/NotificationBell';
 import { SignOutButton } from '@/components/SignOutButton';
@@ -99,17 +105,22 @@ export function Nav({
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
           <NotificationBell userId={userId} initialUnread={initialUnreadCount} />
-          <Button
-            asChild
-            variant="ghost"
-            size="icon"
-            aria-label="Settings"
-            className="hidden md:inline-flex"
-          >
-            <Link href="/settings/notifications">
-              <SettingsIcon className="h-[18px] w-[18px]" />
-            </Link>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                aria-label="Settings"
+                className="hidden md:inline-flex"
+              >
+                <Link href="/settings/notifications">
+                  <SettingsIcon />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Settings</TooltipContent>
+          </Tooltip>
           <ThemeToggle />
           <div className="hidden md:inline-flex">
             <SignOutButton variant="nav" testId="nav-sign-out" />
@@ -121,10 +132,11 @@ export function Nav({
                 variant="ghost"
                 size="icon"
                 aria-label="Toggle navigation menu"
+                aria-expanded={drawerOpen}
                 className="md:hidden"
                 data-testid="nav-hamburger"
               >
-                <Menu className="h-[22px] w-[22px]" />
+                {drawerOpen ? <X /> : <Menu />}
               </Button>
             </SheetTrigger>
             <SheetContent
