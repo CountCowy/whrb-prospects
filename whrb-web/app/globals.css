@@ -63,50 +63,61 @@
 
   /* ---------------------------------------------------------------------
    * Tier tokens — used by TierBadge as text + soft bg + subtle border.
-   * Values verbatim from Tokens.
+   *
+   * HSL text lightness darkened from Tokens' original 34-45% → 26-34%
+   * so the chip text clears WCAG AA (4.5:1) against the near-white
+   * composited chip bg that `@axe-core/playwright` measures in-browser.
+   * Tokens' lighter values computed to ~3.73:1 in CI against #f1f2f4
+   * (page + 10% chip overlay). See 2026-04-23 a11y failure on
+   * `ui/foundation`.
    * --------------------------------------------------------------------- */
-  --tier-a: 152 55% 34%;
-  --tier-a-bg: 152 55% 34% / 0.1;
-  --tier-a-border: 152 55% 34% / 0.25;
+  --tier-a: 152 60% 28%;
+  --tier-a-bg: 152 60% 28% / 0.12;
+  --tier-a-border: 152 60% 28% / 0.28;
 
-  --tier-b: 32 85% 42%;
-  --tier-b-bg: 32 85% 42% / 0.12;
-  --tier-b-border: 32 85% 42% / 0.28;
+  --tier-b: 32 90% 30%;
+  --tier-b-bg: 32 90% 30% / 0.14;
+  --tier-b-border: 32 90% 30% / 0.30;
 
-  --tier-c: 215 14% 45%;
-  --tier-c-bg: 215 14% 45% / 0.1;
-  --tier-c-border: 215 14% 45% / 0.22;
+  --tier-c: 215 22% 34%;
+  --tier-c-bg: 215 22% 34% / 0.10;
+  --tier-c-border: 215 22% 34% / 0.24;
 
   /* ---------------------------------------------------------------------
-   * StateBadge tokens — 7 triplets. Verbatim from Tokens.
+   * StateBadge tokens — 7 triplets.
+   *
+   * Same darkening rationale as the tier tokens above. Hue preserved
+   * per state for category recognizability; saturation kept or nudged
+   * up; lightness dropped so composited text over the (page + chip)
+   * blend clears AA.
    * --------------------------------------------------------------------- */
-  --state-researching: 215 12% 50%;
-  --state-researching-bg: 215 12% 50% / 0.1;
-  --state-researching-border: 215 12% 50% / 0.28;
+  --state-researching: 215 20% 34%;
+  --state-researching-bg: 215 20% 34% / 0.12;
+  --state-researching-border: 215 20% 34% / 0.30;
 
-  --state-waiting: 238 60% 55%;
-  --state-waiting-bg: 238 60% 55% / 0.12;
-  --state-waiting-border: 238 60% 55% / 0.28;
+  --state-waiting: 238 55% 40%;
+  --state-waiting-bg: 238 55% 40% / 0.12;
+  --state-waiting-border: 238 55% 40% / 0.30;
 
-  --state-initial: 205 80% 48%;
-  --state-initial-bg: 205 80% 48% / 0.12;
-  --state-initial-border: 205 80% 48% / 0.28;
+  --state-initial: 205 78% 34%;
+  --state-initial-bg: 205 78% 34% / 0.12;
+  --state-initial-border: 205 78% 34% / 0.28;
 
-  --state-ongoing: 38 90% 50%;
-  --state-ongoing-bg: 38 90% 50% / 0.14;
-  --state-ongoing-border: 38 90% 50% / 0.28;
+  --state-ongoing: 32 90% 30%;
+  --state-ongoing-bg: 32 90% 30% / 0.14;
+  --state-ongoing-border: 32 90% 30% / 0.30;
 
-  --state-sold: 152 60% 38%;
-  --state-sold-bg: 152 60% 38% / 0.12;
-  --state-sold-border: 152 60% 38% / 0.28;
+  --state-sold: 152 65% 26%;
+  --state-sold-bg: 152 65% 26% / 0.12;
+  --state-sold-border: 152 65% 26% / 0.28;
 
-  --state-previous-client: 172 55% 40%;
-  --state-previous-client-bg: 172 55% 40% / 0.12;
-  --state-previous-client-border: 172 55% 40% / 0.28;
+  --state-previous-client: 172 60% 28%;
+  --state-previous-client-bg: 172 60% 28% / 0.14;
+  --state-previous-client-border: 172 60% 28% / 0.30;
 
-  --state-dead: 0 70% 52%;
-  --state-dead-bg: 0 70% 52% / 0.1;
-  --state-dead-border: 0 70% 52% / 0.24;
+  --state-dead: 0 65% 36%;
+  --state-dead-bg: 0 65% 36% / 0.10;
+  --state-dead-border: 0 65% 36% / 0.26;
 
   /* ---------------------------------------------------------------------
    * Semantic status. Per plan:
