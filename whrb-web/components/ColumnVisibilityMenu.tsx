@@ -1,6 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 export const COLUMN_VISIBILITY_KEY = 'prospectTable.visibleColumns.v1';
 
@@ -12,11 +23,9 @@ type Props = {
 };
 
 export function ColumnVisibilityMenu({ columns, onChange }: Props) {
-  const [open, setOpen] = useState(false);
   const [visible, setVisible] = useState<Set<string>>(
     new Set(columns.filter((c) => c.defaultVisible !== false).map((c) => c.key)),
   );
-  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -35,15 +44,6 @@ export function ColumnVisibilityMenu({ columns, onChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      if (!ref.current) return;
-      if (!ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, [open]);
-
   function toggle(key: string) {
     const next = new Set(visible);
     if (next.has(key)) next.delete(key);
@@ -58,7 +58,9 @@ export function ColumnVisibilityMenu({ columns, onChange }: Props) {
   }
 
   function reset() {
-    const next = new Set(columns.filter((c) => c.defaultVisible !== false).map((c) => c.key));
+    const next = new Set(
+      columns.filter((c) => c.defaultVisible !== false).map((c) => c.key),
+    );
     setVisible(next);
     try {
       window.localStorage.removeItem(COLUMN_VISIBILITY_KEY);
@@ -69,51 +71,57 @@ export function ColumnVisibilityMenu({ columns, onChange }: Props) {
   }
 
   return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        data-testid="column-toggle"
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--surface))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
-        aria-expanded={open}
-        aria-haspopup="menu"
-      >
-        Columns ({visible.size}/{columns.length})
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 top-full z-20 mt-1 max-h-96 w-64 overflow-auto rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface))] p-2 shadow-[var(--shadow-md)]"
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="column-toggle"
+          className="text-xs font-medium"
         >
-          <div className="mb-1 flex items-center justify-between px-1">
-            <span className="text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--muted-foreground))]">
-              Show columns
-            </span>
-            <button
-              type="button"
-              onClick={reset}
-              data-testid="column-reset"
-              className="text-[10px] font-medium uppercase tracking-widest text-[hsl(var(--primary))] hover:underline"
-            >
-              Reset
-            </button>
-          </div>
-          {columns.map((c) => (
-            <label
-              key={c.key}
-              className="flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-[hsl(var(--muted))]"
-            >
-              <input
-                type="checkbox"
-                checked={visible.has(c.key)}
-                onChange={() => toggle(c.key)}
-                data-testid={`column-toggle-${c.key}`}
-              />
-              {c.label}
-            </label>
-          ))}
+          Columns ({visible.size}/{columns.length})
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="max-h-96 w-64 overflow-auto"
+      >
+        <div className="flex items-center justify-between px-2">
+          <DropdownMenuLabel className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+            Show columns
+          </DropdownMenuLabel>
+          <DropdownMenuItem
+            onSelect={(e) => {
+              // Don't close the menu — reset is a modifier, not a navigation.
+              e.preventDefault();
+              reset();
+            }}
+            data-testid="column-reset"
+            className="cursor-pointer px-2 py-1 text-[10px] font-medium uppercase tracking-widest text-primary hover:!bg-transparent hover:underline focus:!bg-transparent"
+          >
+            Reset
+          </DropdownMenuItem>
         </div>
-      )}
-    </div>
+        <DropdownMenuSeparator />
+        {columns.map((c) => (
+          <DropdownMenuCheckboxItem
+            key={c.key}
+            checked={visible.has(c.key)}
+            onCheckedChange={() => toggle(c.key)}
+            onSelect={(e) => {
+              // Keep the menu open so the user can toggle multiple columns
+              // in one session. Radix's default behaviour is to close on
+              // select — we override with preventDefault.
+              e.preventDefault();
+            }}
+            data-testid={`column-toggle-${c.key}`}
+            className="cursor-pointer"
+          >
+            {c.label}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

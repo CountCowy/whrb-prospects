@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import { Nav } from '@/components/Nav';
 import { FeedbackButton } from '@/components/FeedbackButton';
+import { CommandPalette } from '@/components/CommandPalette';
 import { createClient } from '@/lib/supabase/server';
 import { APP_VERSION } from '@/lib/app-version';
 
@@ -39,6 +40,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         WHRB Prospects · Developed by Yareh Constant · v{APP_VERSION}
       </footer>
       <FeedbackButton />
+      <CommandPalette isAdmin={isAdmin} />
     </div>
   );
 }

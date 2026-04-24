@@ -1,8 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { Bell } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import type { NotificationKind } from '@/components/NotificationInbox';
 
@@ -136,36 +139,39 @@ export function NotificationBell({
 
   const displayCount = unread > 99 ? '99+' : `${unread}`;
 
+  // Plan originally called for shadcn popover + button + separator; the
+  // bell currently navigates to /notifications rather than opening an
+  // inline popover inbox (that would be a new feature, not a migration).
+  // Scope preservation: migrate to shadcn Button asChild wrapping the
+  // Link, and keep nav semantics. Any future popover-inbox feature can
+  // pick up separator + popover imports then.
   return (
-    <Link
-      href="/notifications"
-      aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
-      className="relative rounded-md p-1.5 text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"
+    <Button
+      variant="ghost"
+      size="icon"
+      asChild
       data-testid="notification-bell"
       data-unread-count={unread}
+      className="relative"
     >
-      <svg
-        viewBox="0 0 24 24"
-        width="18"
-        height="18"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
+      <Link
+        href="/notifications"
+        aria-label={`Notifications${unread > 0 ? ` (${unread} unread)` : ''}`}
       >
-        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-      </svg>
-      {unread > 0 ? (
-        <span
-          className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[hsl(var(--primary))] px-1.5 text-[10px] font-semibold leading-none text-[hsl(var(--primary-foreground))]"
-          data-testid="notification-bell-badge"
-        >
-          {displayCount}
-        </span>
-      ) : null}
-    </Link>
+        {/* Bell size is controlled by Button variant="icon"'s
+            `[&_svg]:size-4` cva rule — don't set an arbitrary h-/w-
+            here, or JIT class ordering will race with shadcn's default
+            and the icon can render at 16px OR 18px across builds. */}
+        <Bell aria-hidden="true" />
+        {unread > 0 ? (
+          <span
+            className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold leading-none text-primary-foreground"
+            data-testid="notification-bell-badge"
+          >
+            {displayCount}
+          </span>
+        ) : null}
+      </Link>
+    </Button>
   );
 }

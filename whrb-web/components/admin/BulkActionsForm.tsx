@@ -3,6 +3,10 @@
 import { useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 import { BulkPreviewTable } from './BulkPreviewTable';
 import type {
   Action,
@@ -254,38 +258,42 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-semibold">Filter</h2>
           <div
-            className="flex gap-1 rounded-md border border-[hsl(var(--border))] p-0.5 text-xs"
+            className="flex gap-1 rounded-md border p-0.5 text-xs"
             role="tablist"
             aria-label="Selection mode"
           >
-            <button
+            <Button
               type="button"
               role="tab"
               aria-selected={mode === 'filter'}
+              variant={mode === 'filter' ? 'secondary' : 'ghost'}
+              size="sm"
               data-testid="bulk-mode-filter"
               onClick={() => setMode('filter')}
-              className={`rounded px-2 py-1 font-medium ${
-                mode === 'filter'
-                  ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                  : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]'
-              }`}
+              className={cn(
+                'h-7 rounded text-xs font-medium',
+                mode === 'filter' &&
+                  'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]',
+              )}
             >
               Filter-based
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               role="tab"
               aria-selected={mode === 'basket'}
+              variant={mode === 'basket' ? 'secondary' : 'ghost'}
+              size="sm"
               data-testid="bulk-mode-basket"
               onClick={() => setMode('basket')}
-              className={`rounded px-2 py-1 font-medium ${
-                mode === 'basket'
-                  ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                  : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))]'
-              }`}
+              className={cn(
+                'h-7 rounded text-xs font-medium',
+                mode === 'basket' &&
+                  'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]',
+              )}
             >
               Selection-based
-            </button>
+            </Button>
           </div>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -361,41 +369,47 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
           />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             onClick={onPreviewClick}
             disabled={pending}
-            className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-sm font-medium hover:bg-[hsl(var(--muted))] disabled:opacity-50"
             data-testid="bulk-preview"
           >
             {pending ? 'Loading…' : 'Preview'}
-          </button>
+          </Button>
           {preview ? (
-            <span className="text-sm text-[hsl(var(--muted-foreground))]" data-testid="bulk-preview-count">
+            <span
+              className="text-sm text-muted-foreground"
+              data-testid="bulk-preview-count"
+            >
               {preview.count.toLocaleString()} match{preview.count === 1 ? '' : 'es'}
             </span>
           ) : null}
           {mode === 'basket' && preview ? (
             <>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={addPageToBasket}
                 data-testid="bulk-basket-add-page"
                 disabled={pending}
-                className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--muted))] disabled:opacity-50"
               >
                 + Add this page ({preview.rows.length})
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={addAllMatchesToBasket}
                 data-testid="bulk-basket-add-all"
                 disabled={pending || preview.countExceeded}
                 title={preview.countExceeded ? 'Match set exceeds 5,000 — narrow filter first.' : undefined}
-                className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-xs font-medium hover:bg-[hsl(var(--muted))] disabled:opacity-50"
               >
                 + Add all matches ({preview.ids.length})
-              </button>
+              </Button>
             </>
           ) : null}
         </div>
@@ -416,15 +430,17 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
                 filter changes until Clear.
               </p>
             </div>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={clearBasket}
               data-testid="bulk-basket-clear"
               disabled={basket.size === 0}
-              className="rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-3 py-1.5 text-xs font-medium text-[hsl(var(--foreground))] hover:bg-[hsl(var(--muted))] disabled:opacity-50"
+              className="bg-background"
             >
               Clear basket
-            </button>
+            </Button>
           </div>
         </section>
       ) : null}
@@ -451,21 +467,23 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
         <div className="mt-3 space-y-3">
           <div className="flex flex-wrap gap-2" role="tablist" aria-label="Bulk action">
             {(['assign', 'state', 'tier', 'delete'] as const).map((a) => (
-              <button
+              <Button
                 key={a}
                 type="button"
                 role="tab"
                 aria-selected={action === a}
+                variant="ghost"
+                size="sm"
                 onClick={() => setAction(a)}
                 data-testid={`bulk-action-${a}`}
-                className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-                  action === a
-                    ? 'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))]'
-                    : 'text-[hsl(var(--muted-foreground))] hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]'
-                }`}
+                className={cn(
+                  'text-sm font-medium',
+                  action === a &&
+                    'bg-[hsl(var(--primary-soft))] text-[hsl(var(--primary))] hover:bg-[hsl(var(--primary-soft-hover))]',
+                )}
               >
                 {a.charAt(0).toUpperCase() + a.slice(1)}
-              </button>
+              </Button>
             ))}
           </div>
           {action === 'assign' ? (
@@ -506,21 +524,26 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
           ) : null}
           {action === 'delete' ? (
             <div>
-              <label className="block text-xs font-medium uppercase tracking-wider text-red-600">
+              <Label
+                htmlFor="bulk-delete-confirm"
+                className="text-xs font-medium uppercase tracking-wider text-destructive"
+              >
                 Confirm
-              </label>
-              <input
+              </Label>
+              <Input
+                id="bulk-delete-confirm"
                 type="text"
                 value={confirmText}
                 onChange={(e) => setConfirmText(e.target.value)}
                 placeholder="Type DELETE to enable the button"
                 data-testid="bulk-delete-confirm"
-                className="mt-1 w-full rounded-md border border-red-300 bg-[hsl(var(--background))] px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                className="mt-1 border-destructive/60 focus-visible:ring-destructive/40"
               />
             </div>
           ) : null}
-          <button
+          <Button
             type="button"
+            variant={action === 'delete' ? 'destructive' : 'default'}
             onClick={apply}
             disabled={
               pending ||
@@ -529,16 +552,12 @@ export function BulkActionsForm({ assignees }: { assignees: Assignee[] }) {
               (action === 'delete' && confirmText !== 'DELETE')
             }
             data-testid="bulk-apply"
-            className={`w-full rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
-              action === 'delete'
-                ? 'bg-red-600 hover:bg-red-700'
-                : 'bg-[hsl(var(--primary))] hover:opacity-90'
-            }`}
+            className="w-full text-sm font-semibold"
           >
             {action === 'delete'
               ? `Delete ${effectiveCount ?? 0} prospect${effectiveCount === 1 ? '' : 's'} (irreversible)`
               : `Apply to ${effectiveCount ?? 0}`}
-          </button>
+          </Button>
         </div>
       </section>
     </div>
@@ -559,19 +578,18 @@ function LabeledInput({
   testId?: string;
 }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+    <div className="block space-y-1">
+      <Label className="block text-xs font-medium uppercase tracking-wider text-muted-foreground">
         {label}
-      </span>
-      <input
+      </Label>
+      <Input
         type="text"
         value={value}
         placeholder={placeholder}
         data-testid={testId}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
       />
-    </label>
+    </div>
   );
 }
 
@@ -589,15 +607,15 @@ function LabeledSelect({
   testId?: string;
 }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))]">
+    <div className="block space-y-1">
+      <Label className="block text-xs font-medium uppercase tracking-wider text-muted-foreground">
         {label}
-      </span>
+      </Label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
         data-testid={testId}
-        className="w-full rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--background))] px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[hsl(var(--primary))]"
+        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -605,6 +623,6 @@ function LabeledSelect({
           </option>
         ))}
       </select>
-    </label>
+    </div>
   );
 }

@@ -22,7 +22,7 @@ export default function GuidePage() {
           For tag management today, see{' '}
           <a
             href="/admin/vocab"
-            className="text-[hsl(var(--primary))] underline-offset-2 hover:underline"
+            className="text-[hsl(var(--primary))] underline underline-offset-2 hover:decoration-2"
           >
             /admin/vocab
           </a>{' '}
