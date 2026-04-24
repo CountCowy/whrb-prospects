@@ -7,5 +7,32 @@
       "mcp__chrome-devtools__take_snapshot",
       "Bash(vercel ls *)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/ui-pre-push-gate.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__github__(create_pull_request|update_pull_request_branch|push_files|merge_pull_request)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/ui-pre-push-gate.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "UI_VERIFY_MODE": "diagnostic"
   }
 }
