@@ -88,6 +88,7 @@ No setup commands here — both halves have detailed READMEs.
 | Understand the architecture | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Run / debug operations | [docs/RUNBOOK.md](docs/RUNBOOK.md) |
 | See what's shipped so far | [ROLLOUT.md](ROLLOUT.md) |
+| Push a UI change through the gate | [docs/UI-VERIFICATION.md](docs/UI-VERIFICATION.md) |
 
 You'll need Python 3.11+, Node 20 (matches `whrb-web/.nvmrc`), pnpm
 10, and a Supabase project. No paid services anywhere on the stack.

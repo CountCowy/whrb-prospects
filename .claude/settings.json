@@ -33,6 +33,6 @@
     ]
   },
   "env": {
-    "UI_VERIFY_MODE": "diagnostic"
+    "UI_VERIFY_MODE": "enforce"
   }
 }
