@@ -86,6 +86,19 @@ export default async function HomePage() {
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
         {tiles.map(({ label, value, hint, href, testid, hero }) => {
+          // Hero-only secondary content: tier distribution bar + legend.
+          // Fills the otherwise-empty bottom of the 2×2 hero cell and
+          // contextualises "3,266 total" with the A/B/C split that drives
+          // the sales workflow.
+          const heroExtras =
+            hero && testid === 'tile-total' ? (
+              <TierBreakdown
+                total={stats.total}
+                a={stats.tierA}
+                b={stats.tierB}
+                c={stats.tierC}
+              />
+            ) : null;
           const content = (
             <Card
               data-testid={testid}
@@ -158,6 +171,7 @@ export default async function HomePage() {
                   />
                   {hint}
                 </div>
+                {heroExtras}
               </CardContent>
             </Card>
           );
@@ -246,5 +260,101 @@ export default async function HomePage() {
         <FeedbackHistory rows={feedback} />
       </section>
     </div>
+  );
+}
+
+/**
+ * Tier distribution strip — renders inside the hero tile below the
+ * "Pipeline corpus" hint. A horizontal stacked bar whose three segments
+ * are proportional to the A / B / C tier counts, followed by a
+ * count legend with colored dots matching each segment.
+ *
+ * Degrades gracefully when data is thin:
+ *   - `total === 0`       → render nothing
+ *   - individual count 0  → segment width is 0%, legend entry hidden
+ *   - A+B+C < total       → the delta is "untiered"; bar shows a
+ *                            --muted trailing gutter via the bar's
+ *                            container bg, labels show the three
+ *                            tiers only (intentional — untiered
+ *                            isn't an actionable category).
+ */
+function TierBreakdown({
+  total,
+  a,
+  b,
+  c,
+}: {
+  total: number;
+  a: number;
+  b: number;
+  c: number;
+}) {
+  if (total <= 0) return null;
+  const pct = (n: number) => `${((n / total) * 100).toFixed(2)}%`;
+  return (
+    <div
+      data-testid="hero-tier-breakdown"
+      className="mt-6 space-y-3 border-t border-[hsl(var(--primary-soft-border))] pt-4"
+    >
+      <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+        By tier
+      </div>
+      <div
+        role="img"
+        aria-label={`Tier distribution: A ${a}, B ${b}, C ${c}, total ${total}`}
+        className="flex h-2 w-full overflow-hidden rounded-full bg-[hsl(var(--muted))]"
+      >
+        {a > 0 ? (
+          <div
+            className="bg-[hsl(var(--tier-a))]"
+            style={{ width: pct(a) }}
+          />
+        ) : null}
+        {b > 0 ? (
+          <div
+            className="bg-[hsl(var(--tier-b))]"
+            style={{ width: pct(b) }}
+          />
+        ) : null}
+        {c > 0 ? (
+          <div
+            className="bg-[hsl(var(--tier-c))]"
+            style={{ width: pct(c) }}
+          />
+        ) : null}
+      </div>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] tabular-nums text-muted-foreground">
+        <TierLegend tone="a" count={a} label="A" />
+        <TierLegend tone="b" count={b} label="B" />
+        <TierLegend tone="c" count={c} label="C" />
+      </div>
+    </div>
+  );
+}
+
+function TierLegend({
+  tone,
+  count,
+  label,
+}: {
+  tone: 'a' | 'b' | 'c';
+  count: number;
+  label: string;
+}) {
+  const dotClass =
+    tone === 'a'
+      ? 'bg-[hsl(var(--tier-a))]'
+      : tone === 'b'
+        ? 'bg-[hsl(var(--tier-b))]'
+        : 'bg-[hsl(var(--tier-c))]';
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        aria-hidden="true"
+        className={cn('inline-block h-1.5 w-1.5 rounded-full', dotClass)}
+      />
+      <span className="font-medium text-foreground">{label}</span>
+      <span>{count.toLocaleString()}</span>
+    </span>
   );
 }

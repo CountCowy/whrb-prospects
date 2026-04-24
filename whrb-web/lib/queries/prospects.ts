@@ -182,6 +182,8 @@ export async function getProspect(id: string): Promise<Prospect | null> {
 export type HomeStats = {
   total: number;
   tierA: number;
+  tierB: number;
+  tierC: number;
   unassigned: number;
   nonprofit: number;
   myAssigned: number;
@@ -196,6 +198,8 @@ export async function getHomeStats(selfUserId: string): Promise<HomeStats> {
   const queries = await Promise.all([
     supabase.from('prospects').select('id', { count: 'exact', head: true }),
     supabase.from('prospects').select('id', { count: 'exact', head: true }).eq('tier', 'A'),
+    supabase.from('prospects').select('id', { count: 'exact', head: true }).eq('tier', 'B'),
+    supabase.from('prospects').select('id', { count: 'exact', head: true }).eq('tier', 'C'),
     supabase.from('prospects').select('id', { count: 'exact', head: true }).is('assigned_to', null),
     supabase
       .from('prospects')
@@ -217,11 +221,13 @@ export async function getHomeStats(selfUserId: string): Promise<HomeStats> {
   return {
     total: queries[0].count ?? 0,
     tierA: queries[1].count ?? 0,
-    unassigned: queries[2].count ?? 0,
-    nonprofit: queries[3].count ?? 0,
-    myAssigned: queries[4].count ?? 0,
-    withEmail: queries[5].count ?? 0,
-    recent7d: queries[6].count ?? 0,
+    tierB: queries[2].count ?? 0,
+    tierC: queries[3].count ?? 0,
+    unassigned: queries[4].count ?? 0,
+    nonprofit: queries[5].count ?? 0,
+    myAssigned: queries[6].count ?? 0,
+    withEmail: queries[7].count ?? 0,
+    recent7d: queries[8].count ?? 0,
   };
 }
 
