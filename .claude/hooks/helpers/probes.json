@@ -1,0 +1,15 @@
+{
+  "/prospects": [
+    { "name": "columnmenu-open", "steps": [{ "click": "[data-testid=column-visibility-trigger]" }] },
+    { "name": "addprospect-open", "steps": [{ "click": "[data-testid=add-prospect]" }] },
+    { "name": "filterbar-state", "steps": [{ "click": "[data-testid=filter-state-trigger]" }] }
+  ],
+  "/my": [
+    { "name": "kanban-view", "steps": [{ "goto": "/my?view=kanban" }] }
+  ],
+  "/": [
+    { "name": "command-palette", "steps": [{ "key": "Meta+K" }] },
+    { "name": "notification-bell-open", "steps": [{ "click": "[data-testid=notification-bell]" }] },
+    { "name": "feedback-modal", "steps": [{ "click": "[data-testid=feedback-button]" }] }
+  ]
+}

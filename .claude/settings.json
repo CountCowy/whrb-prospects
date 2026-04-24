@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__context7__query-docs",
+      "mcp__context7__resolve-library-id",
+      "mcp__github__search_code",
+      "mcp__chrome-devtools__take_snapshot",
+      "Bash(vercel ls *)"
+    ]
+  }
+}

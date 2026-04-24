@@ -1,0 +1,22 @@
+{
+  "routes": [
+    "/",
+    "/prospects",
+    "/my",
+    "/team",
+    "/notifications",
+    "/settings/notifications",
+    "/media-kit",
+    "/guide",
+    "/admin/vocab",
+    "/admin/sources",
+    "/admin/runs",
+    "/admin/logs",
+    "/admin/feedback",
+    "/admin/users",
+    "/admin/prospects/bulk"
+  ],
+  "dynamic": {
+    "/prospects/:id": "first row from /api/prospects"
+  }
+}
