@@ -16,6 +16,15 @@ Fixes for Issue 7 (see CLAUDE.md):
 - The fuzzy-pass call site now uses ``_merge``'s return value and replaces
   the matched entry in place, so a more-complete ``r`` is not lost when
   it becomes the merge winner.
+
+Stage T2 additions:
+- ``_merge_tags`` unions the ``tags`` dicts that source emitters now attach
+  to every row. Union is per-(axis, value) pair so a BSO sponsor also
+  picked up by OSM keeps both ``genre:classical`` and ``sector:hospitality``
+  where applicable. See plan §4.4 / §4.5.
+- Compliance axis is strict ("any wins") — any row carrying
+  ``compliance:political`` wins that value for the merged row even when
+  the other side is empty.
 """
 from __future__ import annotations
 
@@ -67,6 +76,36 @@ def _best_tier(a: str | None, b: str | None) -> str | None:
     return a if ra >= rb else b
 
 
+def _merge_tags(
+    a: dict[str, list[str]] | None,
+    b: dict[str, list[str]] | None,
+) -> dict[str, list[str]]:
+    """Union two ``{axis: [values]}`` emitter dicts.
+
+    Semantics:
+      * Per-axis **union** — pipeline-emitted rows never conflict; two
+        sources can both emit ``sector:arts`` and the merged row carries
+        one copy.
+      * **Compliance is additive-and-sticky**: any value present on
+        either side is kept. This is the "any wins" clause from plan
+        §4.5 — we never silently drop a political / alcohol / gambling
+        tag because the other row didn't emit one.
+      * Values within each axis are returned in sorted order to give
+        the CSV export a deterministic diff.
+    """
+    out: dict[str, list[str]] = {}
+    for side in (a or {}, b or {}):
+        for axis, values in side.items():
+            if not values:
+                continue
+            bucket = out.setdefault(axis, [])
+            for v in values:
+                if v and v not in bucket:
+                    bucket.append(v)
+    # Sort every axis for determinism.
+    return {axis: sorted(values) for axis, values in out.items() if values}
+
+
 def _merge(a: dict, b: dict) -> dict:
     winner, loser = (a, b) if _completeness(a) >= _completeness(b) else (b, a)
 
@@ -76,11 +115,20 @@ def _merge(a: dict, b: dict) -> dict:
     if best_tier:
         winner["tier"] = best_tier
 
+    # Union tags across the pair before the for-loop below blindly copies
+    # loser fields (which would only capture `tags` when winner['tags'] is
+    # falsy, losing the overlap).
+    merged_tags = _merge_tags(winner.get("tags"), loser.get("tags"))
+    if merged_tags:
+        winner["tags"] = merged_tags
+
     for k, v in loser.items():
         if not v:
             continue
         if k == "tier":
             continue  # already resolved above
+        if k == "tags":
+            continue  # already unioned above
         existing = winner.get(k)
         if not existing:
             winner[k] = v

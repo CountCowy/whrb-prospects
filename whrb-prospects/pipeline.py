@@ -32,7 +32,7 @@ from sources import (
     program_books,
     yelp_fusion,
 )
-from util import checkpoint, event_log
+from util import cannabis_block, checkpoint, event_log
 
 PHASE_ORDER = [
     "01_collected",
@@ -44,7 +44,25 @@ PHASE_ORDER = [
     "07_validated",
     "07a_nonprofit",
     "08_supabase_sync",
+    "08_b_tag_sync",
 ]
+
+# Per-axis tag columns emitted into the CSV for downstream analysts. Mirrors
+# plan §4.4 "CSV export tag columns". Values within each column are
+# comma-joined and alphabetically sorted for deterministic diffs.
+TAG_AXES_FOR_CSV: tuple[str, ...] = (
+    "sector",
+    "operating_model",
+    "genre",
+    "affiliation",
+    "cadence",
+    "daypart_fit",
+    "history",
+    "compliance",
+    "other",
+)
+
+TAG_CSV_COLUMNS: tuple[str, ...] = tuple(f"tags_{axis}" for axis in TAG_AXES_FOR_CSV)
 
 OUTPUT = Path("output/whrb_prospects.csv")
 
@@ -54,7 +72,23 @@ CSV_COLUMNS = [
     "address", "zip", "tier", "category", "rating", "review_count",
     "source", "priority_score", "seasonality_window", "pipeline_notes",
     "is_nonprofit", "nonprofit_source", "ein",
+    # Tag columns (Stage T2). Always appended — empty string for rows the
+    # emitter skipped. Mirror order in TAG_CSV_COLUMNS.
+    *TAG_CSV_COLUMNS,
 ]
+
+
+def _serialize_tags_to_csv(row: dict) -> None:
+    """Mutate ``row`` in place: expand ``row['tags']`` into per-axis columns.
+
+    Missing axes render as empty string so the CSV column is always present.
+    Values within each column are comma-joined + sorted so two identical
+    emitter outputs produce byte-identical CSV fields.
+    """
+    tags = row.get("tags") or {}
+    for axis in TAG_AXES_FOR_CSV:
+        values = tags.get(axis) or []
+        row[f"tags_{axis}"] = ",".join(sorted(set(values)))
 
 SEASONALITY = {
     "landscaping": "spring",
@@ -292,6 +326,73 @@ def _fanout_run_complete_notifications(
         print(f"[run_complete] fan-out failed: {type(e).__name__}: {e}")
 
 
+# ---------- Tag-sync recovery helpers (plan §4.5) ---------- #
+
+_TAG_EMIT_CACHE = Path("cache/last_tag_sync_emit.json")
+
+
+def _mark_tag_sync_status(run_id: str | None, status: str) -> None:
+    """Best-effort UPDATE of pipeline_runs.tag_sync_status.
+
+    Status values: ``pending`` | ``ok`` | ``failed``. Never raises — a
+    DB hiccup can't break the pipeline's ability to finish writing the
+    CSV + run_finish event.
+    """
+    if not run_id or status not in {"pending", "ok", "failed"}:
+        return
+    import os
+
+    try:
+        from supabase import create_client
+
+        client = create_client(
+            os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+        )
+        client.table("pipeline_runs").update(
+            {"tag_sync_status": status}
+        ).eq("id", run_id).execute()
+    except Exception as e:
+        print(
+            f"[tag_sync] pipeline_runs.tag_sync_status={status} write suppressed: "
+            f"{type(e).__name__}: {e}"
+        )
+
+
+def _write_last_tag_emit_cache(rows: list[dict]) -> None:
+    """Persist the current emit set so retry_tag_sync.py can replay it."""
+    import json
+
+    payload = []
+    for r in rows:
+        tags = r.get("tags") or {}
+        if not tags:
+            continue
+        payload.append(
+            {
+                "business_key": r.get("business_key"),
+                "company_name": r.get("company_name"),
+                "company_phone": r.get("company_phone"),
+                "contact_phone": r.get("contact_phone"),
+                "zip": r.get("zip"),
+                "tags": tags,
+            }
+        )
+    try:
+        _TAG_EMIT_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        _TAG_EMIT_CACHE.write_text(json.dumps(payload, indent=2))
+        print(f"[tag_sync] cached {len(payload)} rows to {_TAG_EMIT_CACHE}")
+    except Exception as e:
+        print(f"[tag_sync] emit-cache write suppressed: {type(e).__name__}: {e}")
+
+
+def _clear_last_tag_emit_cache() -> None:
+    try:
+        if _TAG_EMIT_CACHE.exists():
+            _TAG_EMIT_CACHE.unlink()
+    except Exception:
+        pass
+
+
 def _finish_pipeline_run(run_id: str | None, *, status: str, rows_upserted: int | None, error: str | None) -> None:
     if not run_id:
         return
@@ -399,9 +500,21 @@ def main(argv: list[str]) -> None:
         print(f"collected {len(rows)} raw rows")
         checkpoint.save_phase("01_collected", rows)
 
-    # Phase 02 — zip filter + dedupe
+    # Phase 02 — zip filter + cannabis block + dedupe
     if resume_idx < 1:
         rows = filter_zips(rows)
+        # Cannabis filter runs BEFORE dedupe so a blocked licensee can't
+        # merge into a legitimate row on address/phone collision (plan §4.5).
+        pre_n = len(rows)
+        try:
+            rows = cannabis_block.filter_rows(rows)
+        except cannabis_block.CannabisBlockStale:
+            # Fail-closed: every layer down + cache stale > 72h. The
+            # event_log already carries an ccc_fetch_stale_fatal entry.
+            raise
+        dropped = pre_n - len(rows)
+        if dropped:
+            print(f"[cannabis_block] dropped {dropped} row(s)")
         rows = dedupe.dedupe(rows)
         checkpoint.save_phase("02_filtered_deduped", rows)
 
@@ -455,6 +568,8 @@ def main(argv: list[str]) -> None:
     for r in rows:
         r["priority_score"] = score(r)
         r["seasonality_window"] = seasonality_for(r.get("category"))
+        # Expand row['tags'] into per-axis CSV columns (plan §4.4).
+        _serialize_tags_to_csv(r)
 
     df = pd.DataFrame(rows)
     for c in CSV_COLUMNS:
@@ -469,6 +584,8 @@ def main(argv: list[str]) -> None:
     # Phase 08 — Supabase sync. Wrapped so a sync failure never loses the CSV.
     sync_summary: dict | None = None
     sync_error: str | None = None
+    tag_sync_summary: dict | None = None
+    tag_sync_error: str | None = None
     if not args.no_supabase:
         try:
             from db import supabase_sync
@@ -485,6 +602,29 @@ def main(argv: list[str]) -> None:
                 context={"exception": type(e).__name__, "detail": str(e)[:500]},
             )
 
+        # Phase 08_b — tag sync. Always attempted when prospect-sync succeeds;
+        # a partial failure caches the emit set for admin retry (plan §4.5).
+        if not sync_error:
+            _mark_tag_sync_status(run_id, "pending")
+            try:
+                from db import supabase_sync as _ss
+                print("-- tag sync --")
+                tag_sync_summary = _ss.tag_sync(rows)
+                print(f"[tag_sync] {tag_sync_summary}")
+                checkpoint.save_phase("08_b_tag_sync", rows)
+                _mark_tag_sync_status(run_id, "ok")
+                _clear_last_tag_emit_cache()
+            except Exception as e:
+                tag_sync_error = f"{type(e).__name__}: {e}"
+                print(f"[tag_sync] FAILED: {tag_sync_error}")
+                _write_last_tag_emit_cache(rows)
+                event_log.error(
+                    "tag_sync",
+                    f"tag_sync phase aborted: {tag_sync_error}",
+                    context={"exception": type(e).__name__, "detail": str(e)[:500]},
+                )
+                _mark_tag_sync_status(run_id, "failed")
+
     # run_finish event + pipeline_runs row update
     rows_upserted = None
     if sync_summary:
@@ -492,14 +632,18 @@ def main(argv: list[str]) -> None:
     status = "success"
     if sync_error or (sync_summary and sync_summary.get("failed", 0) > 0):
         status = "failed"
+    if tag_sync_error or (tag_sync_summary and tag_sync_summary.get("failed", 0) > 0):
+        status = "failed"
     event_log.info(
         "run_finish",
         f"pipeline run finished ({status})",
         context={
             "rows_written": len(df),
             "sync_summary": sync_summary,
+            "tag_sync_summary": tag_sync_summary,
             "status": status,
             "sync_error": sync_error,
+            "tag_sync_error": tag_sync_error,
         },
     )
     event_log.flush()

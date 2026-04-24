@@ -21,6 +21,11 @@ from config import (
     SOCRATA_PAGE_LIMIT,
 )
 from util.http import raise_for_smart_status, smart_retry
+from util.tags import (
+    affiliation_for_zip,
+    build_tag_set,
+    city_category_to_tags,
+)
 
 # Cambridge Open Data (Socrata)
 CAMBRIDGE_DIVERSITY_URL = "https://data.cambridgema.gov/resource/2b3j-9kdn.json"
@@ -61,15 +66,24 @@ def _fetch_cambridge_diversity() -> list[dict]:
         name = _pick(r, "bus_name", "business_name", "name", "dba")
         if not name:
             continue
+        category = _pick(r, "bus_category", "business_category", "category")
+        sector, operating_model = city_category_to_tags("cambridge_diversity", category)
+        row_tags = build_tag_set(
+            sector=sector,
+            operating_model=operating_model,
+            affiliation="cambridge_based",  # dataset scoped to Cambridge
+            source="cambridge_diversity",
+        )
         rows.append({
             "source": "cambridge_diversity",
             "tier": "B",
             "company_name": name,
             "website": _pick(r, "website", "url"),
             "address": _pick(r, "address", "location_address"),
-            "category": _pick(r, "bus_category", "business_category", "category"),
+            "category": category,
             "contact_name": _pick(r, "owner", "owner_name"),
             "pipeline_notes": "cambridge_diversity_directory",
+            "tags": row_tags,
         })
     return rows
 
@@ -93,14 +107,28 @@ def _fetch_somerville_permits() -> list[dict]:
         name = _pick(r, "applicant_name", "applicant", "business_name")
         if not name:
             continue
+        category = _pick(r, "application_type", "permit_type")
+        zip_ = (_pick(r, "zip", "zipcode") or "")[:5] or None
+        sector, operating_model = city_category_to_tags("somerville_permits", category)
+        # Somerville is `greater_boston` per plan §1.3 #4 (absorbed alongside
+        # Brookline / Watertown / Arlington etc.). ZIP-derived where possible,
+        # else default to greater_boston as the dataset provenance.
+        affiliation = affiliation_for_zip(zip_) or "greater_boston"
+        row_tags = build_tag_set(
+            sector=sector,
+            operating_model=operating_model,
+            affiliation=affiliation,
+            source="somerville_permits",
+        )
         rows.append({
             "source": "somerville_permits",
             "tier": "C",
             "company_name": name,
             "address": _pick(r, "address", "location_address"),
-            "zip": (_pick(r, "zip", "zipcode") or "")[:5] or None,
-            "category": _pick(r, "application_type", "permit_type"),
+            "zip": zip_,
+            "category": category,
             "pipeline_notes": "somerville_permit",
+            "tags": row_tags,
         })
     return rows
 
@@ -131,6 +159,15 @@ def _fetch_boston_food() -> list[dict]:
         phone = _pick(r, "dayphn_cleaned", "dayphn", "phone", "phone_number")
         if not phone:
             continue
+        zip_ = (_pick(r, "zip", "licenseezipcode") or "")[:5] or None
+        sector, operating_model = city_category_to_tags("boston_food", "food_establishment")
+        affiliation = affiliation_for_zip(zip_) or "boston_based"
+        row_tags = build_tag_set(
+            sector=sector,
+            operating_model=operating_model,
+            affiliation=affiliation,
+            source="boston_food",
+        )
         rows.append({
             "source": "boston_food",
             # Restaurants are long-tail Tier C for our ICP, not Tier B.
@@ -138,9 +175,10 @@ def _fetch_boston_food() -> list[dict]:
             "company_name": name,
             "company_phone": phone,
             "address": _pick(r, "address", "licaddr"),
-            "zip": (_pick(r, "zip", "licenseezipcode") or "")[:5] or None,
+            "zip": zip_,
             "category": "food_establishment",
             "pipeline_notes": "boston_food_license",
+            "tags": row_tags,
         })
         if len(rows) >= BOSTON_FOOD_MAX_ROWS:
             break

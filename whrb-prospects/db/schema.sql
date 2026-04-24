@@ -433,3 +433,26 @@ create index if not exists idx_prospect_tags_tag_id
 -- =========================================================================
 -- End of 007_tag_schema.sql mirror
 -- =========================================================================
+
+-- =========================================================================
+-- 008_daypart_view.sql mirror (read-only reference; canonical at
+-- whrb-web/supabase/migrations/008_daypart_view.sql). Stage T2.
+-- =========================================================================
+
+alter table public.prospect_tags
+  add column if not exists suppressed_at timestamptz,
+  add column if not exists suppressed_by uuid references auth.users(id) on delete set null;
+
+create index if not exists idx_prospect_tags_suppressed
+  on public.prospect_tags (prospect_id)
+  where suppressed_at is not null;
+
+alter table public.pipeline_runs
+  add column if not exists tag_sync_status text
+    check (tag_sync_status in ('pending', 'ok', 'failed'));
+
+-- derive_daypart(uuid) function + prospect_daypart view: see canonical migration.
+
+-- =========================================================================
+-- End of 008_daypart_view.sql mirror
+-- =========================================================================
