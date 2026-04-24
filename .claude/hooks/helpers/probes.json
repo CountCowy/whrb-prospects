@@ -1,0 +1,16 @@
+{
+  "__doc__": "Selector contract: values below must match data-testid attributes on real components today. If a component is renamed, update this file in the same PR or the probe silently captures an un-triggered state.",
+  "/prospects": [
+    { "name": "columnmenu-open", "steps": [{ "click": "[data-testid=column-toggle]" }] },
+    { "name": "addprospect-open", "steps": [{ "click": "[data-testid=add-prospect-button]" }] },
+    { "name": "filterbar-state", "steps": [{ "click": "[data-testid=filter-state]" }] }
+  ],
+  "/my": [
+    { "name": "kanban-view", "steps": [{ "goto": "/my?view=kanban" }] }
+  ],
+  "/": [
+    { "name": "command-palette", "steps": [{ "key": "Meta+K" }] },
+    { "name": "notification-bell-open", "steps": [{ "click": "[data-testid=notification-bell]" }] },
+    { "name": "feedback-modal", "steps": [{ "click": "[data-testid=feedback-floating-button]" }] }
+  ]
+}

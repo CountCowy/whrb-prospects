@@ -6,8 +6,17 @@
 .idea/
 .vscode/
 
-# Claude Code session state (per-user, not a project artifact)
-.claude/
+# Claude Code per-user session state (local overrides, worktrees, screenshot archive).
+# The infra/ui-verification-gates PR tracks .claude/hooks/, .claude/skills/, and
+# .claude/settings.json so the UI-push gates apply to every clone — those paths
+# stay out of the ignore below.
+.claude/settings.local.json
+.claude/worktrees/
+.claude/screenshots/
+
+# UI verification manifests — regenerated per /verify-ui and /review-ui run.
+.ui-verified.json
+.review-clean.json
 
 # Env files — never commit secrets
 .env
