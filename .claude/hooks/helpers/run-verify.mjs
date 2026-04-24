@@ -24,8 +24,9 @@
 import { createHash } from "node:crypto";
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 // --- constants ---
 
@@ -71,7 +72,12 @@ function readEnv() {
     }
     out[m[1]] = v;
   }
-  for (const k of ["NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "VERIFY_DEV_EMAIL"]) {
+  for (const k of [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "VERIFY_DEV_EMAIL",
+  ]) {
     if (!out[k]) {
       throw new Error(`${k} not set in ${ENV_FILE}`);
     }
@@ -85,25 +91,26 @@ function sha256OfFile(path) {
   return h.digest("hex");
 }
 
+// execFileSync-style spawn via execSync: pass the command as a single string
+// with each argv element quoted so paths-with-spaces survive /bin/sh.
+function shOne(cmd, args = []) {
+  // Single-quote each arg (escape embedded single quotes with '\'').
+  const q = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  const joined = [cmd, ...args].map(q).join(" ");
+  return execSync(joined, { cwd: REPO_ROOT }).toString().trim();
+}
+
 function gitSha() {
-  try {
-    return execSync("git rev-parse HEAD", { cwd: REPO_ROOT }).toString().trim();
-  } catch {
-    return "UNKNOWN";
-  }
+  try { return shOne("git", ["rev-parse", "HEAD"]); } catch { return "UNKNOWN"; }
 }
 
 function gitBranch() {
-  try {
-    return execSync("git rev-parse --abbrev-ref HEAD", { cwd: REPO_ROOT }).toString().trim();
-  } catch {
-    return "UNKNOWN";
-  }
+  try { return shOne("git", ["rev-parse", "--abbrev-ref", "HEAD"]); } catch { return "UNKNOWN"; }
 }
 
 function changedUiFiles() {
   try {
-    const out = execSync(CHANGED_FILES_SH, { cwd: REPO_ROOT }).toString().trim();
+    const out = shOne(CHANGED_FILES_SH);
     return out ? out.split("\n") : [];
   } catch (err) {
     console.error(`[warn] changed-ui-files.sh failed: ${err.message}`);
@@ -147,28 +154,46 @@ async function resolveProspectId(page) {
   return null;
 }
 
-// --- auth via Supabase admin magic-link ---
+// --- auth via Supabase admin → anon verifyOtp → app LoginForm ---
+//
+// Mirrors whrb-web/e2e/auth.setup.ts. Landing on localhost is what makes the
+// auth cookie travel with subsequent puppeteer requests; if we navigated to
+// the hosted Supabase verify URL instead, the cookie would be written on the
+// supabase.co domain and never reach localhost.
 
-async function mintMagicLink(env) {
-  // Use the Supabase admin API to generate a magic link for VERIFY_DEV_EMAIL.
-  const url = `${env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/generate_link`;
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-      "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
-    },
-    body: JSON.stringify({ type: "magiclink", email: env.VERIFY_DEV_EMAIL }),
+function supabaseClient(env) {
+  const require = createRequire(join(WEB_DIR, "package.json"));
+  const resolved = require.resolve("@supabase/supabase-js");
+  return import(pathToFileURL(resolved).href).then((mod) => mod.createClient);
+}
+
+async function mintAuthHashTokens(env) {
+  const createClient = await supabaseClient(env);
+
+  const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
   });
-  if (!resp.ok) {
-    const text = await resp.text();
-    throw new Error(`Supabase admin generate_link failed: ${resp.status} ${text}`);
-  }
-  const data = await resp.json();
-  const link = data.action_link || data.properties?.action_link;
-  if (!link) throw new Error(`generate_link returned no action_link: ${JSON.stringify(data)}`);
-  return link;
+  const anon = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email: env.VERIFY_DEV_EMAIL,
+  });
+  if (linkErr) throw new Error(`generateLink failed: ${linkErr.message}`);
+  const tokenHash = link.properties?.hashed_token;
+  if (!tokenHash) throw new Error("generateLink returned no hashed_token");
+
+  const { data: verified, error: verifyErr } = await anon.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: "magiclink",
+  });
+  if (verifyErr) throw new Error(`verifyOtp failed: ${verifyErr.message}`);
+  const accessToken = verified.session?.access_token;
+  const refreshToken = verified.session?.refresh_token;
+  if (!accessToken || !refreshToken) throw new Error("verifyOtp did not return usable tokens");
+  return { accessToken, refreshToken };
 }
 
 // --- main ---
@@ -188,15 +213,19 @@ async function main() {
     process.exit(0);
   }
 
-  // Lazy-load puppeteer only when we actually intend to launch a browser.
-  // This keeps --dry-run fast and avoids hard-failing commit 1.
+  // Lazy-load puppeteer from whrb-web/node_modules (where it's installed as
+  // a devDep). Using createRequire lets us resolve the module path
+  // explicitly from that tree, then dynamic-import it by file URL — the
+  // runner itself lives at repo root and has no sibling node_modules.
   let puppeteer;
   try {
-    puppeteer = (await import("puppeteer")).default;
+    const require = createRequire(join(WEB_DIR, "package.json"));
+    const resolved = require.resolve("puppeteer");
+    puppeteer = (await import(pathToFileURL(resolved).href)).default;
   } catch (err) {
     throw new Error(
-      "puppeteer not installed — run `pnpm -C whrb-web add -D puppeteer` before calling /verify-ui. " +
-      `(import error: ${err.message})`,
+      "puppeteer not installed in whrb-web — run `pnpm -C whrb-web add -D puppeteer && pnpm -C whrb-web exec puppeteer browsers install chrome` before calling /verify-ui. " +
+      `(resolve error: ${err.message})`,
     );
   }
 
@@ -204,20 +233,49 @@ async function main() {
   const screenshotsDir = join(REPO_ROOT, ".claude", "screenshots", sha);
   mkdirSync(screenshotsDir, { recursive: true });
 
-  const magicLink = await mintMagicLink(env);
+  const { accessToken, refreshToken } = await mintAuthHashTokens(env);
 
-  const browser = await puppeteer.launch({
+  // Prefer puppeteer's bundled Chrome when available; fall back to
+  // $PUPPETEER_EXECUTABLE_PATH (or a common macOS system-Chrome path) if
+  // the bundled binary is missing, so we still work when the cache is
+  // gone or disk pressure blocked the install.
+  const launchOpts = {
     headless: "new",
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
     defaultViewport: { width: 1440, height: 900 },
-  });
+  };
+  const overridePath = process.env.PUPPETEER_EXECUTABLE_PATH
+    || (existsSync("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+        ? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        : null);
+  try {
+    // Confirm the bundled path is real; if not, switch to override.
+    const bundled = puppeteer.executablePath();
+    if (!existsSync(bundled) && overridePath) {
+      launchOpts.executablePath = overridePath;
+      console.warn(`[info] bundled Chrome missing at ${bundled}; using ${overridePath}`);
+    }
+  } catch {
+    if (overridePath) launchOpts.executablePath = overridePath;
+  }
+  const browser = await puppeteer.launch(launchOpts);
   const page = await browser.newPage();
 
+  // Hand the hash tokens to the app's LoginForm, which calls setSession()
+  // client-side and writes the @supabase/ssr auth cookies on localhost.
+  // Landing auth on-origin is what makes the cookies travel with the
+  // subsequent route visits — a hosted-Supabase verify URL sets cookies
+  // on the supabase.co domain and they never reach localhost.
+  const hashUrl = `${BASE_URL}/login#access_token=${accessToken}&refresh_token=${refreshToken}&type=magiclink`;
   try {
-    await page.goto(magicLink, { waitUntil: "networkidle2", timeout: 60000 });
+    await page.goto(hashUrl, { waitUntil: "networkidle2", timeout: 60000 });
+    await page.waitForFunction(
+      () => /sb-[^=]+-auth-token(\.\d+)?=/.test(document.cookie),
+      { timeout: 30000 },
+    );
   } catch (err) {
     await browser.close();
-    throw new Error(`Magic-link navigation failed: ${err.message}. Is pnpm dev on :3000?`);
+    throw new Error(`Auth handoff failed (pnpm dev on :3000? LoginForm wiring intact?): ${err.message}`);
   }
 
   // Resolve :id if /prospects/:id appears in the matrix (it doesn't today, but
@@ -264,10 +322,15 @@ async function main() {
           } else if (step.goto) {
             await page.goto(`${BASE_URL}${step.goto}`, { waitUntil: "networkidle2", timeout: 30000 });
           } else if (step.key) {
-            await page.keyboard.down(step.key.split("+")[0]);
-            await page.keyboard.press(step.key.split("+").slice(-1)[0]);
-            await page.keyboard.up(step.key.split("+")[0]);
-            await new Promise((r) => setTimeout(r, 250));
+            // Split "Meta+K" → ["Meta", "K"]. All but the last are
+            // modifiers; the last is the final key.
+            const parts = step.key.split("+");
+            const modifiers = parts.slice(0, -1);
+            const final = parts[parts.length - 1];
+            for (const m of modifiers) await page.keyboard.down(m);
+            await page.keyboard.press(final.length === 1 ? `Key${final.toUpperCase()}` : final);
+            for (const m of modifiers.slice().reverse()) await page.keyboard.up(m);
+            await new Promise((r) => setTimeout(r, 400));
           } else if (step.hover) {
             await page.hover(step.hover);
             await new Promise((r) => setTimeout(r, 250));
