@@ -163,6 +163,12 @@ begin
   if 'wumb_sponsor' = any(v_histories) then
     v_result := array_append(v_result, 'blues_hillbilly');
   end if;
+  -- sector = media + operating_model = distributor → multi_daypart
+  -- (cross-format media distributors fit any block; surface a single
+  -- sentinel so the Advanced Filters chip can target them as a class.)
+  if 'media' = any(v_sectors) and 'distributor' = any(v_operating_models) then
+    v_result := array_append(v_result, 'multi_daypart');
+  end if;
 
   -- Default fallback — nothing matched.
   if array_length(v_result, 1) is null then
@@ -176,6 +182,16 @@ $$;
 
 revoke all on function public.derive_daypart(uuid) from public;
 grant execute on function public.derive_daypart(uuid) to authenticated, service_role;
+
+-- -------------------------------------------------------------------------
+-- 3b) tag_vocabulary seed for multi_daypart
+-- -------------------------------------------------------------------------
+-- The `media + distributor → multi_daypart` rule above emits a daypart
+-- value that wasn't in T1's seeded vocab. Seed it here as `active` so
+-- the T3 Advanced Filters facet sees it; idempotent under re-apply.
+insert into public.tag_vocabulary (axis, value, status)
+values ('daypart_fit', 'multi_daypart', 'active')
+on conflict (axis, value) do nothing;
 
 -- -------------------------------------------------------------------------
 -- 4) prospect_daypart view

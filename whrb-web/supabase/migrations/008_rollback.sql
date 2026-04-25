@@ -11,6 +11,17 @@
 -- 1) prospect_daypart view
 drop view if exists public.prospect_daypart;
 
+-- 2a) Seeded multi_daypart vocab row (only if no prospect_tags rows
+-- reference it — a deprecated row with refs gets caught by
+-- archive_deprecated_vocab.py instead).
+delete from public.tag_vocabulary
+where axis = 'daypart_fit'
+  and value = 'multi_daypart'
+  and not exists (
+    select 1 from public.prospect_tags
+    where prospect_tags.tag_id = tag_vocabulary.id
+  );
+
 -- 2) derive_daypart function
 drop function if exists public.derive_daypart(uuid);
 

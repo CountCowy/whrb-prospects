@@ -992,13 +992,40 @@ def t12_daypart_fixtures(snap: dict) -> T:
         conn.close()
     got2 = set(row2[0]) if row2 else set()
     multi_ok = {"classical", "jazz", "sports_news"} <= got2
-    # Cleanup — remove all three tags so later Tks are not polluted.
-    for tid in (classical_id, jazz_id, harvard_id):
+
+    # Add sector:media + operating_model:distributor; expect
+    # multi_daypart in the result alongside the existing values
+    # (rule added retroactively in the T2 review pass, 2026-04-25).
+    media_id = _ensure_vocab(sb, "sector", "media")
+    distributor_id = _ensure_vocab(sb, "operating_model", "distributor")
+    sb.table("prospect_tags").upsert(
+        [
+            {"prospect_id": p_id, "tag_id": media_id, "created_by": None},
+            {"prospect_id": p_id, "tag_id": distributor_id, "created_by": None},
+        ],
+        on_conflict="prospect_id,tag_id",
+        ignore_duplicates=True,
+    ).execute()
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "select daypart_fit from public.prospect_daypart where prospect_id = %s",
+                (p_id,),
+            )
+            row3 = cur.fetchone()
+    finally:
+        conn.close()
+    got3 = set(row3[0]) if row3 else set()
+    media_ok = "multi_daypart" in got3
+
+    # Cleanup — remove all five tags so later Tks are not polluted.
+    for tid in (classical_id, jazz_id, harvard_id, media_id, distributor_id):
         sb.table("prospect_tags").delete().eq("prospect_id", p_id).eq("tag_id", tid).execute()
     return T(
         "T12 daypart view derives expected sets for fixtures",
-        classical_ok and multi_ok,
-        f"classical={got} multi={got2}",
+        classical_ok and multi_ok and media_ok,
+        f"classical={got} multi={got2} media+distributor={got3}",
     )
 
 
@@ -1140,28 +1167,43 @@ def t17_zero_errors(snap: dict) -> T:
 
 
 def t18_regression(snap: dict, skip: bool) -> T:
-    """T1 structural regression — matches the same reframing T1 itself adopted for its T18.
+    """T1 + 10b + 10c structural regression — same reframing T1 itself
+    adopted for its T18, extended in the T2 review pass (2026-04-25)
+    to cover 10b and 10c.
 
-    (a) scripts/t1_integrity.py imports cleanly under T2 changes.
-    (b) ROLLOUT Stage T1 "21 PASS / 6 SKIP-BROWSER" line present.
-    (c) Zero new T2-emitted errors in T1's surface categories.
+    For each prior stage:
+      (a) scripts/<stage>_integrity.py imports cleanly under T2 changes.
+      (b) ROLLOUT certification line for the stage is still present.
+      (c) Zero new T2-emitted errors in the stage's surface categories.
+
+    Pipeline is NOT re-run; this is a static + read-only check.
     """
     if skip:
         return _skip("T18 regression", "MANUAL", "--skip-regression flag set")
 
     failures: list[str] = []
-    intg = WHRB / "scripts" / "t1_integrity.py"
-    if not intg.exists():
-        failures.append("scripts/t1_integrity.py missing")
-    else:
+    rollout = REPO_ROOT / "ROLLOUT.md"
+    if not rollout.exists():
+        failures.append("ROLLOUT.md missing")
+        return T(
+            "T18 regression: T1 + 10b + 10c integrity scripts importable + ROLLOUT certs + zero stage-category errors",
+            False,
+            "; ".join(failures),
+        )
+    rollout_text = rollout.read_text()
+
+    def _check_import(script_path: Path, label: str) -> None:
+        if not script_path.exists():
+            failures.append(f"scripts/{script_path.name} missing")
+            return
         r = subprocess.run(
             [
                 sys.executable,
                 "-c",
                 "import importlib.util, sys;"
-                f"spec = importlib.util.spec_from_file_location('t1', r'{intg}');"
+                f"spec = importlib.util.spec_from_file_location({label!r}, r'{script_path}');"
                 "m = importlib.util.module_from_spec(spec);"
-                "sys.modules['t1'] = m;"
+                f"sys.modules[{label!r}] = m;"
                 "spec.loader.exec_module(m);"
                 "print('IMPORT OK')",
             ],
@@ -1170,46 +1212,77 @@ def t18_regression(snap: dict, skip: bool) -> T:
         )
         if r.returncode != 0 or "IMPORT OK" not in r.stdout:
             failures.append(
-                f"t1_integrity import broke: rc={r.returncode} stderr={r.stderr[:300]}"
+                f"{script_path.name} import broke: rc={r.returncode} stderr={r.stderr[:300]}"
             )
 
-    rollout = REPO_ROOT / "ROLLOUT.md"
-    if not rollout.exists():
-        failures.append("ROLLOUT.md missing")
-    else:
-        text = rollout.read_text()
-        if "pass=21 skip-browser=6" not in text:
-            failures.append("ROLLOUT Stage T1 certification line missing")
+    def _check_no_new_errors(categories: list[str], stage_label: str) -> None:
+        conn = _conn()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select count(*) from public.event_log "
+                    "where level in ('error','fatal') "
+                    "and category = ANY(%s) and created_at > %s",
+                    (categories, snap["stage_started_at"]),
+                )
+                n = cur.fetchone()[0]
+        finally:
+            conn.close()
+        if n != 0:
+            failures.append(f"{n} new error events in {stage_label} categories since T2 start")
 
-    # Zero new T2-introduced errors in T1 categories.
-    t1_categories = [
-        "vocab_created",
-        "vocab_updated",
-        "vocab_axis_changed",
-        "vocab_deleted",
-        "tag_merge",
-        "prospect_tag_added",
-        "prospect_tag_removed",
-    ]
-    conn = _conn()
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "select count(*) from public.event_log "
-                "where level in ('error','fatal') "
-                "and category = ANY(%s) and created_at > %s",
-                (t1_categories, snap["stage_started_at"]),
-            )
-            n = cur.fetchone()[0]
-    finally:
-        conn.close()
-    if n != 0:
-        failures.append(f"{n} new error events in T1 categories since T2 start")
+    # ----- T1 structural regression -----
+    _check_import(WHRB / "scripts" / "t1_integrity.py", "t1")
+    if "pass=21 skip-browser=6" not in rollout_text:
+        failures.append("ROLLOUT Stage T1 certification line missing")
+    _check_no_new_errors(
+        [
+            "vocab_created",
+            "vocab_updated",
+            "vocab_axis_changed",
+            "vocab_deleted",
+            "tag_merge",
+            "prospect_tag_added",
+            "prospect_tag_removed",
+        ],
+        "T1",
+    )
+
+    # ----- Stage 10b structural regression -----
+    _check_import(WHRB / "scripts" / "stage10b_integrity.py", "stage10b")
+    if "Stage 10b integrity: 15 pass, 8 skip-covered, 0 fail" not in rollout_text:
+        failures.append("ROLLOUT Stage 10b certification line missing")
+    _check_no_new_errors(
+        [
+            "bulk_action",
+            "export",
+            "email_skipped_no_provider",
+            "notification_dispatch",
+            "presence_heartbeat",
+        ],
+        "Stage 10b",
+    )
+
+    # ----- Stage 10c structural regression -----
+    _check_import(WHRB / "scripts" / "stage10c_integrity.py", "stage10c")
+    if "Stage 10c Tks: pass=16 skip-covered=11 skip-manual=1 fail=0" not in rollout_text:
+        failures.append("ROLLOUT Stage 10c certification line missing")
+    _check_no_new_errors(
+        [
+            "pipeline_run_failed",
+            "admin_cancel_run",
+            "admin_cancel_run_failed",
+            "feedback_submit",
+            "run_dispatch",
+        ],
+        "Stage 10c",
+    )
 
     return T(
-        "T18 regression: t1_integrity imports + ROLLOUT T1 cert + zero T1-category errors",
+        "T18 regression: T1 + 10b + 10c integrity scripts importable + ROLLOUT certs + zero stage-category errors",
         not failures,
-        "; ".join(failures) or "t1 imports OK; ROLLOUT cert present; 0 new T1 errors",
+        "; ".join(failures)
+        or "T1 + 10b + 10c imports OK; all 3 ROLLOUT certs present; 0 new stage-category errors",
     )
 
 

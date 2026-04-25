@@ -4487,12 +4487,95 @@ Stage T2 Tks: pass=25 skip-browser=0 skip-manual=0 fail=0 (total 25)
    `[SKIP-BROWSER] = 0` rather than fabricating empty Playwright
    scaffolding.
 
+8. **`derive_daypart` outputs `record_hospital` instead of plan's
+   `daypart_rock_indie` for `genre='rock_indie'`.** The plan's §4.4
+   bullet enumerates the rule output as `daypart_rock_indie`, but
+   the canonical T1 `daypart_fit` vocab seeded in
+   `whrb-web/supabase/seed_tags.sql` uses `record_hospital` (WHRB's
+   actual late-night underground rock block — see
+   [TAGS.md:84](TAGS.md:84) and §1.4 of the project CLAUDE.md). The
+   migration aligns the function output to the seeded vocab so
+   `prospect_daypart.daypart_fit` values match what reps will see in
+   T3's filter chips and Advanced Filters multi-select. Inline
+   comment in [008_daypart_view.sql:56-57](whrb-web/supabase/migrations/008_daypart_view.sql:56)
+   flags the rename. The other rule outputs (`classical`, `jazz`,
+   `blues_hillbilly`, `sports_news`) are also unprefixed for the
+   same reason — TAGS.md states the `daypart_` prefix is a UI
+   display convention, not a stored value.
+
 ### Stage T2 exit gate — effective state
 
 **GREEN on every gate.** 25 / 25 Tks pass. `event_log` delta since
 stage start: 0 unexpected `error` / `fatal` rows. `pytest`
 125 / 125 pass. `pnpm typecheck` + `pnpm lint` + `pnpm test:run`
 all clean.
+
+### Stage T2 review pass (2026-04-25)
+
+Pre-T3 review surfaced four follow-ups; all four landed on
+`t2/tag-emitters-and-backfill` before T3 branched. Re-running
+`scripts/t2_integrity.py` after the changes returns
+**25 PASS / 0 SKIP / 0 FAIL** (T12 expanded to assert the new
+`multi_daypart` rule end-to-end; T18 expanded to cover Stages 10b
+and 10c structurally).
+
+1. **`derive_daypart` rule for `media + distributor → multi_daypart`
+   added.** Plan §4.4 listed the rule but the original migration
+   body skipped it. Added six lines to [008_daypart_view.sql](whrb-web/supabase/migrations/008_daypart_view.sql)
+   between the `wumb_sponsor` branch and the default fallback, plus
+   an idempotent `INSERT ... ON CONFLICT DO NOTHING` that seeds
+   `daypart_fit:multi_daypart` into `tag_vocabulary`. The migration
+   uses `create or replace function`, so the re-apply was a no-op
+   for everything that was already correct. T1's `t01_seeded_count`
+   relaxed from `count == 73` to `count >= 73` to accommodate the
+   new vocab row plus any T2 fixture probes; the floor still
+   guards against accidental seed regressions. TAGS.md updated to
+   list `multi_daypart` and bump the daypart_fit count to 8 (active)
+   / 7+unknown=8.
+
+2. **Web-side CSV/XLSX export now carries per-axis `tags_*` columns.**
+   Plan §4.4 required both the pipeline CSV and the web export to
+   surface the 9 axes; pipeline-side was already done at T2 commit,
+   web-side wasn't. Extended [app/api/prospects/export/route.ts](whrb-web/app/api/prospects/export/route.ts)
+   to (a) declare a `TAG_AXES` constant mirroring
+   `pipeline.py::TAG_AXES_FOR_CSV`, (b) fetch `prospect_tags` joined
+   to `tag_vocabulary` for the result set (suppressed_at IS NULL),
+   (c) fetch `prospect_daypart` for derived daypart values, and
+   (d) emit `tags_<axis>` columns with comma-joined alphabetised
+   values for deterministic diffs. Suppressed compliance rows are
+   excluded so the export reflects what the rep sees.
+
+3. **T18 regression scope widened to T1 + 10b + 10c.** Plan §4.6
+   called for "T1 + 10b + 10c integrity still green" but the
+   implemented T18 only covered T1 structurally. Extended the
+   check to also (a) import `scripts/stage10b_integrity.py` and
+   `scripts/stage10c_integrity.py`, (b) assert ROLLOUT cert lines
+   for both stages still match
+   (`Stage 10b integrity: 15 pass, 8 skip-covered, 0 fail` and
+   `Stage 10c Tks: pass=16 skip-covered=11 skip-manual=1 fail=0`),
+   (c) assert zero new `error`/`fatal` events in 10b/10c surface
+   categories since T2 stage start. Pipeline is **not** re-run —
+   structural-only, per the user's directive.
+
+4. **`derive_daypart` `rock_indie → record_hospital` rename
+   documented.** Added as deviation #8 above. The function output
+   matches the canonical T1 vocab seed (TAGS.md lists
+   `record_hospital`, not `rock_indie`); the plan's
+   `daypart_rock_indie` was abstract-rule shorthand. No code change,
+   just documentation.
+
+### Stage T2 final exit gate — post-review
+
+**GREEN on every gate (post-review).** 25 / 25 Tks pass on the
+post-review re-run; `pnpm typecheck` clean; `pnpm lint` clean
+(zero warnings); `pnpm test:run` 10 / 10 (palette-contrast);
+`pytest tests/` 125 / 125. The `prospect_daypart` view returns
+`multi_daypart` for media+distributor fixtures and the four
+existing daypart paths still derive correctly. Migration 008
+re-apply added the new function body + 1 vocab row idempotently.
+Live `tag_vocabulary` snapshot: 76 active rows
+(73 T1 seed + 1 T2 review + 2 T2 fixture probes that re-seed each
+integrity run).
 
 Stage T2 implementation ends here. Per
 `feedback_no_auto_stage_advance.md`, T3 (rep UI: chips, filters,
