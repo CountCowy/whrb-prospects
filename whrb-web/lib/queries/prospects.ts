@@ -1,6 +1,11 @@
 import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
+import {
+  resolveTagFilter,
+  resolveDaypartFilter,
+} from '@/lib/queries/prospect-tags';
+import type { Axis } from '@/styles/tag-colors';
 
 export const PROSPECT_COLUMNS = [
   'id',
@@ -116,6 +121,8 @@ export async function listProspects(params: {
   pageSize?: number;
   assignedToSelf?: boolean;
   selfUserId?: string | null;
+  tagFilter?: Partial<Record<Axis, string[]>>;
+  daypartFilter?: string[];
 }): Promise<ProspectListResult> {
   const supabase = await createClient();
   const filters = params.filters ?? {};
@@ -123,9 +130,43 @@ export async function listProspects(params: {
   const page = Math.max(1, params.page ?? 1);
   const pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE;
 
+  // Resolve tag + daypart filters first so we know whether to apply an
+  // .in('id', ...) clause. Empty intersection short-circuits to a zero-
+  // row result (T3 advanced filters can produce that legitimately).
+  const tagIds = await resolveTagFilter(params.tagFilter ?? {});
+  const dpIds = await resolveDaypartFilter(params.daypartFilter ?? []);
+  let restrictTo: string[] | null = null;
+  if (tagIds !== null && dpIds !== null) {
+    const dpSet = new Set(dpIds);
+    restrictTo = tagIds.filter((id) => dpSet.has(id));
+  } else if (tagIds !== null) {
+    restrictTo = tagIds;
+  } else if (dpIds !== null) {
+    restrictTo = dpIds;
+  }
+  if (restrictTo !== null && restrictTo.length === 0) {
+    return {
+      rows: [],
+      total: 0,
+      page,
+      pageSize,
+      sort,
+      filters,
+    };
+  }
+
   let query = supabase
     .from('prospects')
     .select(ALL_SELECT, { count: 'exact' });
+
+  if (restrictTo !== null) {
+    // PostgREST hard-caps an IN list. 3,266 prospects fit on dev today,
+    // but a bigger filter result that exceeds the URL/header budget
+    // would 414. Slice to a sane upper bound; a future bump moves us to
+    // a join-side resolver (out of scope here).
+    const TAG_FILTER_LIMIT = 5000;
+    query = query.in('id', restrictTo.slice(0, TAG_FILTER_LIMIT));
+  }
 
   if (params.assignedToSelf && params.selfUserId) {
     query = query.eq('assigned_to', params.selfUserId);

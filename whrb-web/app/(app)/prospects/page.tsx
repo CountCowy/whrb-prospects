@@ -1,5 +1,6 @@
 import { SearchInput } from '@/components/SearchInput';
 import { FilterBar } from '@/components/FilterBar';
+import { TagFilterBar } from '@/components/TagFilterBar';
 import { ProspectTable } from '@/components/ProspectTable';
 import { ProspectCardList } from '@/components/ProspectCardList';
 import { AddProspectModal } from '@/components/AddProspectModal';
@@ -7,6 +8,9 @@ import { ExportCurrentFilters } from '@/components/ExportCurrentFilters';
 import { MobilePageSizeGuard } from '@/components/MobilePageSizeGuard';
 import { Separator } from '@/components/ui/separator';
 import { listProspects, getFilterFacets, DEFAULT_PAGE_SIZE, PAGE_SIZES } from '@/lib/queries/prospects';
+import { listVocab } from '@/lib/queries/vocab';
+import { getTagsForProspects } from '@/lib/queries/prospect-tags';
+import { readTagFilterFromParams } from '@/lib/tag-filters';
 import { createClient } from '@/lib/supabase/server';
 import { getProfile } from '@/lib/queries/profiles';
 
@@ -69,10 +73,32 @@ export default async function AllProspectsPage({
   const me = user ? await getProfile(user.id) : null;
   const isAdmin = me?.role === 'admin';
 
-  const [facets, result] = await Promise.all([
+  // Build URLSearchParams once for the filter helpers.
+  const urlParams = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (typeof v === 'string') urlParams.set(k, v);
+    else if (Array.isArray(v) && v.length > 0) urlParams.set(k, v[0]);
+  }
+  const tagFilterState = readTagFilterFromParams(urlParams);
+  const daypartValues = await getDaypartValues(supabase);
+
+  const [facets, vocab, result] = await Promise.all([
     getFilterFacets(),
-    listProspects({ filters, sort, page, pageSize }),
+    listVocab(),
+    listProspects({
+      filters,
+      sort,
+      page,
+      pageSize,
+      tagFilter: tagFilterState.byAxis,
+      daypartFilter: tagFilterState.daypart,
+    }),
   ]);
+
+  // Bulk-fetch tags for the rows we are about to render.
+  const tagsByProspect = await getTagsForProspects(result.rows.map((r) => r.id));
+  const tagsRecord: Record<string, typeof tagsByProspect extends Map<string, infer V> ? V : never> = {};
+  for (const [k, v] of tagsByProspect) tagsRecord[k] = v;
 
   return (
     <div className="space-y-6">
@@ -89,6 +115,7 @@ export default async function AllProspectsPage({
           <SearchInput />
         </div>
       </div>
+      <TagFilterBar vocab={vocab} daypartValues={daypartValues} />
       <FilterBar
         tiers={facets.tiers}
         states={facets.states}
@@ -116,6 +143,9 @@ export default async function AllProspectsPage({
           sort={result.sort}
           emptyTitle="No prospects yet."
           emptyDescription="Once the pipeline runs, rows will appear here."
+          tagsByProspect={tagsRecord}
+          currentUserId={user?.id}
+          isAdmin={isAdmin}
           controlsSlot={
             <>
               <Separator orientation="vertical" className="h-5" />
@@ -129,4 +159,24 @@ export default async function AllProspectsPage({
       </div>
     </div>
   );
+}
+
+/**
+ * Probe the prospect_daypart view for distinct daypart_fit values to
+ * populate the Advanced Filters daypart facet. Cached at the request
+ * level by the surrounding RSC server.
+ */
+async function getDaypartValues(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('prospect_daypart')
+    .select('daypart_fit')
+    .limit(1000);
+  if (error) return [];
+  const set = new Set<string>();
+  for (const row of (data ?? []) as Array<{ daypart_fit: string[] | null }>) {
+    for (const v of row.daypart_fit ?? []) set.add(v);
+  }
+  return Array.from(set).sort();
 }
