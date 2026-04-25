@@ -1,10 +1,10 @@
 'use client';
 
+import { Check } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -250,11 +250,6 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
                   ) : (
                     rows.map((r) => {
                       const checked = selected.has(r.value);
-                      // Use a button rather than label-wraps-Checkbox: <label>
-                      // does not forward clicks to non-input children, so the
-                      // pill's cursor-pointer affordance would mis-fire. A
-                      // single button routes the entire chip surface to the
-                      // same toggle.
                       return (
                         <button
                           type="button"
@@ -267,12 +262,7 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
                             checked && 'border-[hsl(var(--primary))]',
                           )}
                         >
-                          <Checkbox
-                            checked={checked}
-                            tabIndex={-1}
-                            onCheckedChange={() => toggleAxisValue(axis, r.value)}
-                            className="pointer-events-none"
-                          />
+                          <FilterCheckIndicator checked={checked} />
                           {r.value}
                         </button>
                       );
@@ -303,12 +293,7 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
                         checked && 'border-[hsl(var(--primary))]',
                       )}
                     >
-                      <Checkbox
-                        checked={checked}
-                        tabIndex={-1}
-                        onCheckedChange={() => toggleDaypart(v)}
-                        className="pointer-events-none"
-                      />
+                      <FilterCheckIndicator checked={checked} />
                       {v}
                     </button>
                   );
@@ -319,5 +304,28 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
         </div>
       </details>
     </div>
+  );
+}
+
+/**
+ * Visual-only checkbox indicator for the Advanced Filters pills.
+ * Cannot be a Radix `<Checkbox>` here — that primitive renders
+ * `<button role="checkbox">`, which would nest inside the parent
+ * `<button aria-pressed>` (invalid HTML + axe `nested-interactive`
+ * serious). Static span with `aria-hidden` keeps the parent button as
+ * the only interactive element; `aria-pressed` on the parent already
+ * conveys the state to AT.
+ */
+function FilterCheckIndicator({ checked }: { checked: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn(
+        'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-[hsl(var(--border))]',
+        checked && 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]',
+      )}
+    >
+      {checked ? <Check className="h-3 w-3" /> : null}
+    </span>
   );
 }
