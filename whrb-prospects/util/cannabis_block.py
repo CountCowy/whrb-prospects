@@ -38,12 +38,15 @@ import io
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import requests
 
 from enrich.dedupe import _norm_name
 from util import event_log
+
+LicenseeParser = Callable[[bytes], "set[str]"]
 
 # -------------------------------------------------------------------------
 # Source URLs + file paths
@@ -163,7 +166,7 @@ def _write_persistent_cache(payload: bytes, suffix: str = ".csv") -> None:
         )
 
 
-def _fetch_layer(url: str, parser) -> set[str] | None:
+def _fetch_layer(url: str, parser: LicenseeParser) -> set[str] | None:
     """Return parsed licensee names, or ``None`` on network/parse failure."""
     try:
         r = requests.get(

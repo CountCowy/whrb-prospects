@@ -163,9 +163,16 @@ def _load_vocab_from_db() -> dict[str, set[str]] | None:
         return None
     out: dict[str, set[str]] = {axis: set() for axis in _VALID_AXES}
     for r in rows:
+        # Narrow supabase's JSON-typed row to the dict shape we asked for.
+        if not isinstance(r, dict):
+            continue
         axis = r.get("axis")
         val = r.get("value")
-        if axis in out and val:
+        if (
+            isinstance(axis, str)
+            and isinstance(val, str)
+            and axis in out
+        ):
             out[axis].add(val)
     # If the DB round-trip returns an empty vocab, prefer the seed fallback
     # rather than trusting an almost-certainly-broken read.
@@ -177,16 +184,18 @@ def _load_vocab_from_db() -> dict[str, set[str]] | None:
 def _vocab() -> dict[str, set[str]]:
     """Return the cached vocab, loading it lazily."""
     global _CACHE
-    if _CACHE is not None:
-        return _CACHE
+    cache = _CACHE
+    if cache is not None:
+        return cache
     with _LOCK:
-        if _CACHE is not None:
-            return _CACHE
+        cache = _CACHE
+        if cache is not None:
+            return cache
         loaded = _load_vocab_from_db()
         if loaded is None:
             loaded = {axis: set(vals) for axis, vals in _SEED_VOCAB.items()}
         _CACHE = loaded
-        return _CACHE
+        return loaded
 
 
 def reset_cache() -> None:
@@ -272,12 +281,10 @@ def build_tag_set(
     for axis, raw in inputs.items():
         if raw is None:
             continue
-        values = raw if isinstance(raw, list) else [raw]
+        values: list[str] = raw if isinstance(raw, list) else [raw]
         valid_set = vocab.get(axis, set())
         cleaned: list[str] = []
         for v in values:
-            if v is None:
-                continue
             v = str(v).strip()
             if not v:
                 continue
