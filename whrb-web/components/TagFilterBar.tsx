@@ -250,21 +250,31 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
                   ) : (
                     rows.map((r) => {
                       const checked = selected.has(r.value);
+                      // Use a button rather than label-wraps-Checkbox: <label>
+                      // does not forward clicks to non-input children, so the
+                      // pill's cursor-pointer affordance would mis-fire. A
+                      // single button routes the entire chip surface to the
+                      // same toggle.
                       return (
-                        <label
+                        <button
+                          type="button"
                           key={r.id}
                           data-testid={`tag-advanced-option-${axis}-${r.value}`}
+                          aria-pressed={checked}
+                          onClick={() => toggleAxisValue(axis, r.value)}
                           className={cn(
-                            'inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-2 py-1 text-[11px]',
+                            'inline-flex items-center gap-1.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-2 py-1 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]',
                             checked && 'border-[hsl(var(--primary))]',
                           )}
                         >
                           <Checkbox
                             checked={checked}
+                            tabIndex={-1}
                             onCheckedChange={() => toggleAxisValue(axis, r.value)}
+                            className="pointer-events-none"
                           />
                           {r.value}
-                        </label>
+                        </button>
                       );
                     })
                   )}
@@ -282,20 +292,25 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
                 {daypartValues.map((v) => {
                   const checked = filterState.daypart.includes(v);
                   return (
-                    <label
+                    <button
+                      type="button"
                       key={v}
                       data-testid={`tag-advanced-daypart-${v}`}
+                      aria-pressed={checked}
+                      onClick={() => toggleDaypart(v)}
                       className={cn(
-                        'inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-2 py-1 text-[11px]',
+                        'inline-flex items-center gap-1.5 rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] px-2 py-1 text-[11px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]',
                         checked && 'border-[hsl(var(--primary))]',
                       )}
                     >
                       <Checkbox
                         checked={checked}
+                        tabIndex={-1}
                         onCheckedChange={() => toggleDaypart(v)}
+                        className="pointer-events-none"
                       />
                       {v}
-                    </label>
+                    </button>
                   );
                 })}
               </div>

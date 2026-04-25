@@ -4,8 +4,6 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { formatDateTime } from '@/lib/time';
 import type { ActivityEntry } from '@/lib/queries/activity';
 
@@ -189,19 +187,23 @@ export function ActivityTab({
           Sort: {newestFirst ? 'Newest first' : 'Oldest first'}
         </Button>
         {isAdmin ? (
-          <div
+          // Kept as a native <input type="checkbox"> for stage7/activity.spec.ts
+          // T15 compatibility (the spec asserts .locator('input').check()). A
+          // shadcn Checkbox migration here would require updating the Stage 7
+          // e2e — out of scope for T3. Visual styling matches the rest of the
+          // toolbar via a wrapping <label>.
+          <label
             className="flex items-center gap-2"
             data-testid="activity-deleted-toggle"
           >
-            <Checkbox
-              id="activity-show-deleted"
+            <input
+              type="checkbox"
               checked={showDeleted}
-              onCheckedChange={(v) => setShowDeleted(v === true)}
+              onChange={(e) => setShowDeleted(e.target.checked)}
+              className="h-4 w-4 rounded border-[hsl(var(--border))] focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]"
             />
-            <Label htmlFor="activity-show-deleted" className="text-xs">
-              Include deleted note history
-            </Label>
-          </div>
+            Include deleted note history
+          </label>
         ) : null}
       </div>
       {filtered.length === 0 ? (
