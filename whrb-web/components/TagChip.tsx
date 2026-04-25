@@ -4,14 +4,13 @@ import { Lock, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { AXIS_COLORS, chipClass, type Axis } from '@/styles/tag-colors';
+import { chipClass, type Axis } from '@/styles/tag-colors';
 
 export type TagChipProps = {
   /** prospect_tags.id — used for DELETE / PATCH calls. */
@@ -130,75 +129,83 @@ export function TagChip({
     status === 'pending_admin_review' ? ' · pending admin review' : ''
   }${isLocked ? ' · locked' : ''}`;
 
+  // Plain inline-button styling for the clear / lock controls — using
+  // shadcn `<Button variant="ghost" size="sm">` here fights the cva on
+  // every front: the cva injects px-3 (overriding p-0 longhand),
+  // [&_svg]:size-4 (forcing icons to 16x16 inside our 16x16 pill), and
+  // hover:bg-muted hover:text-foreground (inverting the chip's painted
+  // text-white / text-zinc-900). A bespoke <button> keeps the chip
+  // pixel-tight and honours the chipClass() palette.
+  const innerControlClass = cn(
+    'inline-flex h-4 w-4 items-center justify-center rounded-full',
+    'hover:bg-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50',
+    'disabled:cursor-not-allowed disabled:opacity-30',
+  );
+
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span
-          data-testid="tag-chip"
-          data-axis={axis}
-          data-value={value}
-          data-locked={isLocked ? 'true' : 'false'}
-          data-status={status}
-          className={cn(
-            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-tight',
-            chipClass(axis),
-          )}
-          aria-label={`Tag ${axis}:${value}`}
+    <span
+      data-testid="tag-chip"
+      data-axis={axis}
+      data-value={value}
+      data-locked={isLocked ? 'true' : 'false'}
+      data-status={status}
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-tight',
+        chipClass(axis),
+      )}
+    >
+      {/* Tooltip wraps only the visual chip body — the clear / lock
+       * controls sit as siblings outside the trigger so they don't trip
+       * the axe nested-interactive rule. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="inline-flex items-center gap-1"
+            aria-label={`Tag ${axis}:${value}`}
+          >
+            {status === 'pending_admin_review' && (
+              <span
+                data-testid="tag-pending-dot"
+                aria-label="Pending admin review"
+                className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-300 ring-1 ring-yellow-700/40"
+              />
+            )}
+            {isLocked && (
+              <Lock
+                data-testid="tag-lock-icon"
+                aria-label="Locked"
+                className="h-3 w-3"
+              />
+            )}
+            <span className="truncate">{value}</span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>{tooltipText}</TooltipContent>
+      </Tooltip>
+      {interactive && (
+        <button
+          type="button"
+          data-testid="tag-clear-btn"
+          aria-label={`Clear ${axis}:${value}`}
+          disabled={!canClear || busy}
+          onClick={handleClear}
+          className={cn('ml-0.5', innerControlClass)}
         >
-          {status === 'pending_admin_review' && (
-            <span
-              data-testid="tag-pending-dot"
-              aria-label="Pending admin review"
-              className="inline-block h-1.5 w-1.5 rounded-full bg-yellow-300 ring-1 ring-yellow-700/40"
-            />
-          )}
-          {isLocked && (
-            <Lock
-              data-testid="tag-lock-icon"
-              aria-label="Locked"
-              className="h-3 w-3"
-            />
-          )}
-          <span className="truncate">{value}</span>
-          {interactive && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              data-testid="tag-clear-btn"
-              aria-label={`Clear ${axis}:${value}`}
-              disabled={!canClear || busy}
-              onClick={handleClear}
-              className={cn(
-                'ml-0.5 h-4 w-4 rounded-full p-0',
-                AXIS_COLORS[axis].fg,
-                'hover:bg-black/20 disabled:cursor-not-allowed disabled:opacity-30',
-              )}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          )}
-          {interactive && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              data-testid="tag-lock-toggle"
-              aria-label={isLocked ? `Unlock ${axis}:${value}` : `Lock ${axis}:${value}`}
-              disabled={!canToggleLock || busy}
-              onClick={handleToggleLock}
-              className={cn(
-                'h-4 w-4 rounded-full p-0',
-                AXIS_COLORS[axis].fg,
-                'hover:bg-black/20 disabled:cursor-not-allowed disabled:opacity-30',
-              )}
-            >
-              <Lock className={cn('h-2.5 w-2.5', isLocked ? 'fill-current' : '')} />
-            </Button>
-          )}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{tooltipText}</TooltipContent>
-    </Tooltip>
+          <X className="h-3 w-3" />
+        </button>
+      )}
+      {interactive && (
+        <button
+          type="button"
+          data-testid="tag-lock-toggle"
+          aria-label={isLocked ? `Unlock ${axis}:${value}` : `Lock ${axis}:${value}`}
+          disabled={!canToggleLock || busy}
+          onClick={handleToggleLock}
+          className={innerControlClass}
+        >
+          <Lock className={cn('h-2.5 w-2.5', isLocked ? 'fill-current' : '')} />
+        </button>
+      )}
+    </span>
   );
 }

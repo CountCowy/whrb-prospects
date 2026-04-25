@@ -17,8 +17,9 @@ test.describe('t3 mobile flat tag search', () => {
   test('t3-t24 mobile shows flat tag-search; selecting filters via URL', async ({ page }) => {
     await page.goto('/prospects');
     await expect(page.getByTestId('tag-filter-bar')).toBeVisible({ timeout: 15_000 });
-    // Advanced Filters is hidden on mobile.
-    await expect(page.getByTestId('tag-advanced-filters')).toHaveCount(0);
+    // Advanced Filters is hidden on mobile (display:none, kept in DOM for
+    // hydration parity — assert visibility rather than count).
+    await expect(page.getByTestId('tag-advanced-filters')).not.toBeVisible();
     const search = page.getByTestId('tag-flat-search');
     await search.fill('classical');
     const firstResult = page.getByTestId('tag-flat-search-result-genre-classical');

@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { formatDateTime } from '@/lib/time';
 import type { ActivityEntry } from '@/lib/queries/activity';
 
@@ -176,23 +178,30 @@ export function ActivityTab({
   return (
     <div className="space-y-4" data-testid="activity-tab">
       <div className="flex flex-wrap items-center gap-3 text-xs text-[hsl(var(--muted-foreground))]">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={() => setNewestFirst((v) => !v)}
           data-testid="activity-sort-toggle"
-          className="rounded-md border border-[hsl(var(--border))] bg-transparent px-2 py-1 font-medium hover:text-[hsl(var(--foreground))]"
+          className="h-7 text-xs"
         >
           Sort: {newestFirst ? 'Newest first' : 'Oldest first'}
-        </button>
+        </Button>
         {isAdmin ? (
-          <label className="flex items-center gap-2" data-testid="activity-deleted-toggle">
-            <input
-              type="checkbox"
+          <div
+            className="flex items-center gap-2"
+            data-testid="activity-deleted-toggle"
+          >
+            <Checkbox
+              id="activity-show-deleted"
               checked={showDeleted}
-              onChange={(e) => setShowDeleted(e.target.checked)}
+              onCheckedChange={(v) => setShowDeleted(v === true)}
             />
-            Include deleted note history
-          </label>
+            <Label htmlFor="activity-show-deleted" className="text-xs">
+              Include deleted note history
+            </Label>
+          </div>
         ) : null}
       </div>
       {filtered.length === 0 ? (

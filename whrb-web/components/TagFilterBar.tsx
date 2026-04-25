@@ -194,7 +194,7 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
         {searchResults.length > 0 && (
           <ul
             data-testid="tag-flat-search-results"
-            className="mt-2 flex max-h-40 flex-wrap gap-1 overflow-y-auto rounded-lg border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-2 text-xs"
+            className="mt-2 flex max-h-40 flex-wrap gap-1 overflow-y-auto rounded-lg border border-[hsl(var(--border))] bg-[hsl(var(--surface-2))] p-2 text-xs shadow-sm"
           >
             {searchResults.map((r) => {
               const isActive =

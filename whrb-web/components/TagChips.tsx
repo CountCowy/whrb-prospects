@@ -96,15 +96,18 @@ export function TagChips({
         {overflow.length > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span
+              <button
+                type="button"
                 data-testid="tag-chips-overflow"
+                aria-label={`${overflow.length} more tags`}
                 className={cn(
-                  'inline-flex cursor-default items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-tight',
+                  'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-tight',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))]',
                   overflowClass(),
                 )}
               >
                 +{overflow.length} more
-              </span>
+              </button>
             </TooltipTrigger>
             <TooltipContent>
               <ul className="max-h-60 overflow-y-auto text-xs">
