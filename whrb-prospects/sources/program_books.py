@@ -18,7 +18,39 @@ from pathlib import Path
 
 import pdfplumber
 
+from util.tags import build_tag_set
+
 PDF_DIR = Path("data/program_books")
+
+# Program-book filename → genre emission. Keys match the stem (lowercased).
+# Multi-genre values are emitted as lists (e.g. Handel+Haydn prints both
+# classical and choral program books).
+_GENRE_BY_STEM: dict[str, list[str]] = {
+    "bso":          ["classical"],   # Boston Symphony
+    "boston_symphony": ["classical"],
+    "h_and_h":      ["classical", "choral"],  # Handel & Haydn
+    "handel_and_haydn": ["classical", "choral"],
+    "handel_haydn": ["classical", "choral"],
+    "blo":          ["opera"],       # Boston Lyric Opera
+    "boston_lyric": ["opera"],
+    "celebrity_series": ["classical"],
+    "celebrity":    ["classical"],
+    "art":          ["theatre"],     # American Repertory Theater
+    "a_r_t":        ["theatre"],
+    "huntington":   ["theatre"],
+    "bemf":         ["classical"],   # Boston Early Music Festival
+    "early_music":  ["classical"],
+    "boston_ballet": ["dance"],
+}
+
+
+def _infer_genres(stem: str) -> list[str]:
+    """Guess genre(s) from the PDF filename stem."""
+    low = stem.lower()
+    for key, genres in _GENRE_BY_STEM.items():
+        if key in low:
+            return genres
+    return []
 
 # Two-or-more uppercase words (allowing & ' . -) — single-word ALL-CAPS lines
 # are overwhelmingly section headings, not sponsor names.
@@ -116,6 +148,13 @@ def run_all(auto_fetch: bool = True) -> list[dict]:
                     text = page.extract_text() or ""
                     if not _page_has_sponsor_context(text):
                         continue
+                    genres = _infer_genres(pdf_path.stem)
+                    tag_payload = build_tag_set(
+                        sector=["arts", "nonprofit"],
+                        genre=genres or None,
+                        history="program_book_sponsor",
+                        source=f"program_book:{pdf_path.stem}",
+                    )
                     for line in text.splitlines():
                         line = line.strip()
                         if not _is_acceptable_name(line):
@@ -125,6 +164,7 @@ def run_all(auto_fetch: bool = True) -> list[dict]:
                             "tier": "A",
                             "company_name": line.title(),
                             "pipeline_notes": "prints_in_program_book",
+                            "tags": {k: list(v) for k, v in tag_payload.items()},
                         })
         except Exception as e:
             print(f"[program_books] {pdf_path.name}: {e}")

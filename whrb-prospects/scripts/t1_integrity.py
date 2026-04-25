@@ -109,11 +109,16 @@ def _rep_client(rep_email: str, rep_password: str):
 def t01_seeded_count(cur) -> T:
     cur.execute("select count(*) from public.tag_vocabulary where status='active'")
     n = cur.fetchone()[0]
-    expected = 73
+    # T1 seed lands 73 rows. Downstream stages can grow the active set
+    # (T2 review pass adds `daypart_fit:multi_daypart` via
+    # 008_daypart_view.sql; T2 integrity fixtures add `other:t2_*_probe`
+    # rows). Assert ≥ 73 rather than exact equality so the seed-coverage
+    # check stays meaningful through the rollout.
+    floor = 73
     return T(
-        "T01 tag_vocabulary seeded; row count matches TAGS.md enum",
-        n == expected,
-        f"active_count={n} expected={expected}",
+        "T01 tag_vocabulary seeded; row count ≥ TAGS.md T1 enum floor",
+        n >= floor,
+        f"active_count={n} floor={floor}",
     )
 
 

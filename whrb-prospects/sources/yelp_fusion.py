@@ -8,6 +8,7 @@ from yelpapi import YelpAPI
 
 from config import MIN_RATING, MIN_REVIEW_COUNT, YELP_SEARCHES
 from util.http import smart_retry
+from util.tags import affiliation_for_zip, build_tag_set, yelp_alias_to_tags
 
 load_dotenv()
 _KEY = os.getenv("YELP_API_KEY")
@@ -49,6 +50,16 @@ def run_all() -> list[dict]:
                 if b.get("review_count", 0) < MIN_REVIEW_COUNT:
                     continue
                 loc = b.get("location") or {}
+                category_alias = (b.get("categories") or [{}])[0].get("alias")
+                zip_ = loc.get("zip_code")
+                sector, operating_model = yelp_alias_to_tags(category_alias)
+                affiliation = affiliation_for_zip(zip_)
+                row_tags = build_tag_set(
+                    sector=sector,
+                    operating_model=operating_model,
+                    affiliation=affiliation,
+                    source="yelp",
+                )
                 rows.append({
                     "source": "yelp",
                     "tier": "C",
@@ -57,10 +68,11 @@ def run_all() -> list[dict]:
                     "company_phone": b.get("display_phone"),
                     "company_email": None,
                     "address": ", ".join(loc.get("display_address") or []),
-                    "zip": loc.get("zip_code"),
-                    "category": (b.get("categories") or [{}])[0].get("alias"),
+                    "zip": zip_,
+                    "category": category_alias,
                     "rating": b.get("rating"),
                     "review_count": b.get("review_count"),
+                    "tags": row_tags,
                 })
             offset += 50
     print(f"[yelp] total rows: {len(rows)}")

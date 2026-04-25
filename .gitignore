@@ -39,4 +39,7 @@ out/
 # Pipeline artifacts — regenerable, keep out of git
 cache/
 whrb-prospects/output/
-whrb-prospects/data/
+# Stage T2: cannabis-block manual overlay is admin-curated, reviewed via PR;
+# `whrb-prospects/data/` is otherwise ignored (PDFs, cached fixtures).
+whrb-prospects/data/*
+!whrb-prospects/data/ccc_manual_blocklist.txt

@@ -1,0 +1,15 @@
+# WHRB cannabis hard-block — admin-maintained overlay.
+#
+# One business name per line. Unioned into the CCC-licensee-name set on every
+# pipeline run; never shrinks it. Use when the CCC Open Data CSV has not yet
+# published a newly licensed dispensary or a valid DBA alias.
+#
+# Rules:
+#   - Blank lines + '#' comments are ignored.
+#   - Names are normalized (lowercase, punctuation-stripped, whitespace-collapsed)
+#     before matching, so "Green Leaf, Inc." and "green leaf inc" both match.
+#   - Only add names you are confident are cannabis retail. False positives
+#     permanently block a legitimate business from WHRB sales outreach.
+#   - Append via PR so the override is reviewable + auditable in git history.
+#
+# (Intentionally empty at T2 stage start — add names below as they come up.)

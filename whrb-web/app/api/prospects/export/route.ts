@@ -8,6 +8,24 @@ import { checkRate } from '@/lib/server/ratelimit';
 
 export const runtime = 'nodejs';
 
+// Tag axes mirror whrb-prospects/pipeline.py::TAG_AXES_FOR_CSV. Order is
+// load-bearing for deterministic column ordering across the pipeline CSV
+// and this web export. `daypart_fit` is computed-on-read via the
+// `prospect_daypart` view (T2 migration 008); the rest come from
+// prospect_tags joined to tag_vocabulary.
+const TAG_AXES = [
+  'sector',
+  'operating_model',
+  'genre',
+  'affiliation',
+  'cadence',
+  'daypart_fit',
+  'history',
+  'compliance',
+  'other',
+] as const;
+type TagAxis = (typeof TAG_AXES)[number];
+
 const DEFAULT_COLUMNS: ExportColumn[] = [
   { key: 'company_name', header: 'Company' },
   { key: 'tier', header: 'Tier' },
@@ -31,6 +49,10 @@ const DEFAULT_COLUMNS: ExportColumn[] = [
   { key: 'assigned_to', header: 'Assigned to' },
   { key: 'pipeline_last_seen_at', header: 'Pipeline last seen', kind: 'date' },
   { key: 'created_at', header: 'Created', kind: 'date' },
+  ...TAG_AXES.map<ExportColumn>((axis) => ({
+    key: `tags_${axis}`,
+    header: `Tags: ${axis}`,
+  })),
 ];
 
 const SEARCH_FIELDS = [
@@ -133,10 +155,73 @@ export async function GET(req: Request) {
       );
     }
   }
-  const decorated = rows.map((r) => ({
-    ...r,
-    assigned_to: r.assigned_to ? labels.get(r.assigned_to as string) ?? r.assigned_to : null,
-  }));
+
+  // Fetch tag data for the prospect set so the export carries per-axis
+  // tag columns (T2 plan §4.4). Suppressed compliance rows (per §1.3
+  // #24) are filtered out — the export reflects what the rep sees.
+  // Daypart values come from the computed `prospect_daypart` view; the
+  // other 8 axes come from prospect_tags joined to tag_vocabulary.
+  const prospectIds = rows.map((r) => r.id as string);
+  const tagsByProspect = new Map<string, Record<TagAxis, Set<string>>>();
+  const initBag = (): Record<TagAxis, Set<string>> =>
+    Object.fromEntries(TAG_AXES.map((a) => [a, new Set<string>()])) as Record<
+      TagAxis,
+      Set<string>
+    >;
+  if (prospectIds.length > 0) {
+    const { data: tagRows, error: tagErr } = await supabase
+      .from('prospect_tags')
+      .select('prospect_id, tag_vocabulary!inner(axis, value)')
+      .in('prospect_id', prospectIds)
+      .is('suppressed_at', null);
+    if (tagErr) {
+      return NextResponse.json({ error: tagErr.message }, { status: 500 });
+    }
+    for (const row of tagRows ?? []) {
+      // The PostgREST embed returns tag_vocabulary as an object on a
+      // unique FK; under some join modes it surfaces as a single-element
+      // array. Coerce to the object shape.
+      const vocab = Array.isArray(row.tag_vocabulary)
+        ? row.tag_vocabulary[0]
+        : row.tag_vocabulary;
+      if (!vocab) continue;
+      const axis = vocab.axis as TagAxis | undefined;
+      const value = vocab.value as string | undefined;
+      if (!axis || !value || !TAG_AXES.includes(axis)) continue;
+      const pid = row.prospect_id as string;
+      if (!tagsByProspect.has(pid)) tagsByProspect.set(pid, initBag());
+      tagsByProspect.get(pid)![axis].add(value);
+    }
+    const { data: dayparts, error: dpErr } = await supabase
+      .from('prospect_daypart')
+      .select('prospect_id, daypart_fit')
+      .in('prospect_id', prospectIds);
+    if (dpErr) {
+      return NextResponse.json({ error: dpErr.message }, { status: 500 });
+    }
+    for (const row of dayparts ?? []) {
+      const pid = row.prospect_id as string;
+      const values = (row.daypart_fit ?? []) as string[];
+      if (values.length === 0) continue;
+      if (!tagsByProspect.has(pid)) tagsByProspect.set(pid, initBag());
+      const bag = tagsByProspect.get(pid)!;
+      for (const v of values) bag.daypart_fit.add(v);
+    }
+  }
+
+  const decorated = rows.map((r) => {
+    const bag = tagsByProspect.get(r.id as string);
+    const tagCols: Record<string, string> = {};
+    for (const axis of TAG_AXES) {
+      const set = bag?.[axis];
+      tagCols[`tags_${axis}`] = set ? [...set].sort().join(',') : '';
+    }
+    return {
+      ...r,
+      ...tagCols,
+      assigned_to: r.assigned_to ? labels.get(r.assigned_to as string) ?? r.assigned_to : null,
+    };
+  });
 
   await logEvent({
     source: 'web_server',

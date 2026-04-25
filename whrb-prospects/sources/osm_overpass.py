@@ -12,6 +12,11 @@ import requests
 
 from config import OSM_QUERIES, WHRB_BBOX
 from util.http import raise_for_smart_status, smart_retry
+from util.tags import (
+    affiliation_for_zip,
+    build_tag_set,
+    osm_category_to_tags,
+)
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
@@ -42,6 +47,16 @@ def fetch_tier(tier: str) -> list[dict]:
         name = tags.get("name")
         if not name:
             continue
+        category = _first_category(tags)
+        zip_ = (tags.get("addr:postcode") or "")[:5] or None
+        sector, operating_model = osm_category_to_tags(category)
+        affiliation = affiliation_for_zip(zip_)
+        row_tags = build_tag_set(
+            sector=sector,
+            operating_model=operating_model,
+            affiliation=affiliation,
+            source="osm",
+        )
         rows.append({
             "source": "osm",
             "tier": tier,
@@ -50,10 +65,11 @@ def fetch_tier(tier: str) -> list[dict]:
             "company_phone": tags.get("phone") or tags.get("contact:phone"),
             "company_email": tags.get("email") or tags.get("contact:email"),
             "address": _compose_address(tags),
-            "zip": tags.get("addr:postcode"),
-            "category": _first_category(tags),
+            "zip": zip_,
+            "category": category,
             "lat": el.get("lat") or (el.get("center") or {}).get("lat"),
             "lon": el.get("lon") or (el.get("center") or {}).get("lon"),
+            "tags": row_tags,
         })
     return rows
 

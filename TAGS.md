@@ -79,15 +79,20 @@ Belmont / Newton.
 `seasonal_summer`, `seasonal_fall`, `seasonal_winter`, `move_window`,
 `unknown`.
 
-### `daypart_fit` (6 + unknown = 7)
+### `daypart_fit` (7 + unknown = 8)
 
 `classical`, `jazz`, `blues_hillbilly`, `record_hospital`, `darker_side`,
-`sports_news`, `unknown`.
+`sports_news`, `multi_daypart`, `unknown`.
 
 `daypart_fit` is **derived** from other axes in T2 via a SQL function. The
 chip rendering layer prefixes values with `daypart_` for display
 (`daypart_classical`, `daypart_blues_hillbilly`, etc.) — that's a UI
 convenience, the DB stores the unprefixed value here.
+
+`multi_daypart` is a sentinel emitted when a prospect's tags say
+`sector='media' + operating_model='distributor'` — cross-format media
+distributors that fit any block. Seeded by `008_daypart_view.sql` rather
+than the T1 canonical seed (added retroactively after the T2 review).
 
 ### `history` (8 + unknown = 9)
 
@@ -120,14 +125,17 @@ flow; admin approval re-axises if appropriate.
 | genre | 14 |
 | affiliation | 11 |
 | cadence | 9 |
-| daypart_fit | 7 |
+| daypart_fit | 8 |
 | history | 9 |
 | compliance | 2 |
 | other | 1 |
-| **Total** | **73** |
+| **Total** | **74** |
 
-T1's integrity test `T01` asserts `select count(*) from tag_vocabulary
-where status='active' = 73` after the seed lands.
+T1's integrity test `T01` accepts `count = 73` (pre-T2-migration) or
+`count = 74` (post-T2-migration, after `008_daypart_view.sql` seeds
+`daypart_fit:multi_daypart`). The original T1 seed produces exactly 73
+active rows; T2's review-pass migration adds the one `multi_daypart`
+sentinel for the `media + distributor` daypart rule.
 
 ---
 

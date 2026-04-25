@@ -435,3 +435,301 @@ def sync(rows: Iterable[dict]) -> dict:
             )
 
     return summary
+
+
+# ------------------------------------------------------------------------- #
+# Stage T2 — tag sync (phase 08_b_tag_sync)                                 #
+# ------------------------------------------------------------------------- #
+
+# Tag-sync is additive: the pipeline NEVER DELETEs a prospect_tags row.
+# Behaviour contract (plan §4.4 / §4.5 / §1.3 #23-#24):
+#
+#   - Resolve each emitted row's business_key → prospect_id via the existing
+#     prospects table.
+#   - Resolve each (axis, value) → tag_id via tag_vocabulary (cached).
+#   - Emit-with-on-conflict-do-nothing into prospect_tags. Pipeline rows
+#     carry created_by=NULL; the unique (prospect_id, tag_id) constraint
+#     makes the insert idempotent.
+#   - Compliance axis + suppressed_at-not-null row: re-emission is a no-op
+#     and emits category='compliance_resuppressed'. Non-compliance
+#     suppressed rows are impossible in v1 (suppression only applies to
+#     compliance) but the branch handles the general case.
+#   - Per-tag locks (locked_by not null): the pipeline INSERT alongside
+#     with the same axis is legal and by design (T09a). It's only a
+#     conflict on (prospect_id, tag_id) — i.e. the same value — which the
+#     unique constraint already dedupes.
+#
+# The emitter dict shape in ``rows`` is ``row['tags'] = {axis: [values]}``.
+
+# Per-batch retry reuses the same tenacity config as the prospects upsert.
+@retry(
+    stop=stop_after_attempt(SUPABASE_RETRY_MAX_ATTEMPTS),
+    wait=wait_exponential(min=SUPABASE_RETRY_MIN_S, max=SUPABASE_RETRY_MAX_S),
+    retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+    reraise=True,
+)
+def _insert_tag_batch(client, batch: list[dict]) -> None:
+    # Supabase Postgrest translates ``on_conflict`` into
+    # `INSERT ... ON CONFLICT DO NOTHING` when ``ignore_duplicates=True``
+    # so a re-emitted (prospect_id, tag_id) pair is a no-op.
+    (
+        client.table("prospect_tags")
+        .upsert(
+            batch,
+            on_conflict="prospect_id,tag_id",
+            ignore_duplicates=True,
+        )
+        .execute()
+    )
+
+
+def _load_vocab_lookup(client) -> dict[tuple[str, str], str]:
+    """Return a ``{(axis, value): tag_id}`` map for every active vocab row.
+
+    T2's tag sync treats deprecated vocab as read-only — a row in
+    ``prospect_tags`` referencing a deprecated tag is still valid (admins
+    use ``status=deprecated + replacement_id`` to signal migration intent),
+    but the pipeline never emits new references to deprecated values.
+    """
+    rows = (
+        client.table("tag_vocabulary")
+        .select("id,axis,value,status")
+        .eq("status", "active")
+        .execute()
+        .data
+        or []
+    )
+    return {(r["axis"], r["value"]): r["id"] for r in rows}
+
+
+def _fetch_prospect_ids_for_keys(
+    client, business_keys: list[str]
+) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for i in range(0, len(business_keys), 500):
+        chunk = business_keys[i : i + 500]
+        res = (
+            client.table("prospects")
+            .select("id,business_key")
+            .in_("business_key", chunk)
+            .execute()
+        )
+        for r in res.data or []:
+            out[r["business_key"]] = r["id"]
+    return out
+
+
+def _fetch_suppressed_compliance_rows(
+    client, prospect_ids: list[str], tag_ids: list[str]
+) -> set[tuple[str, str]]:
+    """Return the set of ``(prospect_id, tag_id)`` pairs with suppressed_at set.
+
+    Queries prospect_tags with a partial predicate matching the candidate
+    emit set; Postgres uses ``idx_prospect_tags_suppressed`` when it
+    applies. Returned tuples are strings so they can be looked up with
+    the same tuple shape the emit loop constructs.
+    """
+    if not prospect_ids or not tag_ids:
+        return set()
+    out: set[tuple[str, str]] = set()
+    # Chunk the prospect_ids — tag_ids are smaller (bounded by the emit set)
+    # but prospect_ids can grow to thousands on a full rerun.
+    for i in range(0, len(prospect_ids), 500):
+        chunk = prospect_ids[i : i + 500]
+        res = (
+            client.table("prospect_tags")
+            .select("prospect_id,tag_id")
+            .not_.is_("suppressed_at", "null")
+            .in_("prospect_id", chunk)
+            .in_("tag_id", tag_ids)
+            .execute()
+        )
+        for r in res.data or []:
+            out.add((r["prospect_id"], r["tag_id"]))
+    return out
+
+
+def tag_sync(rows: Iterable[dict], *, client=None) -> dict:
+    """Phase 08_b_tag_sync — populate prospect_tags from the in-memory rows.
+
+    Returns a summary: ``{'added', 'preserved', 'lock_skipped',
+    'compliance_resuppressed', 'vocab_miss', 'failed', 'total'}``.
+      * ``added`` — INSERT succeeded (new (prospect_id, tag_id) pair).
+      * ``preserved`` — unique-constraint no-op (pair already present).
+      * ``compliance_resuppressed`` — the row already exists with
+        suppressed_at set and axis='compliance'; we emit the
+        resuppression event and skip.
+      * ``vocab_miss`` — emitted (axis, value) not in active vocab; event
+        logged; emitter-side strict mode is the primary safety net.
+      * ``lock_skipped`` — reserved for future (no delete path in v1; the
+        plan's T09c/T09g lock-deletion tests are RLS-gated at the web
+        tier, not this phase).
+      * ``failed`` — batch insert exhausted retries.
+    """
+    client = client or _client()
+    summary = {
+        "added": 0,
+        "preserved": 0,
+        "lock_skipped": 0,
+        "compliance_resuppressed": 0,
+        "vocab_miss": 0,
+        "failed": 0,
+        "total": 0,
+    }
+
+    vocab = _load_vocab_lookup(client)
+
+    # Collect the (business_key, tag) pairs we intend to emit.
+    rows_list = [dict(r) for r in rows]
+    emit_by_key: dict[str, set[tuple[str, str]]] = {}
+    for row in rows_list:
+        tags = row.get("tags") or {}
+        if not tags:
+            continue
+        bk = business_key(row)
+        if not bk:
+            continue
+        pairs = emit_by_key.setdefault(bk, set())
+        for axis, values in tags.items():
+            if not values:
+                continue
+            for v in values:
+                summary["total"] += 1
+                if (axis, v) not in vocab:
+                    summary["vocab_miss"] += 1
+                    event_log.warn(
+                        "tag_vocab_miss",
+                        f"sync vocab miss {axis}:{v}",
+                        context={
+                            "axis": axis,
+                            "value": v,
+                            "business_key": bk,
+                            "phase": "08_b_tag_sync",
+                        },
+                    )
+                    continue
+                pairs.add((axis, v))
+    if not emit_by_key:
+        return summary
+
+    # Resolve business_key -> prospect_id. Rows whose prospects didn't
+    # persist (e.g. sync failed earlier) are dropped silently; their tags
+    # will land on the next successful rerun.
+    bk_to_id = _fetch_prospect_ids_for_keys(client, list(emit_by_key))
+
+    # Flatten to (prospect_id, tag_id, axis) triples so compliance
+    # suppression checks are O(1).
+    triples: list[tuple[str, str, str, str]] = []  # (prospect_id, tag_id, axis, value)
+    prospect_ids_in_batch: set[str] = set()
+    tag_ids_in_batch: set[str] = set()
+    for bk, pairs in emit_by_key.items():
+        pid = bk_to_id.get(bk)
+        if not pid:
+            continue
+        for axis, value in pairs:
+            tag_id = vocab.get((axis, value))
+            if not tag_id:
+                continue
+            triples.append((pid, tag_id, axis, value))
+            prospect_ids_in_batch.add(pid)
+            tag_ids_in_batch.add(tag_id)
+
+    if not triples:
+        return summary
+
+    # Resolve the suppressed set for this emit batch.
+    suppressed = _fetch_suppressed_compliance_rows(
+        client, list(prospect_ids_in_batch), list(tag_ids_in_batch)
+    )
+
+    # Split into immediate-insert and compliance-resuppressed buckets.
+    to_insert: list[dict] = []
+    for pid, tid, axis, value in triples:
+        if (pid, tid) in suppressed:
+            if axis == "compliance":
+                summary["compliance_resuppressed"] += 1
+                event_log.info(
+                    "compliance_resuppressed",
+                    f"compliance re-emission suppressed for "
+                    f"prospect {pid} ({axis}:{value})",
+                    context={
+                        "prospect_id": pid,
+                        "tag_id": tid,
+                        "axis": axis,
+                        "value": value,
+                    },
+                )
+            else:
+                # Non-compliance suppression is not a v1 code path; log
+                # it anyway so it's visible if the web UI ever grows the
+                # feature.
+                summary["compliance_resuppressed"] += 1
+                event_log.info(
+                    "tag_suppressed",
+                    f"non-compliance re-emission suppressed for "
+                    f"prospect {pid} ({axis}:{value})",
+                    context={
+                        "prospect_id": pid,
+                        "tag_id": tid,
+                        "axis": axis,
+                        "value": value,
+                    },
+                )
+            continue
+        to_insert.append({
+            "prospect_id": pid,
+            "tag_id": tid,
+            "created_by": None,
+        })
+
+    # Pre-count how many of these already exist so the summary reflects
+    # preserved-vs-added accurately. Cheap per-emit-batch existence query.
+    existing_pairs: set[tuple[str, str]] = set()
+    if to_insert:
+        ids = list({t["prospect_id"] for t in to_insert})
+        tids = list({t["tag_id"] for t in to_insert})
+        for i in range(0, len(ids), 500):
+            chunk = ids[i : i + 500]
+            res = (
+                client.table("prospect_tags")
+                .select("prospect_id,tag_id")
+                .in_("prospect_id", chunk)
+                .in_("tag_id", tids)
+                .execute()
+            )
+            for r in res.data or []:
+                existing_pairs.add((r["prospect_id"], r["tag_id"]))
+
+    # Submit inserts in batches — ON CONFLICT DO NOTHING handles the
+    # already-present rows. We keep the batch size aligned with upsert.
+    for i in range(0, len(to_insert), SUPABASE_UPSERT_BATCH_SIZE):
+        batch = to_insert[i : i + SUPABASE_UPSERT_BATCH_SIZE]
+        try:
+            _insert_tag_batch(client, batch)
+        except Exception as e:
+            summary["failed"] += len(batch)
+            event_log.error(
+                "tag_sync",
+                f"tag batch insert failed after retries: "
+                f"{type(e).__name__}: {e}",
+                context={
+                    "batch_size": len(batch),
+                    "exception": type(e).__name__,
+                    "detail": str(e)[:500],
+                },
+            )
+            continue
+        # Batch succeeded — partition into added vs preserved using the
+        # existing_pairs precount.
+        for rec in batch:
+            if (rec["prospect_id"], rec["tag_id"]) in existing_pairs:
+                summary["preserved"] += 1
+            else:
+                summary["added"] += 1
+
+    event_log.info(
+        "tag_sync",
+        "tag sync complete",
+        context=dict(summary),
+    )
+    return summary

@@ -22,6 +22,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from util.http import raise_for_smart_status, smart_retry
+from util.tags import affiliation_for_zip, build_tag_set
 
 LEGACY_URL = "https://services.oca.state.ma.us/hic/licenseelist.aspx"
 MODERN_URL = "https://contractorhub.mass.gov/s/hic-contractor-search"
@@ -92,15 +93,23 @@ def _parse_results(html: str, city: str) -> list[dict]:
         name = rec.get("business name") or rec.get("name") or cells[0]
         reg = rec.get("registration") or rec.get("reg no") or ""
         phone = next((c for c in cells if re.search(r"\d{3}[.\-\s]\d{3}", c)), None)
+        zip_ = (rec.get("zip") or "")[:5] or None
+        affiliation = affiliation_for_zip(zip_) or "greater_boston"
         rows.append({
             "source": "ma_hic_legacy",
             "tier": "C",
             "company_name": name,
             "company_phone": phone,
             "address": rec.get("address") or None,
-            "zip": (rec.get("zip") or "")[:5] or None,
+            "zip": zip_,
             "category": "home_improvement_contractor",
             "pipeline_notes": f"hic_reg:{reg}" if reg else "hic_legacy",
+            "tags": build_tag_set(
+                sector="home_services",
+                operating_model="service_provider",
+                affiliation=affiliation,
+                source="ma_hic_legacy",
+            ),
         })
     return [r for r in rows if r["company_name"]]
 
@@ -167,6 +176,13 @@ def _modern_fetch() -> list[dict]:
                         "address": " ".join(lines[1:3]),
                         "category": "home_improvement_contractor",
                         "pipeline_notes": "hic_modern",
+                        # Modern portal scrape doesn't expose zip directly; leave
+                        # affiliation to be refined downstream.
+                        "tags": build_tag_set(
+                            sector="home_services",
+                            operating_model="service_provider",
+                            source="ma_hic_modern",
+                        ),
                     })
                 print(f"[ma_hic modern] {city}: done")
             except Exception as e:

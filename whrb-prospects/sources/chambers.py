@@ -14,6 +14,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from util.http import raise_for_smart_status, smart_retry
+from util.tags import build_tag_set
 
 UA = "Mozilla/5.0 (whrb-prospects research crawler)"
 
@@ -106,6 +107,14 @@ def _scrape_hsba() -> list[dict]:
                 "company_name": name,
                 "_detail_url": a.get("href"),
                 "pipeline_notes": "member:hsba",
+                # HSBA = Harvard Square Business Association. Every member
+                # sits in Cambridge (02138 or neighbouring). Set the
+                # affiliation from the chamber membership, not the zip,
+                # because the zip may not be extracted from the detail page.
+                "tags": build_tag_set(
+                    affiliation="cambridge_based",
+                    source="hsba",
+                ),
             })
     # Dedup by name
     seen, unique = set(), []
@@ -164,6 +173,13 @@ def _scrape_artsboston() -> list[dict]:
             "company_name": name,
             "website": href,
             "pipeline_notes": "member:artsboston",
+            # ArtsBoston members are Boston-area arts organizations —
+            # predominantly nonprofits. The directory is the signal.
+            "tags": build_tag_set(
+                sector=["arts", "nonprofit"],
+                affiliation="boston_based",
+                source="artsboston",
+            ),
         })
     # Dedup
     seen, out = set(), []
