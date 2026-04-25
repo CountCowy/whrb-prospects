@@ -39,6 +39,7 @@ REP_EMAIL = "t2-rep@example.com"
 T2_EVENT_CATEGORIES = [
     "cannabis_blocked",
     "ccc_fetch_failed",
+    "ccc_fetch_stale_fatal",
     "ccc_load",
     "tag_vocab_miss",
     "tag_vocab_miss_threshold",

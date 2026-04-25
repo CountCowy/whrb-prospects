@@ -442,7 +442,7 @@ def sync(rows: Iterable[dict]) -> dict:
 # ------------------------------------------------------------------------- #
 
 # Tag-sync is additive: the pipeline NEVER DELETEs a prospect_tags row.
-# Behaviour contract (plan §4.4 / §4.5 / §1.3 #23–#24):
+# Behaviour contract (plan §4.4 / §4.5 / §1.3 #23-#24):
 #
 #   - Resolve each emitted row's business_key → prospect_id via the existing
 #     prospects table.

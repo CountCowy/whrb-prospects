@@ -27,12 +27,10 @@ from __future__ import annotations
 
 import argparse
 import ast
-import importlib
 import json
 import os
 import subprocess
 import sys
-import tempfile
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,7 +50,7 @@ SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 PROJECT_REF = os.environ["SUPABASE_PROJECT_REF"]
 DB_PASSWORD = os.environ["SUPABASE_DB_PASSWORD"]
 
-from supabase import create_client  # noqa: E402 — after env load
+from supabase import create_client
 
 SNAPSHOT_PATH = WHRB / "cache" / "t2_snapshot.json"
 
@@ -127,7 +125,7 @@ def _ensure_vocab(sb, axis: str, value: str) -> str:
 
 
 # -------------------------------------------------------------------------
-# Cannabis block (T01–T04)
+# Cannabis block (T01-T04)
 # -------------------------------------------------------------------------
 
 def t01_ccc_match_blocks(snap: dict) -> T:
@@ -333,7 +331,7 @@ def t05_source_fixtures(snap: dict) -> T:
 
 
 # -------------------------------------------------------------------------
-# Dedupe merge policy (T06–T08)
+# Dedupe merge policy (T06-T08)
 # -------------------------------------------------------------------------
 
 def t06_dedupe_union(snap: dict) -> T:
@@ -490,6 +488,7 @@ def t08_rep_tag_preserved_vs_pipeline(snap: dict) -> T:
 
 # -------------------------------------------------------------------------
 # Edit-lock integrity (T09a-h)
+# (no en-dash — keep ASCII for ruff RUF003)
 # -------------------------------------------------------------------------
 
 def t09a_additive_not_delete(snap: dict) -> T:
@@ -870,7 +869,7 @@ def t09h_soft_clear_resuppression(snap: dict) -> T:
 
 
 # -------------------------------------------------------------------------
-# Backfill + vocab conformance + view (T10–T15)
+# Backfill + vocab conformance + view (T10-T15)
 # -------------------------------------------------------------------------
 
 def t10_backfill_idempotent(snap: dict) -> T:
@@ -1053,7 +1052,6 @@ def t15_vocab_conformance(snap: dict) -> T:
     from util.tags import (
         affiliation_for_zip,
         build_tag_set,
-        city_category_to_tags,
         osm_category_to_tags,
         reset_cache,
     )
@@ -1093,7 +1091,7 @@ def t15_vocab_conformance(snap: dict) -> T:
 
 
 # -------------------------------------------------------------------------
-# Exit gate checks (T16–T18)
+# Exit gate checks (T16-T18)
 # -------------------------------------------------------------------------
 
 def t16_backfill_threshold(snap: dict) -> T:

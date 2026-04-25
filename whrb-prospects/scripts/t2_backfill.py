@@ -36,14 +36,13 @@ WHRB = HERE.parent
 sys.path.insert(0, str(WHRB))
 load_dotenv(WHRB / ".env")
 
-from util.tags import (  # noqa: E402
+from util.tags import (
     affiliation_for_zip,
     build_tag_set,
     city_category_to_tags,
     osm_category_to_tags,
     yelp_alias_to_tags,
 )
-
 
 # -------------------------------------------------------------------------
 # Per-source derivation

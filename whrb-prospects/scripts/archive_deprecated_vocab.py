@@ -30,7 +30,7 @@ WHRB = HERE.parent
 sys.path.insert(0, str(WHRB))
 load_dotenv(WHRB / ".env")
 
-from util import event_log  # noqa: E402
+from util import event_log
 
 
 def _client():

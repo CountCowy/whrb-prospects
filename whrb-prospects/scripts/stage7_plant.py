@@ -78,6 +78,11 @@ EXPECTED_STIMULUS_CATEGORIES: tuple[str, ...] = (
     "scrape_http",
     "pipeline_run_failed",
     "admin_cancel_run_failed",
+    # Stage T2 (post-10c epic) — cannabis-block live-fetch failures
+    # surface here when the CCC primary + secondary endpoints are both
+    # unreachable. They are not Stage 7 correctness signals; the T2
+    # integrity suite owns them.
+    "ccc_fetch_stale_fatal",
 )
 
 # The 15 lockable field names as defined in plan §16.3 item 9.

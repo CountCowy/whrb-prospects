@@ -41,7 +41,7 @@ WHRB = HERE.parent
 sys.path.insert(0, str(WHRB))
 load_dotenv(WHRB / ".env")
 
-from db.supabase_sync import business_key as compute_business_key  # noqa: E402
+from db.supabase_sync import business_key as compute_business_key
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
