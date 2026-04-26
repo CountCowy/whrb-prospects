@@ -492,3 +492,88 @@ create unique index if not exists ux_notif_open_vocab_pending
 -- =========================================================================
 -- End of 009_tag_triggers.sql mirror
 -- =========================================================================
+
+-- =========================================================================
+-- 010_prospect_contact_emails.sql mirror (read-only reference; canonical
+-- at whrb-web/supabase/migrations/010_prospect_contact_emails.sql).
+-- Multi-email per prospect (Option B): child table + denormalized scalar
+-- cache + count. See the canonical migration for full trigger bodies.
+-- =========================================================================
+
+-- New child table — one row per (prospect, email).
+create table if not exists public.prospect_contact_emails (
+  id uuid primary key default gen_random_uuid(),
+  prospect_id uuid not null references public.prospects(id) on delete cascade,
+  email text not null,
+  source text not null check (source in (
+    'pipeline_hunter','pipeline_apollo','pipeline_scraper',
+    'manual_rep','legacy_scalar'
+  )),
+  is_primary boolean not null default false,
+  added_by uuid references public.profiles(id) on delete set null,
+  added_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint prospect_contact_emails_email_format
+    check (email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+  constraint prospect_contact_emails_email_length
+    check (length(email) <= 200)
+);
+
+-- Invariant 1: at most one primary per prospect.
+create unique index if not exists uniq_prospect_primary_email
+  on public.prospect_contact_emails (prospect_id) where is_primary;
+
+-- Invariant 2: no duplicate emails per prospect (case-insensitive).
+create unique index if not exists uniq_prospect_contact_emails_lower
+  on public.prospect_contact_emails (prospect_id, lower(email));
+
+create index if not exists idx_prospect_contact_emails_prospect
+  on public.prospect_contact_emails (prospect_id, is_primary desc, added_at asc);
+
+-- Denormalized count on prospects. Always equals
+-- count(*) FROM prospect_contact_emails WHERE prospect_id = p.id.
+-- Maintained by sync_prospect_primary_email() AFTER trigger. The pipeline
+-- gate in db/supabase_sync.py reads this column to decide whether to
+-- skip a prospect (count > 0 → skip all email enrichment).
+alter table public.prospects
+  add column if not exists contact_email_count int not null default 0
+    check (contact_email_count >= 0);
+
+-- Triggers added in 010 (canonical bodies in the migration):
+--   t_pce_updated_at         BEFORE UPDATE — set_updated_at
+--   t_pce_enforce            BEFORE INSERT/UPDATE — auto-primary on first
+--                            row + reject second-primary outside RPC
+--   t_pce_sync               AFTER INSERT/UPDATE/DELETE — keeps
+--                            prospects.contact_email and contact_email_count
+--                            consistent; auto-promotes a successor when the
+--                            primary is removed; reentrancy guarded via
+--                            app.in_email_after_trigger GUC
+--   t_pce_audit              AFTER INSERT/UPDATE/DELETE — emits
+--                            prospect_email_added/removed/updated/
+--                            primary_changed event_log rows
+--   t_prospects_guard_contact_email
+--                            BEFORE UPDATE on prospects — blocks direct
+--                            writes to prospects.contact_email outside the
+--                            sync trigger (which sets app.syncing_contact_email='1')
+--
+-- RPC added in 010:
+--   set_primary_contact_email(p_prospect_id uuid, p_email_id uuid) RETURNS void
+--     Atomic primary swap; uses pg_advisory_xact_lock + app.in_primary_swap
+--     GUC. GRANTed to authenticated, service_role.
+--
+-- audit_prospect_change (from 000) is REPLACEd in 010 to drop
+-- 'contact_email' from its tracked array — email-level audit comes from
+-- t_pce_audit instead.
+--
+-- RLS on prospect_contact_emails mirrors prospects:
+--   p_pce_read   — auth.uid() is not null
+--   p_pce_insert — auth.uid() is not null
+--   p_pce_update — auth.uid() is not null
+--   p_pce_delete — auth.uid() is not null
+-- Pipeline uses service-role and bypasses RLS; column-level auth on the
+-- parent prospect's UPDATE (001_prospect_update_guard.sql) acts as
+-- defense-in-depth for non-admin/non-assignee writes.
+
+-- =========================================================================
+-- End of 010_prospect_contact_emails.sql mirror
+-- =========================================================================

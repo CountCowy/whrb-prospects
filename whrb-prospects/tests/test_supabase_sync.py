@@ -9,6 +9,7 @@ from db.supabase_sync import (
     _build_insert,
     _coerce,
     _patch_existing,
+    _pipeline_source_for,
     _split_alt_fields,
     business_key,
 )
@@ -112,7 +113,7 @@ class TestApplyFieldValidators:
 class TestBuildInsert:
     def test_builds_complete_payload(self) -> None:
         row = {"company_name": "X", "website": "x.com", "priority_score": 42}
-        payload, rej = _build_insert(row, "name:x", {}, "2026-04-19T00:00:00+00:00")
+        payload, rej, _ = _build_insert(row, "name:x", {}, "2026-04-19T00:00:00+00:00")
         assert payload["business_key"] == "name:x"
         assert payload["created_source"] == "pipeline"
         assert payload["company_name"] == "X"
@@ -121,13 +122,13 @@ class TestBuildInsert:
         assert rej == 0
 
     def test_review_count_coerced_to_int(self) -> None:
-        payload, _ = _build_insert(
+        payload, _, _ = _build_insert(
             {"company_name": "X", "review_count": "123"}, "name:x", {}, "t"
         )
         assert payload["review_count"] == 123
 
     def test_bad_review_count_falls_back_to_none(self) -> None:
-        payload, _ = _build_insert(
+        payload, _, _ = _build_insert(
             {"company_name": "X", "review_count": "not a number"}, "name:x", {}, "t"
         )
         assert payload["review_count"] is None
@@ -137,36 +138,147 @@ class TestPatchExisting:
     def test_locked_field_skipped(self) -> None:
         row = {"company_name": "ScrapedName"}
         existing = {"id": "abc", "user_overrides": {"company_name": True}}
-        patch, _ = _patch_existing(row, existing, {}, "t", "name:test")
+        patch, _, _ = _patch_existing(row, existing, {}, "t", "name:test")
         assert "company_name" not in patch
 
     def test_composite_is_nonprofit_locks_ein_and_source(self) -> None:
         row = {"is_nonprofit": True, "ein": "04-2103594", "nonprofit_source": "irs_bmf"}
         existing = {"id": "abc", "user_overrides": {"is_nonprofit": True}}
-        patch, _ = _patch_existing(row, existing, {}, "t", "name:test")
+        patch, _, _ = _patch_existing(row, existing, {}, "t", "name:test")
         assert "is_nonprofit" not in patch
         assert "ein" not in patch
         assert "nonprofit_source" not in patch
 
     def test_priority_score_refreshed_when_unlocked(self) -> None:
         row = {"priority_score": 99}
-        patch, _ = _patch_existing(row, {"user_overrides": {}}, {}, "t", "name:t")
+        patch, _, _ = _patch_existing(row, {"user_overrides": {}}, {}, "t", "name:t")
         assert patch["priority_score"] == 99
 
     def test_priority_score_locked_skipped(self) -> None:
         row = {"priority_score": 99}
-        patch, _ = _patch_existing(
+        patch, _, _ = _patch_existing(
             row, {"user_overrides": {"priority_score": True}}, {}, "t", "name:t"
         )
         assert "priority_score" not in patch
 
     def test_none_value_does_not_overwrite(self) -> None:
         row = {"company_phone": None, "company_name": "X"}
-        patch, _ = _patch_existing(row, {"user_overrides": {}}, {}, "t", "name:x")
+        patch, _, _ = _patch_existing(row, {"user_overrides": {}}, {}, "t", "name:x")
         assert "company_phone" not in patch
 
     def test_invalid_phone_flows_to_validator(self, stub_event_log) -> None:
         row = {"company_phone": "555"}
-        patch, rej = _patch_existing(row, {"user_overrides": {}}, {}, "t", "name:x")
+        patch, rej, _ = _patch_existing(row, {"user_overrides": {}}, {}, "t", "name:x")
         assert rej == 1
         assert patch["company_phone"] is None
+
+
+# ---------------------------------------------------------------------------
+# 010 — multi-email gate + provenance
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineSourceFor:
+    def test_default_is_pipeline_scraper(self) -> None:
+        assert _pipeline_source_for({"company_name": "X"}) == "pipeline_scraper"
+
+    def test_hunter_marker(self) -> None:
+        row = {"_contact_email_source": "pipeline_hunter"}
+        assert _pipeline_source_for(row) == "pipeline_hunter"
+
+    def test_apollo_marker(self) -> None:
+        row = {"_contact_email_source": "pipeline_apollo"}
+        assert _pipeline_source_for(row) == "pipeline_apollo"
+
+    def test_unrecognized_marker_falls_back(self) -> None:
+        row = {"_contact_email_source": "manual_rep"}  # not a pipeline source
+        assert _pipeline_source_for(row) == "pipeline_scraper"
+
+
+class TestBuildInsertEmail010:
+    def test_pending_email_when_contact_email_present(self) -> None:
+        row = {
+            "company_name": "X",
+            "contact_email": "FOO@bar.com",
+            "_contact_email_source": "pipeline_hunter",
+        }
+        payload, _, pending = _build_insert(row, "name:x", {}, "t")
+        assert "contact_email" not in payload  # 010: scalar is trigger-mirrored
+        assert pending == {
+            "email": "FOO@bar.com",  # case preserved; lower() index handles dedupe
+            "source": "pipeline_hunter",
+            "is_primary": True,
+        }
+
+    def test_no_pending_email_when_contact_email_absent(self) -> None:
+        row = {"company_name": "X"}
+        _, _, pending = _build_insert(row, "name:x", {}, "t")
+        assert pending is None
+
+    def test_pending_email_default_source_is_scraper(self) -> None:
+        row = {"company_name": "X", "contact_email": "a@b.com"}
+        _, _, pending = _build_insert(row, "name:x", {}, "t")
+        assert pending is not None
+        assert pending["source"] == "pipeline_scraper"
+
+
+class TestPatchExistingEmailGate010:
+    def test_gate_skips_when_count_already_positive(self) -> None:
+        row = {
+            "contact_email": "new@x.com",
+            "_contact_email_source": "pipeline_apollo",
+        }
+        existing = {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "user_overrides": {},
+            "contact_email_count": 1,
+        }
+        _, _, pending = _patch_existing(row, existing, {}, "t", "name:test")
+        assert pending is None
+
+    def test_gate_emits_when_count_zero_and_email_present(self) -> None:
+        row = {
+            "contact_email": "fresh@x.com",
+            "_contact_email_source": "pipeline_hunter",
+        }
+        existing = {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "user_overrides": {},
+            "contact_email_count": 0,
+        }
+        _, _, pending = _patch_existing(row, existing, {}, "t", "name:test")
+        assert pending == {
+            "prospect_id": "00000000-0000-0000-0000-000000000002",
+            "email": "fresh@x.com",
+            "source": "pipeline_hunter",
+            "is_primary": True,
+        }
+
+    def test_gate_no_email_in_row_no_pending(self) -> None:
+        row = {"company_name": "X"}
+        existing = {
+            "id": "00000000-0000-0000-0000-000000000003",
+            "user_overrides": {},
+            "contact_email_count": 0,
+        }
+        _, _, pending = _patch_existing(row, existing, {}, "t", "name:x")
+        assert pending is None
+
+    def test_gate_treats_missing_count_as_zero(self) -> None:
+        # Defensive: a fetcher that doesn't include contact_email_count
+        # should not silently skip emails. Treat absence as 0.
+        row = {"contact_email": "a@b.com"}
+        existing = {"id": "abc", "user_overrides": {}}
+        _, _, pending = _patch_existing(row, existing, {}, "t", "name:x")
+        assert pending is not None
+        assert pending["email"] == "a@b.com"
+
+    def test_patch_excludes_contact_email_scalar(self) -> None:
+        row = {"contact_email": "no@scalar.com", "company_name": "X"}
+        existing = {
+            "id": "abc",
+            "user_overrides": {},
+            "contact_email_count": 0,
+        }
+        patch, _, _ = _patch_existing(row, existing, {}, "t", "name:x")
+        assert "contact_email" not in patch  # 010: never written directly

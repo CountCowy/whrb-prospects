@@ -121,7 +121,33 @@ function COLUMNS(opts?: {
     { key: 'company_phone', label: 'Company phone', defaultVisible: true, render: (p) => textCell(p.company_phone) },
     { key: 'contact_phone', label: 'Contact phone', defaultVisible: false, render: (p) => textCell(p.contact_phone) },
     { key: 'company_email', label: 'Company email', defaultVisible: true, render: (p) => textCell(p.company_email) },
-    { key: 'contact_email', label: 'Contact email', defaultVisible: false, render: (p) => textCell(p.contact_email) },
+    {
+      key: 'contact_email',
+      label: 'Contact email',
+      defaultVisible: true,
+      width: 'min-w-56',
+      render: (p) => {
+        if (!p.contact_email) {
+          return <span className="text-[hsl(var(--muted-foreground))]">—</span>;
+        }
+        const extra = Math.max(0, (p.contact_email_count ?? 1) - 1);
+        return (
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <span className="truncate">{p.contact_email}</span>
+            {extra > 0 ? (
+              <span
+                className="rounded bg-[hsl(var(--primary-soft))] px-1 text-[10px] font-medium text-[hsl(var(--primary))]"
+                title={`${extra} additional email${extra === 1 ? '' : 's'}`}
+                aria-label={`${extra} additional email${extra === 1 ? '' : 's'}`}
+                data-testid={`contact-email-extra-${p.id}`}
+              >
+                +{extra}
+              </span>
+            ) : null}
+          </span>
+        );
+      },
+    },
     {
       key: 'website',
       label: 'Website',

@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import type { Prospect } from '@/lib/queries/prospects';
+import type {
+  Prospect,
+  ProspectContactEmail,
+} from '@/lib/queries/prospects';
 import type { NoteView } from '@/components/NotesPanel';
 import type { ActivityEntry } from '@/lib/queries/activity';
 import type { ProspectTagView } from '@/lib/queries/prospect-tags';
@@ -13,6 +16,7 @@ import { TierBadge } from '@/components/TierBadge';
 import { StateBadge, STATE_ORDER } from '@/components/StateBadge';
 import { formatDateTime } from '@/lib/time';
 import { FieldEditor } from '@/components/FieldEditor';
+import { ContactEmailsEditor } from '@/components/ContactEmailsEditor';
 import { AssignPicker, type AssignProfile } from '@/components/AssignPicker';
 import { NotesPanel } from '@/components/NotesPanel';
 import { ActivityTab } from '@/components/ActivityTab';
@@ -35,13 +39,16 @@ type Tab = 'fields' | 'notes' | 'activity';
 
 // UI lock icons are rendered for these 15 fields... minus priority_score
 // (audit-tracked but intentionally no icon per §16.3 round-3 item 10).
+// `contact_email` was removed in 010 — it now lives in
+// prospect_contact_emails as a child table managed by ContactEmailsEditor;
+// the per-field lock no longer applies (the pipeline-skip-if-any-email gate
+// in supabase_sync.py provides equivalent protection).
 const LOCK_UI_FIELDS = new Set([
   'tier',
   'company_name',
   'company_phone',
   'company_email',
   'contact_name',
-  'contact_email',
   'contact_phone',
   'website',
   'is_nonprofit',
@@ -68,6 +75,7 @@ export type ProspectDetailProps = {
   currentUser: { id: string; email: string; display_name: string | null };
   isAdmin: boolean;
   initialTags: ProspectTagView[];
+  initialContactEmails: ProspectContactEmail[];
   vocab: VocabRow[];
 };
 
@@ -81,6 +89,7 @@ export function ProspectDetail({
   currentUser,
   isAdmin,
   initialTags,
+  initialContactEmails,
   vocab,
 }: ProspectDetailProps) {
   const router = useRouter();
@@ -389,16 +398,11 @@ export function ProspectDetail({
               showLockIcon={LOCK_UI_FIELDS.has('contact_phone')}
               onSaved={refresh}
             />
-            <FieldEditor
+            <ContactEmailsEditor
               prospectId={prospect.id}
-              field="contact_email"
-              label="Contact email"
-              value={prospect.contact_email}
-              inputType="email"
-              editable={editable}
-              locked={isFieldLocked(overrides, 'contact_email')}
-              showLockIcon={LOCK_UI_FIELDS.has('contact_email')}
-              onSaved={refresh}
+              initialEmails={initialContactEmails}
+              canEdit={editable}
+              onChanged={refresh}
             />
             <FieldEditor
               prospectId={prospect.id}

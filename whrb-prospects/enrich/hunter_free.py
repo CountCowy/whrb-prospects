@@ -65,9 +65,17 @@ def enrich_rows(rows: list[dict], budget: int = 25) -> None:
         res = domain_search(domain)
         spent += 1
         if res:
+            # Capture whether this enricher is the one that fills contact_email
+            # so supabase_sync can stamp the per-source provenance on the
+            # prospect_contact_emails row (010).
+            sets_contact_email = (
+                bool(res.get("contact_email")) and not row.get("contact_email")
+            )
             for k, v in res.items():
                 if v and not row.get(k):
                     row[k] = v
+            if sets_contact_email:
+                row["_contact_email_source"] = "pipeline_hunter"
             row.setdefault("pipeline_notes", "")
             row["pipeline_notes"] += " hunter;"
     print(f"[hunter] used {spent}/{budget}")

@@ -31,7 +31,11 @@ const DEFAULT_COLUMNS: ExportColumn[] = [
   { key: 'tier', header: 'Tier' },
   { key: 'state', header: 'State' },
   { key: 'contact_name', header: 'Contact name' },
+  // contact_email is the primary email (denormalized cache from
+  // prospect_contact_emails; 010). All emails are available via the
+  // optional contact_emails_all column when ?include_all_emails=1 is set.
   { key: 'contact_email', header: 'Contact email' },
+  { key: 'contact_emails_all', header: 'Contact emails (all)' },
   { key: 'contact_phone', header: 'Contact phone' },
   { key: 'company_email', header: 'Company email' },
   { key: 'company_phone', header: 'Company phone' },
@@ -209,6 +213,36 @@ export async function GET(req: Request) {
     }
   }
 
+  // Optional all-emails column. The default behaviour (?include_all_emails
+  // unset) emits an empty string for parity with the pre-010 export shape.
+  // ?include_all_emails=1 batches a single SELECT against
+  // prospect_contact_emails, buckets by prospect_id, sorts primary first,
+  // and joins with `; `. (010)
+  const allEmailsByProspect = new Map<string, string>();
+  if (
+    url.searchParams.get('include_all_emails') === '1' &&
+    prospectIds.length > 0
+  ) {
+    const { data: emailRows, error: emailErr } = await supabase
+      .from('prospect_contact_emails')
+      .select('prospect_id,email,is_primary,added_at')
+      .in('prospect_id', prospectIds)
+      .order('is_primary', { ascending: false })
+      .order('added_at', { ascending: true });
+    if (emailErr) {
+      return NextResponse.json({ error: emailErr.message }, { status: 500 });
+    }
+    const buckets = new Map<string, string[]>();
+    for (const row of emailRows ?? []) {
+      const pid = row.prospect_id as string;
+      if (!buckets.has(pid)) buckets.set(pid, []);
+      buckets.get(pid)!.push(row.email as string);
+    }
+    for (const [pid, list] of buckets) {
+      allEmailsByProspect.set(pid, list.join('; '));
+    }
+  }
+
   const decorated = rows.map((r) => {
     const bag = tagsByProspect.get(r.id as string);
     const tagCols: Record<string, string> = {};
@@ -219,6 +253,7 @@ export async function GET(req: Request) {
     return {
       ...r,
       ...tagCols,
+      contact_emails_all: allEmailsByProspect.get(r.id as string) ?? '',
       assigned_to: r.assigned_to ? labels.get(r.assigned_to as string) ?? r.assigned_to : null,
     };
   });
