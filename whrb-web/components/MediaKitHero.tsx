@@ -1,5 +1,6 @@
 import { MEDIA_KIT_PDF_FILENAME, MEDIA_KIT_STATS } from '@/config/rate-card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 
 /**
  * Media-kit hero — title, year badge, listener-stats strip, and the
@@ -56,29 +57,29 @@ export function MediaKitHero() {
       </dl>
 
       <div>
-        <a
-          href={`/${MEDIA_KIT_PDF_FILENAME}`}
-          download
-          data-testid="media-kit-download"
-          className="inline-flex items-center gap-2 rounded-md bg-[hsl(var(--primary))] px-4 py-2 text-sm font-medium text-[hsl(var(--primary-foreground))] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]"
-        >
-          <svg
-            aria-hidden="true"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <Button asChild data-testid="media-kit-download-wrapper">
+          <a
+            href={`/${MEDIA_KIT_PDF_FILENAME}`}
+            download
+            data-testid="media-kit-download"
+            className="gap-2"
           >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          Download print PDF
-        </a>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download print PDF
+          </a>
+        </Button>
         <p className="mt-2 text-xs text-[hsl(var(--muted-foreground))]">
           Updated {MEDIA_KIT_STATS.lastUpdated}.
         </p>

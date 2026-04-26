@@ -8,6 +8,7 @@ import { FeedbackWidget } from '@/components/FeedbackWidget';
 import { FeedbackHistory } from '@/components/FeedbackHistory';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { formatInTz, formatRelative, TIMEZONE } from '@/lib/time';
 
@@ -205,20 +206,48 @@ export default async function HomePage() {
           // on the inner Card is a no-op because Card is not a direct grid
           // item. Link (or the fallback div) IS the direct child.
           const spanClass = hero ? 'sm:col-span-2 sm:row-span-2 lg:col-span-2' : '';
-          return href ? (
-            <Link
-              key={label}
-              href={href}
-              title={tooltip}
-              className={cn(
-                'block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]',
-                spanClass,
-              )}
-            >
-              {content}
-            </Link>
-          ) : (
-            <div key={label} title={tooltip} className={spanClass}>
+          if (href) {
+            return (
+              <Link
+                key={label}
+                href={href}
+                title={tooltip}
+                className={cn(
+                  'block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]',
+                  spanClass,
+                )}
+              >
+                {content}
+              </Link>
+            );
+          }
+          // No-href tile. If a tooltip is provided, wrap in Radix Tooltip
+          // so keyboard + screen-reader users can reach the explanation;
+          // a native title= on a non-focusable <div> would only surface
+          // on hover.
+          if (tooltip) {
+            return (
+              <Tooltip key={label}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`${label} (${tooltip})`}
+                    className={cn(
+                      'block w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]',
+                      spanClass,
+                    )}
+                  >
+                    {content}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  {tooltip}
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+          return (
+            <div key={label} className={spanClass}>
               {content}
             </div>
           );

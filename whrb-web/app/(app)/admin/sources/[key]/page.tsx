@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
 import { SourceLifecycleButton } from '@/components/admin/SourceLifecycleButton';
+import { SourceStatusBadge } from '@/components/admin/SourceStatusBadge';
 import {
   listSourceMetrics,
   listSourceSampleRows,
-  type SourceStatus,
 } from '@/lib/queries/sources';
 import { createClient } from '@/lib/supabase/server';
 import { formatDateTime } from '@/lib/time';
@@ -14,22 +13,6 @@ export const dynamic = 'force-dynamic';
 
 function pct(n: number): string {
   return `${(n * 100).toFixed(1)}%`;
-}
-
-function StatusBadge({ status }: { status: SourceStatus }) {
-  const variant =
-    status === 'active'
-      ? 'default'
-      : status === 'sunset_proposed'
-        ? 'outline'
-        : status === 'sunset'
-          ? 'secondary'
-          : 'destructive';
-  return (
-    <Badge variant={variant} data-testid="source-status-badge" data-status={status}>
-      {status}
-    </Badge>
-  );
 }
 
 export default async function AdminSourceDetailPage({
@@ -76,7 +59,7 @@ export default async function AdminSourceDetailPage({
         </div>
         {metric ? (
           <>
-            <StatusBadge status={metric.status} />
+            <SourceStatusBadge status={metric.status} />
             <SourceLifecycleButton
               sourceKey={metric.source_key}
               status={metric.status}

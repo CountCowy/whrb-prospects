@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { SourceToggle } from '@/components/admin/SourceToggle';
 import { SourceLifecycleButton } from '@/components/admin/SourceLifecycleButton';
+import { SourceStatusBadge } from '@/components/admin/SourceStatusBadge';
 import {
   listSourceMetrics,
   listReviewCandidates,
@@ -14,30 +14,6 @@ export const dynamic = 'force-dynamic';
 
 function pct(n: number): string {
   return `${(n * 100).toFixed(0)}%`;
-}
-
-function StatusBadge({ status }: { status: SourceStatus }) {
-  const variant =
-    status === 'active'
-      ? 'default'
-      : status === 'sunset_proposed'
-        ? 'outline'
-        : status === 'sunset'
-          ? 'secondary'
-          : 'destructive';
-  const label =
-    status === 'active'
-      ? 'Active'
-      : status === 'sunset_proposed'
-        ? 'Sunset proposed'
-        : status === 'sunset'
-          ? 'Sunset'
-          : 'Archived';
-  return (
-    <Badge variant={variant} data-testid="source-status-badge" data-status={status}>
-      {label}
-    </Badge>
-  );
 }
 
 /**
@@ -181,7 +157,7 @@ export default async function AdminSourcesPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={row.status} />
+                        <SourceStatusBadge status={row.status} />
                       </td>
                       <td className="px-4 py-3">
                         <SourceToggle
@@ -268,7 +244,7 @@ export default async function AdminSourcesPage() {
                       >
                         {c.source_key}
                       </Link>
-                      <StatusBadge status={c.status} />
+                      <SourceStatusBadge status={c.status} />
                       <span className="ml-auto text-[11px] text-[hsl(var(--muted-foreground))]">
                         {pct(c.close_rate)} close · {pct(c.searched_rate)} searched
                       </span>
