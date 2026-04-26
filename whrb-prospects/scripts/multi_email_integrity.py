@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -191,7 +190,11 @@ def _scenario_walk(conn) -> list[T]:
     persists. Each step asserts the integrity invariants from section I."""
     results: list[T] = []
 
-    with conn:  # outer transaction
+    # Two-level `with` here is intentional: psycopg2 conn-as-context-manager
+    # commits/rolls-back the outer transaction at exit; cursor-as-context-manager
+    # closes the cursor. Combining them works at runtime but obscures the
+    # commit semantics — keep them separate. (ruff SIM117 noqa)
+    with conn:  # noqa: SIM117
         with conn.cursor() as cur:
             pid = _plant_prospect(cur)
 

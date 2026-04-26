@@ -1,5 +1,5 @@
 /**
- * Multi-email per prospect — UI smoke (010).
+ * Multi-email per prospect — UI smoke (010). Local-dev only.
  *
  * Walks the rep workflow against a freshly-planted fixture prospect:
  *   K1  add first email → primary, count=1, table cell shows it
@@ -9,10 +9,16 @@
  *   K5  delete last email → cell shows "—"
  *
  * Self-contained: creates the fixture via service-role in beforeAll, tears
- * it down in afterAll. Skips when service-role creds aren't available.
+ * it down in afterAll.
  *
- * Companion DB-level coverage: whrb-prospects/scripts/multi_email_integrity.py
- * walks the same scenarios via psycopg2; 16/16 green is the gating signal.
+ * Skipped on CI because the fixture is assigned to the shared synthetic
+ * e2e user (so the rep can edit it as the assignee). With Playwright's
+ * `fullyParallel: true`, that pollutes the user's "assigned" state during
+ * the run window, which breaks stage6/my-clients' empty-state assertion
+ * in another worker. The DB-level integrity test
+ * (whrb-prospects/scripts/multi_email_integrity.py) walks the same K1-K5
+ * scenarios via psycopg2 and is the canonical correctness signal; this
+ * spec exists to sanity-check the UI surface during local development.
  */
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
@@ -39,6 +45,10 @@ let prospectId: string | null = null;
 
 test.describe('multi-email contact-emails editor (010)', () => {
   test.skip(!credsAvailable, 'service-role creds not in env');
+  test.skip(
+    Boolean(process.env.CI),
+    "skipped on CI: fixture pollutes the shared e2e user's assigned state during parallel runs and breaks stage6/my-clients. DB-level coverage in scripts/multi_email_integrity.py is the canonical signal.",
+  );
 
   test.beforeAll(async () => {
     service = createClient(supabaseUrl, serviceKey, {
@@ -106,10 +116,11 @@ test.describe('multi-email contact-emails editor (010)', () => {
     await expect(fooRow).toHaveCount(1);
     await expect(fooRow).toHaveAttribute('data-primary', 'true');
 
-    // Navigate to all prospects and assert the primary email is rendered
-    // somewhere on the page (the contact_email column is default-visible
-    // post-010 so the value is in the table).
-    await page.goto('/prospects');
+    // Navigate to all prospects with a search filter so the fixture row
+    // surfaces on page 1 regardless of priority_score sort. The
+    // contact_email column is default-visible post-010 so the value
+    // renders in the table cell.
+    await page.goto('/prospects?q=Multi-email+e2e+fixture');
     await expect(page.getByText('foo@a.com', { exact: false })).toBeVisible({
       timeout: 15_000,
     });
@@ -133,7 +144,7 @@ test.describe('multi-email contact-emails editor (010)', () => {
     ).toHaveAttribute('data-primary', 'true');
 
     // Table cell: primary still foo@a.com plus a "+1" badge.
-    await page.goto('/prospects');
+    await page.goto('/prospects?q=Multi-email+e2e+fixture');
     await expect(
       page.getByTestId(`contact-email-extra-${prospectId}`),
     ).toContainText('+1', { timeout: 15_000 });
