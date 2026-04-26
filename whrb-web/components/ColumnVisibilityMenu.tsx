@@ -13,7 +13,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-export const COLUMN_VISIBILITY_KEY = 'prospectTable.visibleColumns.v1';
+// v2 (010): bumped so users with v1 prefs that excluded `contact_email`
+// (it used to be defaultVisible: false) get the new default-visible
+// multi-email column on first post-deploy load. They can re-customize
+// from there. Old v1 data is left in localStorage and never read again.
+export const COLUMN_VISIBILITY_KEY = 'prospectTable.visibleColumns.v2';
 
 export type ColumnDef = { key: string; label: string; defaultVisible?: boolean };
 

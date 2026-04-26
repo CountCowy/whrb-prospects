@@ -1,5 +1,8 @@
 import { notFound } from 'next/navigation';
-import { getProspect } from '@/lib/queries/prospects';
+import {
+  getProspect,
+  listProspectContactEmails,
+} from '@/lib/queries/prospects';
 import { listNotesForProspect } from '@/lib/queries/notes';
 import { listActivityForProspect } from '@/lib/queries/activity';
 import { listProfilesWithCounts, getProfile } from '@/lib/queries/profiles';
@@ -27,11 +30,19 @@ export default async function ProspectDetailPage({
   const me = await getProfile(user.id);
   const isAdmin = me?.role === 'admin';
 
-  const [notes, activity, profiles, initialTags, vocab] = await Promise.all([
+  const [
+    notes,
+    activity,
+    profiles,
+    initialTags,
+    initialContactEmails,
+    vocab,
+  ] = await Promise.all([
     listNotesForProspect(id, { includeDeleted: Boolean(isAdmin) }),
     listActivityForProspect(id, { includeDeletedNoteHistory: Boolean(isAdmin) }),
     listProfilesWithCounts(),
     getTagsForProspect(id),
+    listProspectContactEmails(id),
     listVocab(),
   ]);
 
@@ -58,6 +69,7 @@ export default async function ProspectDetailPage({
       }}
       isAdmin={Boolean(isAdmin)}
       initialTags={initialTags}
+      initialContactEmails={initialContactEmails}
       vocab={vocab}
     />
   );

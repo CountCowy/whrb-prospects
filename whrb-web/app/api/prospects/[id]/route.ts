@@ -22,13 +22,14 @@ const IMMUTABLE = new Set([
 
 // Fields that are user-editable through the detail page. Non-admin
 // non-assignee users are blocked at the API layer (and by the DB trigger).
+// `contact_email` is intentionally NOT in this set — it is now managed
+// via the multi-email API at /api/prospects/[id]/contact-emails (010).
 const EDITABLE = new Set([
   'tier',
   'company_name',
   'company_phone',
   'company_email',
   'contact_name',
-  'contact_email',
   'contact_phone',
   'contact_title',
   'contact_linkedin',
@@ -49,13 +50,16 @@ const EDITABLE = new Set([
 ]);
 
 // Fields whose edit counts as a lock (records into user_overrides).
+// `contact_email` was removed in 010 — the new pipeline-skip-if-any-email
+// gate (whrb-prospects/db/supabase_sync.py) provides equivalent
+// protection, and the per-field lock semantics no longer fit a child
+// table where reps add/delete rows individually.
 const LOCK_ON_EDIT = new Set([
   'tier',
   'company_name',
   'company_phone',
   'company_email',
   'contact_name',
-  'contact_email',
   'contact_phone',
   'website',
   'address',
@@ -156,6 +160,15 @@ export async function PATCH(
   }
 
   if (unlock) {
+    if (unlock === 'contact_email') {
+      return NextResponse.json(
+        {
+          error:
+            'contact_email is no longer field-locked; manage emails via /api/prospects/[id]/contact-emails.',
+        },
+        { status: 400 },
+      );
+    }
     if (!(unlock in overrides)) {
       return NextResponse.json(
         { error: `Field "${unlock}" is not currently locked.` },

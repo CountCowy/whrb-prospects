@@ -54,6 +54,13 @@ load_dotenv(_WHRB_PROSPECTS / ".env")
 # 20 CSV columns minus `priority_score` (authoritative-from-pipeline but
 # separately handled below). The DB column rename `notes` -> `pipeline_notes`
 # already happened as pre-Stage-2 prep.
+#
+# `contact_email` was removed in 010 — it now lives in
+# `prospect_contact_emails` as a child table. The pipeline NEVER writes to
+# `prospects.contact_email` directly (the guard trigger on that column
+# would block it); instead it inserts into the join table, and the AFTER
+# trigger mirrors the primary email back to the scalar inside the same
+# transaction.
 SCRAPED_FIELDS = (
     "company_name",
     "website",
@@ -62,7 +69,6 @@ SCRAPED_FIELDS = (
     "sales_email",
     "contact_name",
     "contact_title",
-    "contact_email",
     "contact_phone",
     "contact_linkedin",
     "address",
@@ -78,6 +84,28 @@ SCRAPED_FIELDS = (
     "nonprofit_source",
     "ein",
 )
+
+# 010: per-source provenance for prospect_contact_emails inserts. Each
+# enrich/* module sets ``row["_contact_email_source"]`` to one of these
+# values when it fills contact_email; absence falls back to
+# 'pipeline_scraper'.
+VALID_EMAIL_SOURCES = (
+    "pipeline_hunter",
+    "pipeline_apollo",
+    "pipeline_scraper",
+)
+
+
+def _pipeline_source_for(row: dict) -> str:
+    """Resolve the row's contact-email provenance for the join-table insert.
+
+    Defaults to 'pipeline_scraper' when no marker is present (e.g. emails
+    that came in directly on a CSV source rather than via enrich/*).
+    """
+    src = row.get("_contact_email_source")
+    if src in VALID_EMAIL_SOURCES:
+        return src  # type: ignore[return-value]
+    return "pipeline_scraper"
 
 # Composite locks: when the key field on the left is locked via
 # ``user_overrides``, ALL fields on the right are also skipped at patch time.
@@ -193,10 +221,14 @@ def _apply_field_validators(payload: dict[str, Any], bk: str) -> int:
     return rejections
 
 
-def _build_insert(row: dict, bk: str, alt: dict, now_iso: str) -> tuple[dict, int]:
+def _build_insert(
+    row: dict, bk: str, alt: dict, now_iso: str
+) -> tuple[dict, int, dict | None]:
     """Full payload for a new row (no existing record to merge against).
 
-    Returns ``(payload, validation_rejections)``.
+    Returns ``(payload, validation_rejections, pending_email_or_none)``.
+    The ``pending_email`` dict (when non-None) is missing ``prospect_id``;
+    the caller fills it in after the prospect insert returns the new id.
     """
     payload: dict[str, Any] = {"business_key": bk, "created_source": "pipeline"}
     for f in SCRAPED_FIELDS:
@@ -213,12 +245,24 @@ def _build_insert(row: dict, bk: str, alt: dict, now_iso: str) -> tuple[dict, in
     payload["alt_fields"] = {k: _coerce(v) for k, v in alt.items() if _coerce(v) is not None}
     payload["pipeline_last_seen_at"] = now_iso
     rejections = _apply_field_validators(payload, bk)
-    return payload, rejections
+
+    # 010: capture contact_email separately for the join-table insert.
+    # Pipeline never writes prospects.contact_email directly — the AFTER
+    # trigger on prospect_contact_emails mirrors the primary email back.
+    contact_email = _coerce(row.get("contact_email"))
+    pending_email: dict | None = None
+    if contact_email:
+        pending_email = {
+            "email": contact_email,
+            "source": _pipeline_source_for(row),
+            "is_primary": True,
+        }
+    return payload, rejections, pending_email
 
 
 def _patch_existing(
     row: dict, existing: dict, alt: dict, now_iso: str, bk: str
-) -> tuple[dict, int]:
+) -> tuple[dict, int, dict | None]:
     """Build a PATCH payload for an existing row.
 
     * Fields present in ``existing.user_overrides`` are skipped (locked).
@@ -228,7 +272,10 @@ def _patch_existing(
     * ``alt_fields`` is always replaced with the latest dedupe snapshot.
     * ``pipeline_last_seen_at`` is touched server-side via an ISO timestamp.
 
-    Returns ``(patch, validation_rejections)``.
+    Returns ``(patch, validation_rejections, pending_email_or_none)``.
+    The pending email is None when the prospect already has any contact
+    email (010 gate: pipeline never adds an email to a prospect with
+    contact_email_count > 0).
     """
     locks = existing.get("user_overrides") or {}
     # Expand composite locks (e.g. is_nonprofit locks nonprofit_source + ein).
@@ -255,7 +302,20 @@ def _patch_existing(
     patch["alt_fields"] = {k: _coerce(v) for k, v in alt.items() if _coerce(v) is not None}
     patch["pipeline_last_seen_at"] = now_iso
     rejections = _apply_field_validators(patch, bk)
-    return patch, rejections
+
+    # 010 gate: never add an email when the prospect already has any.
+    has_any_email = (existing.get("contact_email_count") or 0) > 0
+    pending_email: dict | None = None
+    if not has_any_email:
+        contact_email = _coerce(row.get("contact_email"))
+        if contact_email:
+            pending_email = {
+                "prospect_id": existing["id"],
+                "email": contact_email,
+                "source": _pipeline_source_for(row),
+                "is_primary": True,
+            }
+    return patch, rejections, pending_email
 
 
 def seed_source_config(client=None) -> None:
@@ -300,13 +360,17 @@ def read_enabled_sources(client=None) -> set[str]:
 
 
 def _fetch_existing(client, keys: list[str]) -> dict[str, dict]:
-    """Bulk-fetch existing rows keyed by ``business_key``."""
+    """Bulk-fetch existing rows keyed by ``business_key``.
+
+    Selects ``contact_email_count`` (010) so the patch helper can apply
+    the "skip email enrichment when count > 0" gate.
+    """
     out: dict[str, dict] = {}
     for i in range(0, len(keys), 500):
         chunk = keys[i : i + 500]
         res = (
             client.table("prospects")
-            .select("id,business_key,user_overrides")
+            .select("id,business_key,user_overrides,contact_email_count")
             .in_("business_key", chunk)
             .execute()
         )
@@ -335,6 +399,22 @@ def _patch_one(client, prospect_id: str, patch: dict) -> None:
     client.table("prospects").update(patch).eq("id", prospect_id).execute()
 
 
+@retry(
+    stop=stop_after_attempt(SUPABASE_RETRY_MAX_ATTEMPTS),
+    wait=wait_exponential(min=SUPABASE_RETRY_MIN_S, max=SUPABASE_RETRY_MAX_S),
+    retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+    reraise=True,
+)
+def _insert_emails_batch(client, batch: list[dict]) -> None:
+    """Batch-insert prospect_contact_emails rows (010).
+
+    Each row carries (prospect_id, email, source, is_primary=true). The
+    AFTER trigger mirrors the primary email back to ``prospects.contact_email``
+    and bumps ``prospects.contact_email_count`` per insert.
+    """
+    client.table("prospect_contact_emails").insert(batch).execute()
+
+
 def sync(rows: Iterable[dict]) -> dict:
     """Upsert ``rows`` into ``public.prospects``.
 
@@ -350,6 +430,13 @@ def sync(rows: Iterable[dict]) -> dict:
         "skipped": 0,
         "failed": 0,
         "validation_warnings": 0,
+        # 010: count of prospect_contact_emails rows successfully inserted
+        # by the pipeline this run. Failed inserts are counted under
+        # `email_failed`; rows skipped because the prospect already had a
+        # contact email are counted under `email_skipped`.
+        "emails_inserted": 0,
+        "email_failed": 0,
+        "email_skipped": 0,
         "total": 0,
     }
 
@@ -380,21 +467,34 @@ def sync(rows: Iterable[dict]) -> dict:
     existing = _fetch_existing(client, [bk for bk, _, _ in prepared])
     now_iso = _utcnow_iso()
 
-    # Split into insert and update buckets
+    # Split into insert and update buckets. 010: pending email inserts are
+    # collected and applied after the prospects bucket lands so we have
+    # IDs for new prospects.
     to_insert: list[dict] = []
+    new_pending_emails: list[tuple[str, dict]] = []  # (business_key, email_row)
     to_update: list[tuple[str, dict]] = []  # (prospect_id, patch)
+    existing_pending_emails: list[dict] = []  # already carries prospect_id
     for bk, base, alt in prepared:
         if bk in existing:
-            patch, rejections = _patch_existing(base, existing[bk], alt, now_iso, bk)
+            patch, rejections, email_row = _patch_existing(
+                base, existing[bk], alt, now_iso, bk
+            )
             summary["validation_warnings"] += rejections
             if patch:
                 to_update.append((existing[bk]["id"], patch))
             else:
                 summary["skipped"] += 1
+            if email_row:
+                existing_pending_emails.append(email_row)
+            elif _coerce(base.get("contact_email")):
+                # The prospect already has any email — pipeline gate skipped.
+                summary["email_skipped"] += 1
         else:
-            payload, rejections = _build_insert(base, bk, alt, now_iso)
+            payload, rejections, email_row = _build_insert(base, bk, alt, now_iso)
             summary["validation_warnings"] += rejections
             to_insert.append(payload)
+            if email_row:
+                new_pending_emails.append((bk, email_row))
 
     # ---- Inserts (batched) ----
     for i in range(0, len(to_insert), BATCH_SIZE):
@@ -431,6 +531,46 @@ def sync(rows: Iterable[dict]) -> dict:
                     "exception": type(e).__name__,
                     "detail": str(e)[:500],
                     "op": "update",
+                },
+            )
+
+    # ---- Email inserts (010) ------------------------------------------ #
+    # Resolve newly-inserted prospect IDs by business_key, then attach to
+    # the email rows. Existing-prospect email rows already have prospect_id.
+    final_email_inserts: list[dict] = list(existing_pending_emails)
+    if new_pending_emails:
+        new_keys = [bk for bk, _ in new_pending_emails]
+        new_id_by_bk = _fetch_prospect_ids_for_keys(client, new_keys)
+        for bk, email_row in new_pending_emails:
+            pid = new_id_by_bk.get(bk)
+            if pid:
+                final_email_inserts.append({**email_row, "prospect_id": pid})
+            else:
+                # The prospect insert failed (or was deduped to an
+                # existing row that we somehow didn't see). Log and skip;
+                # the next pipeline run will retry against the existing
+                # prospect via the patch path.
+                summary["email_failed"] += 1
+                event_log.warn(
+                    "supabase_email_insert",
+                    "could not resolve prospect_id for new prospect's email",
+                    context={"business_key": bk, "email": email_row.get("email")},
+                )
+
+    for i in range(0, len(final_email_inserts), BATCH_SIZE):
+        batch = final_email_inserts[i : i + BATCH_SIZE]
+        try:
+            _insert_emails_batch(client, batch)
+            summary["emails_inserted"] += len(batch)
+        except Exception as e:
+            summary["email_failed"] += len(batch)
+            event_log.error(
+                "supabase_email_insert",
+                f"contact-email batch failed after retries: {type(e).__name__}: {e}",
+                context={
+                    "batch_size": len(batch),
+                    "exception": type(e).__name__,
+                    "detail": str(e)[:500],
                 },
             )
 

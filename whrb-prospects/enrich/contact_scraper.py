@@ -164,9 +164,15 @@ async def _enrich_async(rows: list[dict]) -> None:
                 if isinstance(res, Exception) or not res:
                     continue
                 row = rows[idx]
+                sets_contact_email = (
+                    bool(res.get("contact_email"))
+                    and not row.get("contact_email")
+                )
                 for k, v in res.items():
                     if v and not row.get(k):
                         row[k] = v
+                if sets_contact_email:
+                    row["_contact_email_source"] = "pipeline_scraper"
             done = end
             print(f"[contact_scraper] {done}/{total}")
 

@@ -75,9 +75,14 @@ def enrich_rows(rows: list[dict], budget: int = 100) -> None:
         res = find_decision_maker(domain)
         spent += 1
         if res:
+            sets_contact_email = (
+                bool(res.get("contact_email")) and not row.get("contact_email")
+            )
             for k, v in res.items():
                 if v and not row.get(k):
                     row[k] = v
+            if sets_contact_email:
+                row["_contact_email_source"] = "pipeline_apollo"
             row.setdefault("pipeline_notes", "")
             row["pipeline_notes"] += " apollo;"
     print(f"[apollo] used {spent}/{budget}")

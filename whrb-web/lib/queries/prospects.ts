@@ -17,6 +17,7 @@ export const PROSPECT_COLUMNS = [
   'contact_phone',
   'company_email',
   'contact_email',
+  'contact_email_count',
   'website',
   'category',
   'source',
@@ -46,6 +47,10 @@ export type Prospect = {
   contact_phone: string | null;
   company_email: string | null;
   contact_email: string | null;
+  // Maintained by sync_prospect_primary_email AFTER trigger on
+  // prospect_contact_emails (010). Always equals the row count for this
+  // prospect on the join table.
+  contact_email_count: number;
   website: string | null;
   category: string | null;
   source: string | null;
@@ -218,6 +223,41 @@ export async function getProspect(id: string): Promise<Prospect | null> {
     .maybeSingle();
   if (error) throw error;
   return (data ?? null) as Prospect | null;
+}
+
+export type ProspectContactEmailSource =
+  | 'pipeline_hunter'
+  | 'pipeline_apollo'
+  | 'pipeline_scraper'
+  | 'manual_rep'
+  | 'legacy_scalar';
+
+export type ProspectContactEmail = {
+  id: string;
+  prospect_id: string;
+  email: string;
+  source: ProspectContactEmailSource;
+  is_primary: boolean;
+  added_by: string | null;
+  added_at: string;
+  updated_at: string;
+};
+
+const PROSPECT_CONTACT_EMAIL_COLUMNS =
+  'id,prospect_id,email,source,is_primary,added_by,added_at,updated_at';
+
+export async function listProspectContactEmails(
+  prospectId: string,
+): Promise<ProspectContactEmail[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('prospect_contact_emails')
+    .select(PROSPECT_CONTACT_EMAIL_COLUMNS)
+    .eq('prospect_id', prospectId)
+    .order('is_primary', { ascending: false })
+    .order('added_at', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as unknown as ProspectContactEmail[];
 }
 
 export type HomeStats = {
