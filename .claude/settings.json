@@ -30,6 +30,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/kill-dev-server.sh",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   },
   "env": {

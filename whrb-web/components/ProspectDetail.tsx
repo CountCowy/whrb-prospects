@@ -2,10 +2,13 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
+import { toast } from 'sonner';
 import type { Prospect } from '@/lib/queries/prospects';
 import type { NoteView } from '@/components/NotesPanel';
 import type { ActivityEntry } from '@/lib/queries/activity';
+import type { ProspectTagView } from '@/lib/queries/prospect-tags';
+import type { VocabRow } from '@/lib/queries/vocab';
 import { TierBadge } from '@/components/TierBadge';
 import { StateBadge, STATE_ORDER } from '@/components/StateBadge';
 import { formatDateTime } from '@/lib/time';
@@ -14,6 +17,8 @@ import { AssignPicker, type AssignProfile } from '@/components/AssignPicker';
 import { NotesPanel } from '@/components/NotesPanel';
 import { ActivityTab } from '@/components/ActivityTab';
 import { PresenceChips } from '@/components/PresenceChips';
+import { TagChips } from '@/components/TagChips';
+import { TagAddDialog } from '@/components/TagAddDialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -23,6 +28,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
+import { createClient as createBrowserClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
 type Tab = 'fields' | 'notes' | 'activity';
@@ -61,6 +67,8 @@ export type ProspectDetailProps = {
   currentUserId: string;
   currentUser: { id: string; email: string; display_name: string | null };
   isAdmin: boolean;
+  initialTags: ProspectTagView[];
+  vocab: VocabRow[];
 };
 
 export function ProspectDetail({
@@ -72,10 +80,46 @@ export function ProspectDetail({
   currentUserId,
   currentUser,
   isAdmin,
+  initialTags,
+  vocab,
 }: ProspectDetailProps) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('fields');
   const [, startTransition] = useTransition();
+  const [tags, setTags] = useState<ProspectTagView[]>(initialTags);
+
+  // Live-update tags whenever the row table changes for this prospect.
+  // Uses Supabase Realtime so two reps editing the same prospect see
+  // each other's chip changes within ~2s (T14).
+  useEffect(() => {
+    const supabase = createBrowserClient();
+    const channel = supabase
+      .channel(`prospect_tags:${prospect.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'prospect_tags',
+          filter: `prospect_id=eq.${prospect.id}`,
+        },
+        async () => {
+          const res = await fetch(`/api/prospects/${prospect.id}/tags`);
+          if (res.ok) {
+            const fresh = (await res.json()) as ProspectTagView[];
+            setTags(fresh);
+          } else {
+            // Fallback: hard refresh if we can't fetch incrementally.
+            startTransition(() => router.refresh());
+          }
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prospect.id]);
 
   const overrides = prospect.user_overrides as Record<string, unknown> | null | undefined;
   const editable = useMemo(() => {
@@ -83,6 +127,31 @@ export function ProspectDetail({
   }, [isAdmin, prospect.assigned_to, currentUserId]);
 
   const refresh = () => startTransition(() => router.refresh());
+
+  async function refetchTags() {
+    const res = await fetch(`/api/prospects/${prospect.id}/tags`);
+    if (res.ok) setTags((await res.json()) as ProspectTagView[]);
+  }
+
+  async function handleUndoDelete(snapshot: {
+    tagRowId: string;
+    tagId: string;
+    prospectId: string;
+    lockedBy: string | null;
+  }) {
+    const res = await fetch(`/api/prospects/${snapshot.prospectId}/tags`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ tag_id: snapshot.tagId, locked_by: snapshot.lockedBy }),
+    });
+    if (!res.ok) {
+      const j = await res.json().catch(() => ({}));
+      toast.error(j.error ?? `HTTP ${res.status}`);
+      return;
+    }
+    toast.success('Tag restored.');
+    void refetchTags();
+  }
 
   const assigneeProfile: AssignProfile | null = prospect.assignee
     ? {
@@ -138,6 +207,34 @@ export function ProspectDetail({
             current={prospect.state}
             editable={editable}
             onChanged={refresh}
+          />
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-[var(--shadow-sm)]" data-testid="tags-panel">
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-base font-semibold tracking-tight">
+              Tags
+            </CardTitle>
+            <TagAddDialog
+              prospectId={prospect.id}
+              vocab={vocab}
+              existingTagIds={tags.map((t) => t.tag_id)}
+              onAdded={() => void refetchTags()}
+            />
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <TagChips
+            prospectId={prospect.id}
+            tags={tags}
+            mode="full"
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            interactive
+            onChanged={() => void refetchTags()}
+            onUndoDelete={handleUndoDelete}
           />
         </CardContent>
       </Card>
@@ -401,6 +498,9 @@ export function ProspectDetail({
             entries={activity}
             profiles={profileLabels}
             isAdmin={isAdmin}
+            currentUserId={currentUserId}
+            prospectId={prospect.id}
+            onChanged={() => void refetchTags()}
           />
         </TabsContent>
       </Tabs>

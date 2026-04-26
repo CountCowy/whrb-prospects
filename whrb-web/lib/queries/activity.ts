@@ -17,6 +17,17 @@ const PROSPECT_CATEGORIES = [
   'prospect_field_change',
   'prospect_state_change',
   'prospect_assignment_change',
+  // T3 tag-related categories — emitted by the audit_prospect_tag_change
+  // trigger (extended in migration 009). Activity tab shows them all and
+  // surfaces an "Undo this change" button on user-owned add/remove
+  // events within 24h.
+  'prospect_tag_added',
+  'prospect_tag_removed',
+  'prospect_tag_locked',
+  'prospect_tag_unlocked',
+  'prospect_tag_suppressed',
+  'prospect_tag_unsuppressed',
+  'compliance_cleared',
 ];
 
 const NOTE_CATEGORIES = ['note_deleted', 'note_restored'];

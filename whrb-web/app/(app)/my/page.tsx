@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { SearchInput } from '@/components/SearchInput';
 import { FilterBar } from '@/components/FilterBar';
+import { TagFilterBar } from '@/components/TagFilterBar';
 import { ProspectTable } from '@/components/ProspectTable';
 import { ProspectCardList } from '@/components/ProspectCardList';
 import { KanbanBoard } from '@/components/KanbanBoard';
@@ -14,6 +15,10 @@ import {
   DEFAULT_PAGE_SIZE,
   PAGE_SIZES,
 } from '@/lib/queries/prospects';
+import { listVocab } from '@/lib/queries/vocab';
+import { getTagsForProspects } from '@/lib/queries/prospect-tags';
+import { readTagFilterFromParams } from '@/lib/tag-filters';
+import { getProfile } from '@/lib/queries/profiles';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -62,6 +67,8 @@ export default async function MyClientsPage({
     data: { user },
   } = await supabase.auth.getUser();
   const userId = user!.id;
+  const me = await getProfile(userId);
+  const isAdmin = me?.role === 'admin';
 
   const filters = {
     q: firstString(sp.q),
@@ -73,8 +80,17 @@ export default async function MyClientsPage({
     is_nonprofit: firstString(sp.is_nonprofit) as 'true' | 'false' | undefined,
   };
 
-  const [facets, result] = await Promise.all([
+  const urlParams = new URLSearchParams();
+  for (const [k, v] of Object.entries(sp)) {
+    if (typeof v === 'string') urlParams.set(k, v);
+    else if (Array.isArray(v) && v.length > 0) urlParams.set(k, v[0]);
+  }
+  const tagFilterState = readTagFilterFromParams(urlParams);
+  const daypartValues = await getDaypartValuesForMy(supabase);
+
+  const [facets, vocab, result] = await Promise.all([
     getFilterFacets(),
+    listVocab(),
     listProspects({
       filters,
       sort,
@@ -82,8 +98,14 @@ export default async function MyClientsPage({
       pageSize,
       assignedToSelf: true,
       selfUserId: userId,
+      tagFilter: tagFilterState.byAxis,
+      daypartFilter: tagFilterState.daypart,
     }),
   ]);
+
+  const tagsMap = await getTagsForProspects(result.rows.map((r) => r.id));
+  const tagsRecord: Record<string, typeof tagsMap extends Map<string, infer V> ? V : never> = {};
+  for (const [k, v] of tagsMap) tagsRecord[k] = v;
 
   const kanbanCards = result.rows.map((r) => ({
     id: r.id,
@@ -133,6 +155,7 @@ export default async function MyClientsPage({
           <SearchInput placeholder="Search my prospects…" />
         </div>
       </div>
+      <TagFilterBar vocab={vocab} daypartValues={daypartValues} />
       <FilterBar
         tiers={facets.tiers}
         states={facets.states}
@@ -180,12 +203,30 @@ export default async function MyClientsPage({
               emptyTitle="No prospects assigned to you yet."
               emptyDescription="Rows you pick up will appear here."
               emptyAction={{ href: '/prospects?assigned=false', label: 'Browse unassigned' }}
+              tagsByProspect={tagsRecord}
+              currentUserId={userId}
+              isAdmin={isAdmin}
             />
           </div>
         </>
       )}
     </div>
   );
+}
+
+async function getDaypartValuesForMy(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('prospect_daypart')
+    .select('daypart_fit')
+    .limit(1000);
+  if (error) return [];
+  const set = new Set<string>();
+  for (const row of (data ?? []) as Array<{ daypart_fit: string[] | null }>) {
+    for (const v of row.daypart_fit ?? []) set.add(v);
+  }
+  return Array.from(set).sort();
 }
 
 function EmptyState() {

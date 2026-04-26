@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import type { Prospect } from '@/lib/queries/prospects';
+import type { ProspectTagView } from '@/lib/queries/prospect-tags';
 import { ColumnVisibilityMenu, type ColumnDef } from '@/components/ColumnVisibilityMenu';
+import { TagChips } from '@/components/TagChips';
 import { TierBadge } from '@/components/TierBadge';
 import { StateBadge } from '@/components/StateBadge';
 import { formatDate } from '@/lib/time';
@@ -27,6 +29,16 @@ type Props = {
    * other callers (e.g. /my) pass nothing.
    */
   controlsSlot?: React.ReactNode;
+  /**
+   * Per-prospect tag rows fetched server-side. The compact-mode tag
+   * chips column reads from this map. Undefined means tags are not
+   * rendered (e.g. on test fixtures that haven't seeded prospect_tags).
+   */
+  tagsByProspect?: Record<string, ProspectTagView[]>;
+  /** auth.uid() — required for tag chip lock state. */
+  currentUserId?: string;
+  /** Whether the active user is admin — affects chip interactivity. */
+  isAdmin?: boolean;
 };
 
 type ColDef = ColumnDef & {
@@ -57,7 +69,14 @@ function textCell(value: string | null | undefined): React.ReactNode {
   return value;
 }
 
-function COLUMNS(): ColDef[] {
+function COLUMNS(opts?: {
+  tagsByProspect?: Record<string, ProspectTagView[]>;
+  currentUserId?: string;
+  isAdmin?: boolean;
+}): ColDef[] {
+  const tagsByProspect = opts?.tagsByProspect;
+  const currentUserId = opts?.currentUserId;
+  const isAdmin = opts?.isAdmin ?? false;
   return [
     {
       key: 'company_name',
@@ -77,6 +96,28 @@ function COLUMNS(): ColDef[] {
     { key: 'contact_name', label: 'Contact', defaultVisible: true, render: (p) => textCell(p.contact_name) },
     { key: 'tier', label: 'Tier', defaultVisible: true, sortable: true, render: (p) => <TierBadge tier={p.tier} /> },
     { key: 'state', label: 'State', defaultVisible: true, sortable: true, render: (p) => <StateBadge state={p.state} /> },
+    {
+      key: 'tags',
+      label: 'Tags',
+      defaultVisible: true,
+      width: 'min-w-64',
+      render: (p) => {
+        if (!tagsByProspect || !currentUserId) {
+          return <span className="text-[10px] text-[hsl(var(--muted-foreground))]">—</span>;
+        }
+        const tags = tagsByProspect[p.id] ?? [];
+        return (
+          <TagChips
+            prospectId={p.id}
+            tags={tags}
+            mode="compact"
+            currentUserId={currentUserId}
+            isAdmin={isAdmin}
+            interactive={false}
+          />
+        );
+      },
+    },
     { key: 'company_phone', label: 'Company phone', defaultVisible: true, render: (p) => textCell(p.company_phone) },
     { key: 'contact_phone', label: 'Contact phone', defaultVisible: false, render: (p) => textCell(p.contact_phone) },
     { key: 'company_email', label: 'Company email', defaultVisible: true, render: (p) => textCell(p.company_email) },
@@ -176,11 +217,17 @@ export function ProspectTable({
   emptyDescription,
   emptyAction,
   controlsSlot,
+  tagsByProspect,
+  currentUserId,
+  isAdmin,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const allColumns = useMemo(COLUMNS, []);
+  const allColumns = useMemo(
+    () => COLUMNS({ tagsByProspect, currentUserId, isAdmin }),
+    [tagsByProspect, currentUserId, isAdmin],
+  );
   const [visible, setVisible] = useState<Set<string>>(
     new Set(allColumns.filter((c) => c.defaultVisible !== false).map((c) => c.key)),
   );

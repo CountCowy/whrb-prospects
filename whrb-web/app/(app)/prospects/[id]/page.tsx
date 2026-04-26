@@ -3,6 +3,8 @@ import { getProspect } from '@/lib/queries/prospects';
 import { listNotesForProspect } from '@/lib/queries/notes';
 import { listActivityForProspect } from '@/lib/queries/activity';
 import { listProfilesWithCounts, getProfile } from '@/lib/queries/profiles';
+import { getTagsForProspect } from '@/lib/queries/prospect-tags';
+import { listVocab } from '@/lib/queries/vocab';
 import { createClient } from '@/lib/supabase/server';
 import { ProspectDetail } from '@/components/ProspectDetail';
 
@@ -25,10 +27,12 @@ export default async function ProspectDetailPage({
   const me = await getProfile(user.id);
   const isAdmin = me?.role === 'admin';
 
-  const [notes, activity, profiles] = await Promise.all([
+  const [notes, activity, profiles, initialTags, vocab] = await Promise.all([
     listNotesForProspect(id, { includeDeleted: Boolean(isAdmin) }),
     listActivityForProspect(id, { includeDeletedNoteHistory: Boolean(isAdmin) }),
     listProfilesWithCounts(),
+    getTagsForProspect(id),
+    listVocab(),
   ]);
 
   const profileLabels: Record<string, string> = Object.fromEntries(
@@ -53,6 +57,8 @@ export default async function ProspectDetailPage({
         display_name: me?.display_name ?? null,
       }}
       isAdmin={Boolean(isAdmin)}
+      initialTags={initialTags}
+      vocab={vocab}
     />
   );
 }

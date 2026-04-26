@@ -456,3 +456,39 @@ alter table public.pipeline_runs
 -- =========================================================================
 -- End of 008_daypart_view.sql mirror
 -- =========================================================================
+
+-- =========================================================================
+-- 009_tag_triggers.sql mirror (read-only reference; canonical at
+-- whrb-web/supabase/migrations/009_tag_triggers.sql). Stage T3.
+-- =========================================================================
+
+alter table public.profiles
+  add column if not exists vocab_notify_mode text not null default 'digest_daily'
+    check (vocab_notify_mode in ('instant', 'digest_daily', 'digest_off'));
+
+alter table public.notifications
+  add column if not exists digested_at timestamptz;
+
+create index if not exists idx_notif_kind_digested
+  on public.notifications (kind, digested_at)
+  where digested_at is null;
+
+-- Partial unique index for atomic dedup of open tag_vocab_pending
+-- notifications. (M2 fix; canonical body in the migration.)
+create unique index if not exists ux_notif_open_vocab_pending
+  on public.notifications (recipient_id, ((payload ->> 'tag_id')))
+  where kind = 'tag_vocab_pending'
+    and read_at is null
+    and digested_at is null;
+
+-- notifications.kind extended with 'tag_removed_by_other'.
+
+-- Triggers added in 009 (canonical bodies in the migration):
+--   t_pending_tag_use          AFTER INSERT on prospect_tags
+--   t_tag_removed_by_other     AFTER DELETE on prospect_tags
+--   t_prospect_tags_audit      AFTER INSERT/UPDATE/DELETE on prospect_tags
+--                              (replaces 007's INSERT/DELETE-only attach)
+
+-- =========================================================================
+-- End of 009_tag_triggers.sql mirror
+-- =========================================================================

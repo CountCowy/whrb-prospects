@@ -64,4 +64,11 @@ export const COMMAND_PALETTE_ROUTES: CommandRoute[] = [
     adminOnly: true,
     value: 'admin runs pipeline',
   },
+  {
+    href: '/admin/palette',
+    label: 'Admin · Tag chip palette (dev)',
+    section: 'Admin',
+    adminOnly: true,
+    value: 'admin palette tag chips dev',
+  },
 ];
