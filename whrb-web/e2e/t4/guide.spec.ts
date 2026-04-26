@@ -4,15 +4,16 @@ import { ADMIN_STORAGE } from './helpers';
 test.use({ storageState: ADMIN_STORAGE });
 
 test.describe('T4 · /guide (Tks T09, T10, T23)', () => {
-  test('T09 · renders 10 sections', async ({ page }) => {
+  test('T09 · renders 9 sections', async ({ page }) => {
     await page.goto('/guide');
     await expect(page.getByTestId('guide-page')).toBeVisible();
     const sections = page.getByTestId('guide-section');
-    await expect(sections).toHaveCount(10);
-    // Verify the 10 IDs the plan calls for. Both the test-id and the
-    // data-section-id are on the same <section> element, so use a
-    // compound attribute selector rather than a `filter({has:...})`
-    // (filter looks at descendants only).
+    await expect(sections).toHaveCount(9);
+    // Verify the 9 IDs the page renders (the plan's "Terminology"
+    // section was removed by user direction post-T4 review). Both
+    // the test-id and the data-section-id are on the same <section>
+    // element, so use a compound attribute selector rather than a
+    // `filter({has:...})` (filter looks at descendants only).
     for (const id of [
       'what-this-app-does',
       'tiers',
@@ -21,7 +22,6 @@ test.describe('T4 · /guide (Tks T09, T10, T23)', () => {
       'advanced-filters',
       'add-a-prospect',
       'lock-and-clear',
-      'terminology',
       'seasonal-programs',
       'about',
     ]) {

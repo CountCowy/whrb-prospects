@@ -57,7 +57,7 @@ export default function GuidePage() {
         </p>
       </Section>
 
-      <Section id="tags" title="3. Tags (the real signal)">
+      <Section id="tags" title="3. Tags">
         <p>
           Every prospect carries multi-axis tags. The eight axes are:
           sector, operating_model, genre, affiliation, cadence, daypart_fit,
@@ -110,22 +110,7 @@ export default function GuidePage() {
         </p>
       </Section>
 
-      <Section
-        id="terminology"
-        title="8. Terminology — say this, not that"
-      >
-        <p>
-          We say <strong>advertiser</strong> or <strong>sponsor</strong> for
-          the buyer; <strong>ads</strong> / <strong>advertising</strong>{' '}
-          for the offering; <strong>spots</strong> (30s/60s) for the
-          broadcast unit. We do <em>not</em> say &ldquo;underwriter&rdquo;
-          (legal-only term) or use &ldquo;daypart&rdquo; in rep-facing copy
-          — reference programs directly (Classical, Jazz, Blues, Hillbilly
-          at Harvard, Met Opera, etc.).
-        </p>
-      </Section>
-
-      <Section id="seasonal-programs" title="9. FAQ">
+      <Section id="seasonal-programs" title="8. FAQ">
         <dl className="space-y-3">
           <div>
             <dt className="font-semibold">
@@ -175,7 +160,7 @@ export default function GuidePage() {
         </dl>
       </Section>
 
-      <Section id="about" title="10. About">
+      <Section id="about" title="9. About">
         <p>
           WHRB Prospects is the sales team&apos;s prospecting and CRM app
           for WHRB 95.3 FM. Developed by Yareh Constant. See the{' '}
