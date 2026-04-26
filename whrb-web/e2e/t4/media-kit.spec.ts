@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { ADMIN_STORAGE, loadSnapshot } from './helpers';
+import { ADMIN_STORAGE, loadSnapshot, snapshotExists } from './helpers';
 
 test.use({ storageState: ADMIN_STORAGE });
 
 test.describe('T4 · /media-kit (Tks T24-T31)', () => {
+  test.skip(!snapshotExists(), 'T4 snapshot missing — run scripts/t4_plant.py');
+
   test.beforeEach(async ({ page }) => {
     await page.goto('/media-kit');
     await expect(page.getByTestId('media-kit-page')).toBeVisible();

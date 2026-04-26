@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN_STORAGE } from './helpers';
+import { ADMIN_STORAGE, snapshotExists } from './helpers';
 
 test.use({ storageState: ADMIN_STORAGE });
+
+test.skip(!snapshotExists(), 'T4 snapshot missing — run scripts/t4_plant.py');
 
 /**
  * T03 · Filter applied → ProspectTable mounts → /api/prospects/impressions

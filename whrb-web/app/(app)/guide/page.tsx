@@ -9,9 +9,11 @@ export const dynamic = 'force-dynamic';
  * 650. Hard-coded MDX-ish JSX; admin-editable CMS is out of scope per
  * epic plan §14 (deferred).
  *
- * The 10 sections match the plan §6.4 outline: What this app does, Tiers,
- * Tags, Preset filters, Advanced filters, Adding a prospect, Locking +
- * clearing tags, Terminology, FAQ, About.
+ * Nine sections (Terminology removed per post-T4 review): What this app
+ * does, Tiers, Tags, Preset filters, Advanced filters, Adding a prospect,
+ * Locking + clearing tags, FAQ, About. The FAQ section keeps
+ * `id="seasonal-programs"` for inbound cross-links from /media-kit
+ * rate-card special-spot rows; About keeps `id="about"`.
  */
 export default function GuidePage() {
   return (
@@ -49,7 +51,7 @@ export default function GuidePage() {
           the{' '}
           <Link
             href="/media-kit"
-            className="text-[hsl(var(--primary))] underline-offset-2 hover:underline"
+            className="text-[hsl(var(--primary))] underline underline-offset-2 hover:decoration-2"
           >
             Media Kit
           </Link>
@@ -130,7 +132,7 @@ export default function GuidePage() {
               relevant tag landed. Check{' '}
               <Link
                 href="/admin/runs"
-                className="text-[hsl(var(--primary))] underline-offset-2 hover:underline"
+                className="text-[hsl(var(--primary))] underline underline-offset-2 hover:decoration-2"
               >
                 /admin/runs
               </Link>{' '}
@@ -166,14 +168,14 @@ export default function GuidePage() {
           for WHRB 95.3 FM. Developed by Yareh Constant. See the{' '}
           <Link
             href="/changelog"
-            className="text-[hsl(var(--primary))] underline-offset-2 hover:underline"
+            className="text-[hsl(var(--primary))] underline underline-offset-2 hover:decoration-2"
           >
             changelog
           </Link>{' '}
           for what&apos;s new and the{' '}
           <Link
             href="/media-kit"
-            className="text-[hsl(var(--primary))] underline-offset-2 hover:underline"
+            className="text-[hsl(var(--primary))] underline underline-offset-2 hover:decoration-2"
           >
             media kit
           </Link>{' '}

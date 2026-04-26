@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { ADMIN_STORAGE, REP_STORAGE, loadSnapshot } from './helpers';
+import { ADMIN_STORAGE, REP_STORAGE, loadSnapshot, snapshotExists } from './helpers';
 
 function requireEnv(name: string, ...aliases: string[]): string {
   for (const key of [name, ...aliases]) {
@@ -11,6 +11,8 @@ function requireEnv(name: string, ...aliases: string[]): string {
 }
 
 test.describe('T4 · /changelog (Tks T21, T22)', () => {
+  test.skip(!snapshotExists(), 'T4 snapshot missing — run scripts/t4_plant.py');
+
   test.describe('rep view', () => {
     test.use({ storageState: REP_STORAGE });
 

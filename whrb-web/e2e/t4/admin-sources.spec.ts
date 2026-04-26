@@ -3,9 +3,11 @@ import {
   ADMIN_STORAGE,
   REP_STORAGE,
   loadSnapshot,
+  snapshotExists,
 } from './helpers';
 
 test.describe('T4 · /admin/sources (Tks T13, T16.tooltip, T20)', () => {
+  test.skip(!snapshotExists(), 'T4 snapshot missing — run scripts/t4_plant.py');
   test('T13 · non-admin GET /admin/sources → redirected away', async ({
     page,
   }) => {

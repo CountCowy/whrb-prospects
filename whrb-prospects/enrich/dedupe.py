@@ -36,11 +36,18 @@ Stage T4 additions:
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from rapidfuzz import fuzz
 
+# Optional import — pipeline-side runs always have it, but the unit test
+# suite imports `enrich.dedupe` without the broader project context. Type
+# as `Any` so mypy accepts the None fallback (the strict typed module
+# inference would otherwise reject the reassignment).
+_event_log: Any
 try:
-    from util import event_log as _event_log
+    from util import event_log as _event_log_mod
+    _event_log = _event_log_mod
 except Exception:
     _event_log = None
 

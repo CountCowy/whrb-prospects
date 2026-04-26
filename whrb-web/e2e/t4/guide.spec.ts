@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { ADMIN_STORAGE } from './helpers';
+import { ADMIN_STORAGE, snapshotExists } from './helpers';
 
 test.use({ storageState: ADMIN_STORAGE });
 
 test.describe('T4 · /guide (Tks T09, T10, T23)', () => {
+  test.skip(!snapshotExists(), 'T4 snapshot missing — run scripts/t4_plant.py');
   test('T09 · renders 9 sections', async ({ page }) => {
     await page.goto('/guide');
     await expect(page.getByTestId('guide-page')).toBeVisible();
