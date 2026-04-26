@@ -71,6 +71,39 @@ alter table public.notifications
     'feedback_status', 'tag_vocab_pending', 'tag_removed_by_other'
   ));
 
+-- 2c) Partial unique index — guarantees one open `tag_vocab_pending`
+--     notification per (admin recipient, vocab tag_id). Replaces the
+--     SELECT-then-INSERT race in `on_pending_tag_use` with atomic
+--     ON CONFLICT dedup. (M2 fix.)
+--
+--     Defensive pre-step: if dev accumulated duplicates under the
+--     race-prone trigger body, collapse them before adding the unique
+--     constraint. Keeps the row with the largest merged payload (sum of
+--     creators[] + prospect_ids[] lengths), tie-broken by oldest. This
+--     is a no-op on clean environments.
+with ranked as (
+  select id,
+         row_number() over (
+           partition by recipient_id, (payload ->> 'tag_id')
+           order by jsonb_array_length(coalesce(payload -> 'creators', '[]'::jsonb))
+                      + jsonb_array_length(coalesce(payload -> 'prospect_ids', '[]'::jsonb))
+                      desc,
+                    created_at asc
+         ) as rn
+    from public.notifications
+   where kind = 'tag_vocab_pending'
+     and read_at is null
+     and digested_at is null
+)
+delete from public.notifications
+ where id in (select id from ranked where rn > 1);
+
+create unique index if not exists ux_notif_open_vocab_pending
+  on public.notifications (recipient_id, ((payload ->> 'tag_id')))
+  where kind = 'tag_vocab_pending'
+    and read_at is null
+    and digested_at is null;
+
 -- -------------------------------------------------------------------------
 -- 3) on_rep_tag_vocab_insert (REPLACE) — payload now carries creators[]
 -- -------------------------------------------------------------------------
@@ -129,16 +162,19 @@ $$;
 -- -------------------------------------------------------------------------
 -- Fires only when the inserted prospect_tags row references a vocab whose
 -- status is still 'pending_admin_review'. For every admin, the function
--- looks for an unread + un-digested tag_vocab_pending notification keyed
--- on the same tag_id. If one exists it appends the actor to
--- payload.creators (set semantics — no duplicates) and the prospect to
--- payload.prospect_ids; otherwise it inserts a fresh notification.
+-- atomically inserts (or merges into) one open tag_vocab_pending
+-- notification keyed on (recipient_id, vocab tag_id). The partial unique
+-- index `ux_notif_open_vocab_pending` (added in §2c above) guarantees at
+-- most one such row exists, so concurrent prospect_tags inserts collapse
+-- via ON CONFLICT instead of racing past a SELECT-then-INSERT pattern.
+-- (M2 fix.)
 --
--- Skips entirely when the actor IS the original vocab creator AND no
--- prospect_ids have been recorded yet — that's the "rep-creates +
--- rep-uses" same-transaction path which on_rep_tag_vocab_insert already
--- covered. We still want prospect_id appended though, so the function
--- always runs the prospect_id-append branch.
+-- Set semantics on the merge: actor is appended to payload.creators iff
+-- not already present; prospect_id is appended to payload.prospect_ids
+-- iff not already present. The conflict's EXCLUDED row carries the
+-- single-element arrays we built in the VALUES clause, and the case
+-- expressions consult notifications.payload (the existing row) to
+-- preserve idempotence under repeat inserts.
 create or replace function public.on_pending_tag_use()
 returns trigger
 language plpgsql
@@ -151,9 +187,6 @@ declare
   v_axis text;
   v_value text;
   admin_id uuid;
-  notif record;
-  v_creators jsonb;
-  v_prospects jsonb;
 begin
   -- Service-role / pipeline writes carry actor=null. Skip — pipeline tags
   -- are emitted on already-active vocab.
@@ -171,52 +204,45 @@ begin
   for admin_id in
     select id from public.profiles where role = 'admin'
   loop
-    select id, payload into notif
-      from public.notifications
-      where recipient_id = admin_id
-        and kind = 'tag_vocab_pending'
+    insert into public.notifications (
+      recipient_id, kind, actor_id, payload
+    )
+    values (
+      admin_id,
+      'tag_vocab_pending',
+      actor,
+      jsonb_build_object(
+        'tag_id',       new.tag_id,
+        'axis',         v_axis,
+        'value',        v_value,
+        'creators',     jsonb_build_array(actor),
+        'prospect_ids', jsonb_build_array(new.prospect_id)
+      )
+    )
+    on conflict (recipient_id, ((payload ->> 'tag_id')))
+      where kind = 'tag_vocab_pending'
         and read_at is null
         and digested_at is null
-        and (payload ->> 'tag_id') = new.tag_id::text
-      order by created_at desc
-      limit 1;
-
-    if notif.id is null then
-      insert into public.notifications (
-        recipient_id, kind, actor_id, payload
-      )
-      values (
-        admin_id,
-        'tag_vocab_pending',
-        actor,
-        jsonb_build_object(
-          'tag_id',       new.tag_id,
-          'axis',         v_axis,
-          'value',        v_value,
-          'creators',     jsonb_build_array(actor),
-          'prospect_ids', jsonb_build_array(new.prospect_id)
-        )
+    do update set payload =
+      notifications.payload
+      || jsonb_build_object(
+        'creators',
+          case
+            when (notifications.payload -> 'creators')
+                 @> to_jsonb(EXCLUDED.actor_id)
+            then notifications.payload -> 'creators'
+            else coalesce(notifications.payload -> 'creators', '[]'::jsonb)
+                 || to_jsonb(EXCLUDED.actor_id)
+          end,
+        'prospect_ids',
+          case
+            when (notifications.payload -> 'prospect_ids')
+                 @> ((EXCLUDED.payload -> 'prospect_ids') -> 0)
+            then notifications.payload -> 'prospect_ids'
+            else coalesce(notifications.payload -> 'prospect_ids', '[]'::jsonb)
+                 || ((EXCLUDED.payload -> 'prospect_ids') -> 0)
+          end
       );
-    else
-      -- Set semantics: only append if not already present.
-      v_creators := coalesce(notif.payload -> 'creators', '[]'::jsonb);
-      if not (v_creators @> to_jsonb(actor)) then
-        v_creators := v_creators || to_jsonb(actor);
-      end if;
-
-      v_prospects := coalesce(notif.payload -> 'prospect_ids', '[]'::jsonb);
-      if not (v_prospects @> to_jsonb(new.prospect_id)) then
-        v_prospects := v_prospects || to_jsonb(new.prospect_id);
-      end if;
-
-      update public.notifications
-        set payload = notif.payload
-                       || jsonb_build_object(
-                            'creators',     v_creators,
-                            'prospect_ids', v_prospects
-                          )
-        where id = notif.id;
-    end if;
   end loop;
 
   return new;

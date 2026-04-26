@@ -210,6 +210,21 @@ export async function POST(req: Request, { params }: RouteParams) {
 
   // Fresh insert. created_by = actor; optional locked_by passed only on
   // undo restores.
+  // Mirror PATCH (lines below): non-admins may only attribute a lock to
+  // themselves. Without this gate a crafted POST with `locked_by:
+  // <other_uuid>` would create a tag row falsely attributed to that
+  // user — RLS does not gate the locked_by field on INSERT.
+  if ('tag_id' in parsed.data && parsed.data.locked_by) {
+    if (
+      parsed.data.locked_by !== authz.user.id &&
+      authz.user.role !== 'admin'
+    ) {
+      return NextResponse.json(
+        { error: 'Reps may only lock tags as themselves.' },
+        { status: 403 },
+      );
+    }
+  }
   const insertPayload: Record<string, unknown> = {
     prospect_id: prospectId,
     tag_id: tagId,

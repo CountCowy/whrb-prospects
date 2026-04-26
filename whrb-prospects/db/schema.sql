@@ -473,6 +473,14 @@ create index if not exists idx_notif_kind_digested
   on public.notifications (kind, digested_at)
   where digested_at is null;
 
+-- Partial unique index for atomic dedup of open tag_vocab_pending
+-- notifications. (M2 fix; canonical body in the migration.)
+create unique index if not exists ux_notif_open_vocab_pending
+  on public.notifications (recipient_id, ((payload ->> 'tag_id')))
+  where kind = 'tag_vocab_pending'
+    and read_at is null
+    and digested_at is null;
+
 -- notifications.kind extended with 'tag_removed_by_other'.
 
 -- Triggers added in 009 (canonical bodies in the migration):

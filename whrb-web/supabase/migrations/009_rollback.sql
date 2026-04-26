@@ -136,8 +136,9 @@ alter table public.notifications
     'feedback_status', 'tag_vocab_pending'
   ));
 
--- 5) Drop notifications.digested_at + index.
+-- 5) Drop notifications.digested_at + indexes.
 drop index if exists public.idx_notif_kind_digested;
+drop index if exists public.ux_notif_open_vocab_pending;
 alter table public.notifications drop column if exists digested_at;
 
 -- 6) Drop profiles.vocab_notify_mode.
