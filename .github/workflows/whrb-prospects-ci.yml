@@ -42,3 +42,36 @@ jobs:
         # No network, no live Supabase — the autouse stub_event_log fixture
         # replaces util.event_log with an in-memory recorder.
         run: pytest tests/
+
+  multi_email_integrity:
+    name: Multi-email integrity (010)
+    runs-on: ubuntu-latest
+    needs: check
+    # Skip on PRs from forks (no access to repo secrets); run on push to main
+    # and on PRs from same-repo branches.
+    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository }}
+    defaults:
+      run:
+        working-directory: whrb-prospects
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: whrb-prospects/.python-version
+          cache: pip
+          cache-dependency-path: |
+            whrb-prospects/requirements.lock
+            whrb-prospects/requirements-dev.lock
+      - name: Install dependencies (pinned lock)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock -r requirements-dev.lock
+      - name: Run integrity script (dev Supabase)
+        # Walks K1–K10 + I1, I6, I7, I8, I8b against dev Supabase
+        # (kolfijjavwruwzctmnlx). Plants a UUID-suffixed fixture, asserts
+        # invariants, cleans up. Required GitHub secrets:
+        #   SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: python scripts/multi_email_integrity.py
