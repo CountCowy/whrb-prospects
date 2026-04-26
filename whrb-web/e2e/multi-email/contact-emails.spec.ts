@@ -167,10 +167,10 @@ test.describe('multi-email contact-emails editor (010)', () => {
     ).toHaveAttribute('data-primary', 'false');
 
     // ---- K4: delete primary (bar) while foo exists ---------------------- //
-    page.once('dialog', (dialog) => dialog.accept());
     await barRowDetail
       .locator('[data-testid^="contact-email-delete-"]')
       .click();
+    await page.getByTestId('contact-emails-delete-confirm').click();
     await expect(
       page
         .locator('[data-testid^="contact-email-row-"]')
@@ -183,12 +183,12 @@ test.describe('multi-email contact-emails editor (010)', () => {
     ).toHaveAttribute('data-primary', 'true');
 
     // ---- K5: delete last email ----------------------------------------- //
-    page.once('dialog', (dialog) => dialog.accept());
     await page
       .locator('[data-testid^="contact-email-row-"]')
       .filter({ hasText: 'foo@a.com' })
       .locator('[data-testid^="contact-email-delete-"]')
       .click();
+    await page.getByTestId('contact-emails-delete-confirm').click();
     await expect(
       page.locator('[data-testid^="contact-email-row-"]'),
     ).toHaveCount(0, { timeout: 5_000 });

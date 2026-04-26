@@ -1,8 +1,18 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type {
   ProspectContactEmail,
   ProspectContactEmailSource,
@@ -57,7 +67,13 @@ export function ContactEmailsEditor({
   const [addDraft, setAddDraft] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
 
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: string;
+    email: string;
+  } | null>(null);
+
   const [pending, startTransition] = useTransition();
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
   function applySnapshot(s: Snapshot) {
     setEmails(sortEmails(s.emails));
@@ -101,6 +117,9 @@ export function ContactEmailsEditor({
       setAddDraft('');
       toast.success('Email added.');
       startTransition(() => onChanged?.());
+      // Restore focus to the Add button so reps can keep adding without
+      // hunting for the trigger.
+      addButtonRef.current?.focus();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Add failed.';
       setAddError(message);
@@ -133,15 +152,12 @@ export function ContactEmailsEditor({
     }
   }
 
-  async function handleDelete(emailId: string, email: string) {
-    if (
-      typeof window !== 'undefined' &&
-      !window.confirm(`Delete ${email}?`)
-    ) {
-      return;
-    }
+  async function performDelete() {
+    if (!deleteTarget) return;
+    const { id: emailId } = deleteTarget;
     const previous = emails;
     setEmails((prev) => prev.filter((e) => e.id !== emailId));
+    setDeleteTarget(null);
     try {
       const snapshot = await postJson(
         `/api/prospects/${prospectId}/contact-emails/${emailId}`,
@@ -150,6 +166,9 @@ export function ContactEmailsEditor({
       applySnapshot(snapshot);
       toast.success('Email removed.');
       startTransition(() => onChanged?.());
+      // The deleted row's button is gone; move focus to the Add button so
+      // keyboard users don't drop into <body>.
+      addButtonRef.current?.focus();
     } catch (err) {
       setEmails(previous);
       const message = err instanceof Error ? err.message : 'Delete failed.';
@@ -282,7 +301,9 @@ export function ContactEmailsEditor({
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleDelete(row.id, row.email)}
+                            onClick={() =>
+                              setDeleteTarget({ id: row.id, email: row.email })
+                            }
                             disabled={pending}
                             data-testid={`contact-email-delete-${row.id}`}
                             className="text-[11px] font-medium uppercase tracking-wider text-[hsl(var(--muted-foreground))] underline decoration-dotted underline-offset-4 hover:text-red-600 dark:hover:text-red-300"
@@ -355,6 +376,7 @@ export function ContactEmailsEditor({
             </div>
           ) : (
             <button
+              ref={addButtonRef}
               type="button"
               onClick={() => {
                 setAdding(true);
@@ -368,6 +390,35 @@ export function ContactEmailsEditor({
           )
         ) : null}
       </dd>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent data-testid="contact-emails-delete-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this email?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? `${deleteTarget.email} will be removed from this prospect. This cannot be undone.`
+                : ''}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="contact-emails-delete-cancel">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={performDelete}
+              data-testid="contact-emails-delete-confirm"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
