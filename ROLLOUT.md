@@ -4927,3 +4927,53 @@ Stage T3 implementation ends here. Per
 `feedback_no_auto_stage_advance.md`, T4 (instrumentation,
 dashboard delta tiles, `/guide` content) does **not** start until
 an explicit "start T4" command.
+
+### Stage T3 follow-up: ruff CI + round-4 audit polish + dev-server hook (2026-04-25)
+
+Three small surfaces tightened on `t3/rep-tag-ui` after the initial
+push (commit `fa2a2cb`):
+
+1. **CI ruff failure** — `whrb-prospects CI` exit 1 on 9 errors:
+   - `F401`: `import json` in `vocab_digest.py`, `import uuid` in
+     `t3_plant.py` were unused.
+   - `UP017`: `dt.timezone.utc` → `dt.UTC` (Python 3.11+ alias) in
+     `t3_plant.py`, `t3_integrity.py`, and `vocab_digest.py`.
+   - `RUF003 / RUF001`: ambiguous Unicode `–` (EN DASH) and `×`
+     (MULTIPLICATION SIGN) in `t3_integrity.py` swapped for
+     `-` and `x`.
+   - `RUF100`: dead `# noqa: E402` directive removed in
+     `t3_plant.py`.
+
+   `ruff check` clean post-fix; `pytest` 125/125; `mypy` clean.
+
+2. **Round-4 `/review-ui` low-severity polish** (7 findings, 0
+   blocking — landed for hygiene rather than gate satisfaction):
+   - `app/(app)/admin/palette/page.tsx`: comment justifying the
+     inner `TooltipProvider`'s tighter 150 ms delay.
+   - `components/ActivityTab.tsx` + `components/TagFilterBar.tsx`:
+     drop redundant `h-7 / h-8 text-xs` overrides; defer to shadcn
+     Button `size="sm"` cva.
+   - `components/TagChips.tsx`: add
+     `data-testid="tag-chips-overflow-list"` +
+     `data-testid="tag-chips-overflow-item"` for e2e testability.
+   - `components/TagAddDialog.tsx`: TabsList
+     `aria-label="Add tag mode"` for parity with ProspectDetail.
+   - `components/TagChip.tsx`: focus-visible ring switches from
+     `ring-white/50` to `ring-current/50` so the cadence
+     (`amber-500`) chip's `text-zinc-900` foreground gets a
+     matching ring instead of a washed-out white one.
+   - `components/TagFilterBar.tsx`: native `<details>/<summary>`
+     keeps its SSR-friendly behaviour but the default disclosure
+     triangle is hidden in favour of a chevron span; grid gets
+     `auto-rows-min` so short axis lists don't leave column 2
+     visually empty.
+
+3. **Stop hook**: `.claude/settings.json` gains a `Stop` entry that
+   runs `.claude/hooks/kill-dev-server.sh` — `pkill`s any `next dev`
+   / `pnpm * dev` process Claude left running between turns, so the
+   dev server doesn't squat memory between turns. Per user request.
+
+Final CI on commit `fa2a2cb`: whrb-prospects check (42s) + whrb-web
+check (1m52s) + e2e (3m49s) + Vercel preview deploy — all PASS. PR
+[#25](https://github.com/CountCowy/whrb-prospects/pull/25) is now
+fully green.
