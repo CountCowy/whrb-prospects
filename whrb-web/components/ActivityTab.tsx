@@ -182,7 +182,6 @@ export function ActivityTab({
           size="sm"
           onClick={() => setNewestFirst((v) => !v)}
           data-testid="activity-sort-toggle"
-          className="h-7 text-xs"
         >
           Sort: {newestFirst ? 'Newest first' : 'Oldest first'}
         </Button>

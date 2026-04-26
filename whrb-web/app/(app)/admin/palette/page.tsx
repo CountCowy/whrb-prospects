@@ -25,6 +25,10 @@ export default async function AdminPalettePage() {
   // Admin gating is inherited from app/(app)/admin/layout.tsx.
 
   return (
+    // Inner TooltipProvider tightens the delay from the root layout's
+    // 200 ms to 150 ms so designers can hover-scan chips faster while
+    // reviewing the palette gallery. The root provider is left intact
+    // for the rest of the app.
     <TooltipProvider delayDuration={150}>
       <div className="space-y-6" data-testid="admin-palette">
         <div>

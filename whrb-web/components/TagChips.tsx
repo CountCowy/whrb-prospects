@@ -110,9 +110,16 @@ export function TagChips({
               </button>
             </TooltipTrigger>
             <TooltipContent>
-              <ul className="max-h-60 overflow-y-auto text-xs">
+              <ul
+                data-testid="tag-chips-overflow-list"
+                className="max-h-60 overflow-y-auto text-xs"
+              >
                 {overflow.map((t) => (
-                  <li key={t.id} className="whitespace-nowrap">
+                  <li
+                    key={t.id}
+                    data-testid="tag-chips-overflow-item"
+                    className="whitespace-nowrap"
+                  >
                     {t.axis}:{t.value}
                   </li>
                 ))}

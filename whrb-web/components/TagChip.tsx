@@ -136,9 +136,13 @@ export function TagChip({
   // hover:bg-muted hover:text-foreground (inverting the chip's painted
   // text-white / text-zinc-900). A bespoke <button> keeps the chip
   // pixel-tight and honours the chipClass() palette.
+  // Use ring-current rather than ring-white so the focus ring inherits
+  // the chip foreground (white on most axes, zinc-900 on cadence). A
+  // hard-coded white ring would wash out on amber-500 (cadence). 50%
+  // opacity tones it down without losing legibility.
   const innerControlClass = cn(
     'inline-flex h-4 w-4 items-center justify-center rounded-full',
-    'hover:bg-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50',
+    'hover:bg-black/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current/50',
     'disabled:cursor-not-allowed disabled:opacity-30',
   );
 

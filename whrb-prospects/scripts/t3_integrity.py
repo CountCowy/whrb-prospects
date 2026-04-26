@@ -152,7 +152,7 @@ def t_schema_columns() -> T:
 
 
 # -----------------------------------------------------------------------------
-# T01–T07 — Browser-only chip rendering / lock / clear / toast
+# T01-T07 -- Browser-only chip rendering / lock / clear / toast
 # -----------------------------------------------------------------------------
 
 def t01_chip_overflow() -> T:
@@ -457,7 +457,7 @@ def t14_realtime_load() -> T:
     return _skip(
         "T14",
         "BROWSER",
-        "N=5 BrowserContext × 3 network profiles (scoped down from N=40 per ROLLOUT deviation)",
+        "N=5 BrowserContext x 3 network profiles (scoped down from N=40 per ROLLOUT deviation)",
     )
 
 
@@ -660,7 +660,7 @@ def t20_compliance_cleared_event(snap: dict, stage_started_at: str) -> T:
     # Soft-clear via direct UPDATE.
     sb.table("prospect_tags").update(
         {
-            "suppressed_at": dt.datetime.now(tz=dt.timezone.utc).isoformat(),
+            "suppressed_at": dt.datetime.now(tz=dt.UTC).isoformat(),
             "suppressed_by": snap["rep_a_id"],
         }
     ).eq("id", locked_row_id).execute()

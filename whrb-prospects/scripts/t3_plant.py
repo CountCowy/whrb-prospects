@@ -23,7 +23,6 @@ import datetime as dt
 import json
 import os
 import sys
-import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -34,7 +33,7 @@ WHRB = HERE.parent
 sys.path.insert(0, str(WHRB))
 load_dotenv(WHRB / ".env")
 
-from db.supabase_sync import business_key as compute_business_key  # noqa: E402
+from db.supabase_sync import business_key as compute_business_key
 
 SUPABASE_URL = os.environ["SUPABASE_URL"]
 SERVICE_KEY = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
@@ -133,7 +132,7 @@ def main() -> int:
         return 1
 
     sb = _client()
-    started = dt.datetime.now(tz=dt.timezone.utc).isoformat()
+    started = dt.datetime.now(tz=dt.UTC).isoformat()
 
     rep_a_id = _ensure_user(sb, REP_A_EMAIL, REP_PASSWORD, role="rep")
     rep_b_id = _ensure_user(sb, REP_B_EMAIL, REP_PASSWORD, role="rep")
@@ -170,7 +169,7 @@ def main() -> int:
             sb.table("prospect_tags").update(
                 {
                     "locked_by": rep_a_id,
-                    "locked_at": dt.datetime.now(tz=dt.timezone.utc).isoformat(),
+                    "locked_at": dt.datetime.now(tz=dt.UTC).isoformat(),
                 }
             ).eq("id", row_id).execute()
         else:

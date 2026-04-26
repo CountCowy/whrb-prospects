@@ -154,7 +154,7 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
               aria-pressed={active}
               onClick={() => applyPreset(p.id)}
               title={p.hint}
-              className="h-8 shrink-0 whitespace-nowrap text-xs"
+              className="shrink-0 whitespace-nowrap"
             >
               {p.label}
             </Button>
@@ -169,7 +169,6 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
               size="sm"
               data-testid="tag-filters-clear"
               onClick={clearAllTagFilters}
-              className="h-8 text-xs"
             >
               Clear {totalActive} tag{totalActive === 1 ? '' : 's'}
             </Button>
@@ -220,16 +219,22 @@ export function TagFilterBar({ vocab, daypartValues }: TagFilterBarProps) {
       </div>
 
       {/* Advanced Filters (desktop) */}
+      {/* Native <details>/<summary> over shadcn Accordion: keeps the panel
+        * SSR-friendly with zero JS dependency and does the right thing on
+        * keyboard / focus out of the box. The summary is restyled to drop
+        * the default disclosure triangle so it matches the surrounding
+        * shadcn surface visually. */}
       <details
-        className="hidden md:block"
+        className="hidden md:block group"
         open={advancedOpen}
         onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
         data-testid="tag-advanced-filters"
       >
-        <summary className="cursor-pointer text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-md text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] [&::-webkit-details-marker]:hidden [&::marker]:hidden">
+          <span aria-hidden="true" className="transition-transform group-open:rotate-90">▸</span>
           Advanced filters
         </summary>
-        <div className="mt-3 grid gap-4 rounded-lg border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-3 grid auto-rows-min gap-4 rounded-lg border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-4 sm:grid-cols-2 lg:grid-cols-3">
           {AXES.map((axis) => {
             const rows = vocabByAxis.get(axis) ?? [];
             const selected = new Set(filterState.byAxis[axis] ?? []);

@@ -143,7 +143,7 @@ export function TagAddDialog({
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-          <TabsList>
+          <TabsList aria-label="Add tag mode">
             <TabsTrigger value="existing" data-testid="tag-add-tab-existing">
               Existing vocab
             </TabsTrigger>

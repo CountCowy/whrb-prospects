@@ -33,11 +33,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -100,7 +99,7 @@ def fetch_pending(sb, admin_ids: list[str]) -> list[dict]:
 def mark_digested(sb, ids: list[str]) -> None:
     if not ids:
         return
-    sb.table("notifications").update({"digested_at": datetime.now(timezone.utc).isoformat()}).in_(
+    sb.table("notifications").update({"digested_at": datetime.now(UTC).isoformat()}).in_(
         "id", ids
     ).execute()
 
