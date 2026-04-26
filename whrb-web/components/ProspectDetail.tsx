@@ -487,7 +487,14 @@ export function ProspectDetail({
           </section>
         </TabsContent>
 
-        <TabsContent value="notes" className="mt-4">
+        {/* forceMount keeps NotesPanel alive across tab switches so an
+            optimistically-added note (held in local state) isn't destroyed
+            when the user briefly visits Fields or Activity and returns. */}
+        <TabsContent
+          value="notes"
+          className="mt-4 data-[state=inactive]:hidden"
+          forceMount
+        >
           <NotesPanel
             prospectId={prospect.id}
             initialNotes={notes}
