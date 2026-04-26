@@ -20,7 +20,14 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import ENABLED_SOURCES_DEFAULT, SCORE_WEIGHTS, WHRB_ZIPS
+from config import (
+    ENABLED_SOURCES_DEFAULT,
+    SCORE_WEIGHTS,
+    SCORE_WEIGHTS_V2,
+    SCORE_WEIGHTS_V2_LAUNCH,
+    TAG_AXES_BUDGET_SIGNAL,
+    WHRB_ZIPS,
+)
 from enrich import apollo_free, contact_scraper, dedupe, email_validate, hunter_free
 from sources import (
     bbb,
@@ -102,15 +109,57 @@ SEASONALITY = {
 
 
 def score(row: dict) -> int:
-    s = 0
-    w = SCORE_WEIGHTS
-    if row.get("website"): s += w["has_website"]
-    if row.get("company_phone") or row.get("contact_phone"): s += w["has_phone"]
-    if row.get("contact_name"): s += w["has_contact_name"]
-    if row.get("pipeline_notes") and "member" in row["pipeline_notes"]: s += w["in_chamber"]
-    if row.get("review_count"):
-        s += int(w["review_count_log"] * math.log10(max(1, int(row["review_count"]))))
-    s += w.get(f"tier_{row.get('tier', '')}", 0)
+    """Compute the priority score for a single prospect row.
+
+    T4 launch (`SCORE_WEIGHTS_V2_LAUNCH=True`): equal-weight contributing
+    signals — base from tier; +1 per budget-signal axis present; +1 for a
+    populated `history` axis; +1 for Harvard or MIT affiliation; -20 per
+    compliance-axis tag. See plan §1.3 #12 + config.SCORE_WEIGHTS_V2.
+
+    Legacy fallback (`SCORE_WEIGHTS_V2_LAUNCH=False`): pre-T4 weighting
+    using website/phone/contact-name/chamber/review_count signals. Kept
+    so the toggle is a single boolean flip, no redeploy.
+
+    Tags are read from `row["tags"]` (the {axis: [values]} dict the
+    sources emit). A row with no tags scores tier-only.
+    """
+    if not SCORE_WEIGHTS_V2_LAUNCH:
+        s = 0
+        w = SCORE_WEIGHTS
+        if row.get("website"): s += w["has_website"]
+        if row.get("company_phone") or row.get("contact_phone"): s += w["has_phone"]
+        if row.get("contact_name"): s += w["has_contact_name"]
+        if row.get("pipeline_notes") and "member" in row["pipeline_notes"]:
+            s += w["in_chamber"]
+        if row.get("review_count"):
+            s += int(w["review_count_log"] * math.log10(max(1, int(row["review_count"]))))
+        s += w.get(f"tier_{row.get('tier', '')}", 0)
+        return s
+
+    w = SCORE_WEIGHTS_V2
+    s = w.get(f"tier_{row.get('tier', '')}", 0)
+
+    tags = row.get("tags") or {}
+
+    # +1 per budget-signal axis with at least one tag.
+    for axis in TAG_AXES_BUDGET_SIGNAL:
+        if tags.get(axis):
+            s += w["tag_budget_signal_each"]
+
+    # +1 for any history-axis tag.
+    if tags.get("history"):
+        s += w["history_present"]
+
+    # +1 for Harvard or MIT affiliation.
+    affiliation = tags.get("affiliation") or []
+    if any(v in ("harvard_affiliated", "mit_affiliated") for v in affiliation):
+        s += w["affiliation_harvard_or_mit"]
+
+    # -20 per compliance-axis value (cannabis is hard-blocked upstream;
+    # this penalty applies to political / alcohol / gambling / etc.).
+    for _ in tags.get("compliance") or []:
+        s += w["compliance_each"]
+
     return s
 
 

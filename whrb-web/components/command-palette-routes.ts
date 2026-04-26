@@ -32,6 +32,7 @@ export const COMMAND_PALETTE_ROUTES: CommandRoute[] = [
   { href: '/media-kit', label: 'Media Kit', section: 'Navigate' },
   { href: '/guide', label: 'Guide', section: 'Navigate' },
   { href: '/notifications', label: 'Notifications', section: 'Navigate' },
+  { href: '/changelog', label: 'Changelog', section: 'Navigate' },
   // Plan line 204 specifies `/settings`; the app currently has no page at
   // that path (only /settings/notifications). Route to /settings/notifications
   // so the palette lands somewhere real.
@@ -70,5 +71,12 @@ export const COMMAND_PALETTE_ROUTES: CommandRoute[] = [
     section: 'Admin',
     adminOnly: true,
     value: 'admin palette tag chips dev',
+  },
+  {
+    href: '/admin/changelog',
+    label: 'Admin · Changelog',
+    section: 'Admin',
+    adminOnly: true,
+    value: 'admin changelog whats new',
   },
 ];

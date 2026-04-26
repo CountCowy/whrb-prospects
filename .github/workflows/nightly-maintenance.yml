@@ -1,0 +1,117 @@
+name: nightly-maintenance
+
+# Stage T4 nightly cron — runs all four maintenance scripts in a single
+# job to share `setup-python` + `pip install`:
+#
+#   1. rollup_impressions      — aggregate >30d filter_impressions
+#                                 into filter_impression_stats; delete
+#                                 raw rows.
+#   2. archive_deprecated_vocab — hard-delete unused deprecated tag
+#                                 vocab rows ≥12 months old (T2 surface).
+#   3. prune_event_log          — enforce per-bucket retention
+#                                 (errors/audit 6mo, instrumentation
+#                                 3mo, pipeline_% + everything else
+#                                 90d); rolls deleted rows into
+#                                 event_log_stats.
+#   4. advance_source_lifecycle — promote sunset_proposed→sunset (15d)
+#                                 and sunset→archived (30d more); emits
+#                                 source_sunset_auto / source_archived_auto
+#                                 events.
+#
+# Each step uses `continue-on-error: true` so a flake in any one
+# script doesn't block the others. Steps run in dependency order:
+# rollup_impressions feeds the search-rate metric; prune_event_log
+# rolls into event_log_stats; advance_source_lifecycle writes events
+# that the next prune cycle will retain (errors/audit bucket).
+#
+# Cron fires at 09:00 UTC = 04:00 America/New_York (off-peak).
+# Workflow dispatch is wired with a dry-run toggle for manual smoke.
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview without writing'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: nightly-maintenance
+  cancel-in-progress: false
+
+jobs:
+  maintenance:
+    name: Nightly maintenance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: whrb-prospects
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: whrb-prospects/.python-version
+          cache: pip
+          cache-dependency-path: whrb-prospects/requirements.lock
+
+      - name: Install dependencies (pinned lock)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+
+      - name: Roll up filter_impressions ≥30d → filter_impression_stats
+        continue-on-error: true
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ "${DRY_RUN}" = "true" ]; then
+            python scripts/rollup_impressions.py --dry-run
+          else
+            python scripts/rollup_impressions.py
+          fi
+
+      - name: Archive deprecated tag vocabulary (≥12mo, unused)
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ "${DRY_RUN}" = "true" ]; then
+            python scripts/archive_deprecated_vocab.py --dry-run || true
+          else
+            python scripts/archive_deprecated_vocab.py || true
+          fi
+
+      - name: Prune event_log per retention buckets
+        continue-on-error: true
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ "${DRY_RUN}" = "true" ]; then
+            python scripts/prune_event_log.py --dry-run
+          else
+            python scripts/prune_event_log.py
+          fi
+
+      - name: Advance source lifecycle
+        continue-on-error: true
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: |
+          if [ "${DRY_RUN}" = "true" ]; then
+            python scripts/advance_source_lifecycle.py --dry-run
+          else
+            python scripts/advance_source_lifecycle.py
+          fi

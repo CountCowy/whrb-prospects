@@ -17,25 +17,71 @@ def isolated_cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 class TestScore:
+    """T4 score() v2 (SCORE_WEIGHTS_V2_LAUNCH=True).
+
+    Tier provides the dominant base prior. Tag axes (sector / genre /
+    affiliation / cadence / daypart_fit / operating_model) each add +1
+    when present; history adds +1; harvard/mit affiliation adds +1;
+    compliance penalises -20 per value. The legacy V1 signals (website,
+    chamber, review_count) no longer contribute under V2 — those tests
+    have been retired.
+    """
+
     def test_empty_row(self) -> None:
         assert pipeline.score({}) == 0
 
-    def test_website_and_phone_add(self) -> None:
-        s = pipeline.score({"website": "x.com", "company_phone": "617-1", "tier": "C"})
-        # has_website(20) + has_phone(10) + tier_C(5) == 35
-        assert s == 35
-
-    def test_tier_a_highest(self) -> None:
+    def test_tier_only(self) -> None:
         assert pipeline.score({"tier": "A"}) == 30
+        assert pipeline.score({"tier": "B"}) == 15
+        assert pipeline.score({"tier": "C"}) == 5
 
-    def test_chamber_member_bonus(self) -> None:
-        s = pipeline.score({"pipeline_notes": "chamber member"})
-        assert s == 15
+    def test_budget_signal_tag_each_adds_one(self) -> None:
+        # Tier B (15) + sector(+1) + genre(+1) + cadence(+1) = 18.
+        s = pipeline.score(
+            {
+                "tier": "B",
+                "tags": {
+                    "sector": ["arts"],
+                    "genre": ["classical"],
+                    "cadence": ["term_driven"],
+                },
+            }
+        )
+        assert s == 18
 
-    def test_review_count_log_scales(self) -> None:
-        s1 = pipeline.score({"review_count": 10})
-        s2 = pipeline.score({"review_count": 10000})
-        assert s2 > s1
+    def test_history_present_bonus(self) -> None:
+        # Tier B (15) + history(+1) = 16.
+        s = pipeline.score({"tier": "B", "tags": {"history": ["wcrb_sponsor"]}})
+        assert s == 16
+
+    def test_harvard_mit_affiliation_bonus(self) -> None:
+        # Affiliation is NOT a budget-signal axis (it has its own +1 path
+        # for harvard/mit specifically). Tier C (5) + harvard(+1) = 6.
+        s = pipeline.score(
+            {"tier": "C", "tags": {"affiliation": ["harvard_affiliated"]}}
+        )
+        assert s == 6
+        # MIT affiliation behaves the same.
+        s2 = pipeline.score(
+            {"tier": "C", "tags": {"affiliation": ["mit_affiliated"]}}
+        )
+        assert s2 == 6
+        # Other affiliations don't add the +1.
+        s3 = pipeline.score(
+            {"tier": "C", "tags": {"affiliation": ["greater_boston"]}}
+        )
+        assert s3 == 5
+
+    def test_compliance_penalty(self) -> None:
+        # Tier B (15) - 20 = -5; two compliance values = -25.
+        single = pipeline.score(
+            {"tier": "B", "tags": {"compliance": ["political"]}}
+        )
+        assert single == -5
+        double = pipeline.score(
+            {"tier": "B", "tags": {"compliance": ["political", "alcohol"]}}
+        )
+        assert double == -25
 
 
 class TestSeasonality:

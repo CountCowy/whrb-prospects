@@ -22,6 +22,9 @@ type Tile = {
   /** Hero-scale tile — rendered larger and tinted crimson.
    *  Foundation plan: "Total prospects" is the sole hero. */
   hero?: boolean;
+  /** Optional native tooltip rendered via `title=`. Used by the T4
+   *  week-to-date delta tile to flag the Monday reset. */
+  tooltip?: string;
 };
 
 export default async function HomePage() {
@@ -60,6 +63,29 @@ export default async function HomePage() {
       hint: 'Last 7 days',
       testid: 'tile-recent-7d',
     },
+    // --- T4 delta tiles (appended; hero stays "Total prospects") ---
+    {
+      label: 'New since last run',
+      value: stats.newSinceLastRun,
+      hint: 'Pipeline diff',
+      testid: 'tile-delta-new',
+      href: '/admin/runs',
+    },
+    {
+      label: 'Tag changes this week',
+      value: stats.tagChangesThisWeek,
+      hint: 'Resets Monday 00:00 UTC',
+      testid: 'tile-delta-tag-changes',
+      tooltip:
+        'Week-to-date count of prospect_tags rows created since Monday 00:00 UTC. Resets on the Monday boundary.',
+    },
+    {
+      label: 'Prospects gone quiet',
+      value: stats.goneQuiet,
+      hint: 'Active client + 90d idle',
+      testid: 'tile-delta-gone-quiet',
+      href: '/prospects?state=ongoing_contact',
+    },
   ];
 
   return (
@@ -85,7 +111,7 @@ export default async function HomePage() {
         data-testid="home-tiles"
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
-        {tiles.map(({ label, value, hint, href, testid, hero }) => {
+        {tiles.map(({ label, value, hint, href, testid, hero, tooltip }) => {
           // Hero-only secondary content: tier distribution bar + legend.
           // Fills the otherwise-empty bottom of the 2×2 hero cell and
           // contextualises "3,266 total" with the A/B/C split that drives
@@ -183,6 +209,7 @@ export default async function HomePage() {
             <Link
               key={label}
               href={href}
+              title={tooltip}
               className={cn(
                 'block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]',
                 spanClass,
@@ -191,7 +218,7 @@ export default async function HomePage() {
               {content}
             </Link>
           ) : (
-            <div key={label} className={spanClass}>
+            <div key={label} title={tooltip} className={spanClass}>
               {content}
             </div>
           );

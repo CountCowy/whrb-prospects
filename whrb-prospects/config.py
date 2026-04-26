@@ -94,7 +94,8 @@ YELP_SEARCHES = [
 MIN_REVIEW_COUNT = 15
 MIN_RATING = 3.8
 
-# Priority scoring weights
+# Priority scoring weights — V1 (legacy; retained for fallback in case
+# T4 v2 is rolled back via the SCORE_WEIGHTS_V2_LAUNCH guard below).
 SCORE_WEIGHTS = {
     "has_website": 20,
     "has_phone": 10,
@@ -105,6 +106,49 @@ SCORE_WEIGHTS = {
     "tier_B": 15,
     "tier_C": 5,
 }
+
+# T4 launch weights. Equal-weight base across the contributing tag
+# signals; tier provides the dominant prior; compliance is a hard
+# negative penalty. See plan §1.3 #12: the scoring **launches** at T4
+# with these values and is **tuned** at T8 §10.6 T09 once we have ≥3
+# months of close-rate data from /admin/sources instrumentation.
+#
+# Any later weight change must be logged in ROLLOUT.md with before/after
+# data justifying the delta.
+SCORE_WEIGHTS_V2 = {
+    "tier_A": 30,
+    "tier_B": 15,
+    "tier_C": 5,
+    # Each contributing tag adds +1 — equal weights at launch.
+    "tag_budget_signal_each": 1,
+    # +1 for any non-empty `history` axis (proves prior advertising
+    # behaviour somewhere — strong positive signal).
+    "history_present": 1,
+    # +1 for Harvard or MIT affiliation; both signal the most engaged
+    # audience cohorts the rate card is built around.
+    "affiliation_harvard_or_mit": 1,
+    # -20 per compliance-axis tag (cannabis is hard-blocked upstream and
+    # never reaches scoring; political / alcohol / etc. surface as soft
+    # warnings via this penalty).
+    "compliance_each": -20,
+}
+
+# Set to False to fall back to V1 weights without redeploying the web
+# app. T4 ships with V2 active; flip to False if the field-level metric
+# data shows regressive prioritization. Toggle is read by `score()` at
+# import time; restart the pipeline after changing.
+SCORE_WEIGHTS_V2_LAUNCH = True
+
+# Tag axes that count toward the budget_signal "+1 each" bonus. Plan
+# §1.3 #12 calls these "contributing signals" — present-equals-positive
+# tags whose presence hints at fit. NOT exhaustive; tune at T8.
+TAG_AXES_BUDGET_SIGNAL = (
+    "sector",
+    "operating_model",
+    "genre",
+    "cadence",
+    "daypart_fit",
+)
 
 # ---------------------------------------------------------------------------
 # Operational constants
