@@ -4977,3 +4977,70 @@ Final CI on commit `fa2a2cb`: whrb-prospects check (42s) + whrb-web
 check (1m52s) + e2e (3m49s) + Vercel preview deploy — all PASS. PR
 [#25](https://github.com/CountCowy/whrb-prospects/pull/25) is now
 fully green.
+
+### Stage T3 review fix: M1 + M2 (2026-04-25)
+
+A post-merge `/code-review` pass surfaced two medium-severity findings.
+Both are addressed in commit `954fbc9` on `t3/rep-tag-ui` and re-applied
+to `WHRB dev` via `apply_t3_migration.py`.
+
+1. **M1 — POST `locked_by` gate** in
+   `whrb-web/app/api/prospects/[id]/tags/route.ts`. The PATCH handler
+   already enforced a self-or-admin check on `locked_by`; POST did not.
+   A crafted POST `{tag_id, locked_by: <other_uuid>}` would have created
+   a `prospect_tags` row falsely attributing the lock to that user — RLS
+   does not gate `locked_by` at INSERT time. Fix: mirror the PATCH check
+   (lines 416–423) before assigning the column on insert.
+
+2. **M2 — atomic vocab-pending dedup** in
+   `whrb-web/supabase/migrations/009_tag_triggers.sql`. The original
+   `on_pending_tag_use` body did SELECT-then-INSERT; two concurrent
+   `prospect_tags` inserts targeting the same pending vocab could both
+   find no notification and both insert, producing duplicate admin inbox
+   rows and defeating the `creators[]` / `prospect_ids[]` set semantics.
+   Fix:
+   - Add partial unique index `ux_notif_open_vocab_pending` on
+     `notifications(recipient_id, ((payload->>'tag_id')))` filtered to
+     `kind='tag_vocab_pending' AND read_at IS NULL AND digested_at IS
+     NULL` — guarantees one open row per (admin, tag_id).
+   - Rewrite `on_pending_tag_use` to use `INSERT … ON CONFLICT … DO
+     UPDATE` keyed on the same partial-index expression. The
+     `EXCLUDED.actor_id` and `(EXCLUDED.payload -> 'prospect_ids') -> 0`
+     refs carry the would-be-inserted values; case-expressions preserve
+     no-duplicate semantics on the merged arrays.
+   - Defensive pre-step deduplicates any race-induced duplicates before
+     creating the unique index (no-op on clean envs; rescues dev state
+     that may have accumulated under the prior body).
+   - Paired update in `009_rollback.sql` (drop the new index) and the
+     `whrb-prospects/db/schema.sql` mirror.
+
+Verification: `pnpm typecheck` + `lint` + `test:run` (23/23) + `build`
+clean; `pytest` 125/125; `ruff check` clean; `t3_integrity.py` 18 PASS
+/ 11 SKIP-BROWSER / 1 SKIP-VITEST / 0 FAIL (T10 — the dedup-exercising
+Tk — green under the new ON CONFLICT path); DB-side check confirms
+the index landed with the right partial predicate, the function body
+contains `ON CONFLICT` + `EXCLUDED` refs, and `t_pending_tag_use` is
+attached + enabled.
+
+### Stage T3 deferred follow-ups (not blocking T4 entry)
+
+The same review pass logged eight LOW-severity suggestions. None block
+T3 sign-off or T4 start; they are recorded here as a backlog for a
+future hygiene PR (likely landing alongside or after T4).
+
+| ID | File | Issue | Category | Pre-T3? |
+|----|------|-------|----------|---------|
+| S1 | `whrb-prospects/scripts/vocab_digest.py:107–116` | `log_event` writes `event_log` rows without `pipeline_run_id`. Round-7 convention is to stamp every event row; the digest cron is its own cadence so an orphan row may be acceptable, but consider creating a `pipeline_runs` row at digest start for parity. | Maintainability | No |
+| S2 | `whrb-prospects/scripts/vocab_digest.py:122–127` | `--since` flag is documented but unused (parser sets it, body ignores). YAGNI: drop until needed. | Maintainability | No |
+| S3 | `whrb-web/supabase/migrations/009_tag_triggers.sql` (`on_pending_tag_use`) | `for admin_id in select id from profiles where role='admin' loop` performs O(N admins) round-trips per `prospect_tags` insert. Fine at the current 1–3 admin count; revisit past ~10. Could rewrite as a single set-based `INSERT … SELECT FROM profiles … ON CONFLICT …`. | Performance | No |
+| S4 | `whrb-web/app/(app)/prospects/page.tsx` + `app/(app)/my/page.tsx` (`getDaypartValues`) | `.limit(1000)` to harvest distinct daypart values is a hack at current data scale (~3k prospects). At higher volumes a `select distinct daypart_fit from prospect_daypart` RPC would be cleaner. | Performance | No |
+| S5 | `whrb-web/components/ActivityTab.tsx:135–149` | `handleUndo` for `prospect_tag_added` does GET → find by `tag_id` → DELETE (three round-trips). If the API exposed a "delete-by-tag-id-on-prospect" alias, this would be one round-trip. | Performance | No |
+| S6 | `whrb-web/components/admin/VocabManager.tsx:131–142` | Merge-target picker uses native `prompt()` — clunky. Already noted by the round-4 `/review-ui` audit. Replace with a Combobox / Autocomplete in the same shadcn family as the existing form controls. | UX | No |
+| S7 | `whrb-web/e2e/t3/*.spec.ts` | Three Playwright coverage gaps surfaced by the §5.6 mapping audit: T07 (Activity-tab Undo button rendering — Python T08 covers the round-trip but the rendered button has no spec), T12 (admin-reject muted-style transition), T20-family (Activity-tab rendering of `compliance_cleared` / `compliance_resuppressed` events — DB-layer asserted, UI not). | Testing | No |
+| S8 | `whrb-prospects/pipeline.py:549–620` | Mypy reports 163 errors in 38 files, mostly `list[dict] \| None` flow analysis around the pipeline orchestrator. **None introduced by T3** — pre-existing backlog. CI does not gate on mypy. | Maintainability | **Yes (pre-T3)** |
+
+T4 (`t4/instrumentation-and-guide`) does not depend on any of the above.
+S3 is the most likely to grow load-bearing once additional admins join;
+S7 is the most user-visible (compliance audit-trail UI). Suggested
+batching: S3 + S5 + S7 in a single follow-up PR; S1/S2/S4/S6 in a
+hygiene sweep; S8 as its own pipeline.py type-cleanup PR.
