@@ -41,10 +41,42 @@ MODE="${UI_VERIFY_MODE:-enforce}"
 STALE_AFTER_SECS="${UI_VERIFY_STALE_SECS:-900}"
 
 is_push_command() {
-  # Match: `git push`, `git push origin …`, `git push -u …`, etc.
+  # Match: `git push`, `git push origin …`, `git push -u …`, also
+  # `UI_VERIFY_SKIP=1 git push …` and `env FOO=bar git push …` so the
+  # documented bypass shorthand doesn't silently sidestep this gate.
   # Exclude: `git push --help`, `git push-files` (not a real cmd, but safe).
   if [[ "$TOOL_NAME" == "Bash" ]]; then
-    echo "$TOOL_CMD" | grep -qE '^[[:space:]]*git[[:space:]]+push([[:space:]]|$)' && return 0
+    local cmd="$TOOL_CMD"
+    # Trim leading whitespace.
+    cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+    # Strip optional `env` builtin.
+    if [[ "$cmd" =~ ^env[[:space:]]+ ]]; then
+      cmd="${cmd#env}"
+      cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+    fi
+    # Strip leading shell env-var assignments (`VAR=val`, `VAR='q'`, `VAR="q"`).
+    while [[ "$cmd" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; do
+      local key="${cmd%%=*}"
+      local rest="${cmd#${key}=}"
+      case "$rest" in
+        \'*)
+          local val="${rest#\'}"
+          val="${val%%\'*}"
+          cmd="${rest#\'${val}\'}"
+          ;;
+        \"*)
+          local val="${rest#\"}"
+          val="${val%%\"*}"
+          cmd="${rest#\"${val}\"}"
+          ;;
+        *)
+          local val="${rest%%[[:space:]]*}"
+          cmd="${rest#${val}}"
+          ;;
+      esac
+      cmd="${cmd#"${cmd%%[![:space:]]*}"}"
+    done
+    [[ "$cmd" =~ ^git[[:space:]]+push([[:space:]]|$) ]] && return 0
     return 1
   fi
   # MCP tool names matching the PR/merge surface.

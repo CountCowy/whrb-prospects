@@ -8,6 +8,7 @@ import { FeedbackWidget } from '@/components/FeedbackWidget';
 import { FeedbackHistory } from '@/components/FeedbackHistory';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { formatInTz, formatRelative, TIMEZONE } from '@/lib/time';
 
@@ -22,6 +23,9 @@ type Tile = {
   /** Hero-scale tile — rendered larger and tinted crimson.
    *  Foundation plan: "Total prospects" is the sole hero. */
   hero?: boolean;
+  /** Optional native tooltip rendered via `title=`. Used by the T4
+   *  week-to-date delta tile to flag the Monday reset. */
+  tooltip?: string;
 };
 
 export default async function HomePage() {
@@ -60,6 +64,33 @@ export default async function HomePage() {
       hint: 'Last 7 days',
       testid: 'tile-recent-7d',
     },
+    // --- T4 delta tiles (appended; hero stays "Total prospects") ---
+    {
+      label: 'New since last run',
+      value: stats.newSinceLastRun,
+      hint: 'Pipeline diff',
+      testid: 'tile-delta-new',
+      href: '/admin/runs',
+    },
+    {
+      label: 'Tag changes this week',
+      value: stats.tagChangesThisWeek,
+      hint: 'Resets Monday 00:00 UTC',
+      testid: 'tile-delta-tag-changes',
+      tooltip:
+        'Week-to-date count of prospect_tags rows created since Monday 00:00 UTC. Resets on the Monday boundary.',
+    },
+    {
+      label: 'Prospects gone quiet',
+      value: stats.goneQuiet,
+      hint: 'Active client + 90d idle',
+      testid: 'tile-delta-gone-quiet',
+      // Click-through filters to the same set the tile counts:
+      // ongoing_contact AND updated_at < now - 90d. Without idle_days
+      // the link would surface every ongoing_contact row, including
+      // the active ones.
+      href: '/prospects?state=ongoing_contact&idle_days=90',
+    },
   ];
 
   return (
@@ -85,7 +116,7 @@ export default async function HomePage() {
         data-testid="home-tiles"
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
-        {tiles.map(({ label, value, hint, href, testid, hero }) => {
+        {tiles.map(({ label, value, hint, href, testid, hero, tooltip }) => {
           // Hero-only secondary content: tier distribution bar + legend.
           // Fills the otherwise-empty bottom of the 2×2 hero cell and
           // contextualises "3,266 total" with the A/B/C split that drives
@@ -179,18 +210,47 @@ export default async function HomePage() {
           // on the inner Card is a no-op because Card is not a direct grid
           // item. Link (or the fallback div) IS the direct child.
           const spanClass = hero ? 'sm:col-span-2 sm:row-span-2 lg:col-span-2' : '';
-          return href ? (
-            <Link
-              key={label}
-              href={href}
-              className={cn(
-                'block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]',
-                spanClass,
-              )}
-            >
-              {content}
-            </Link>
-          ) : (
+          if (href) {
+            return (
+              <Link
+                key={label}
+                href={href}
+                title={tooltip}
+                className={cn(
+                  'block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]',
+                  spanClass,
+                )}
+              >
+                {content}
+              </Link>
+            );
+          }
+          // No-href tile. If a tooltip is provided, wrap in Radix Tooltip
+          // so keyboard + screen-reader users can reach the explanation;
+          // a native title= on a non-focusable <div> would only surface
+          // on hover.
+          if (tooltip) {
+            return (
+              <Tooltip key={label}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={`${label} (${tooltip})`}
+                    className={cn(
+                      'block w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2 focus-visible:ring-offset-[hsl(var(--background))]',
+                      spanClass,
+                    )}
+                  >
+                    {content}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  {tooltip}
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+          return (
             <div key={label} className={spanClass}>
               {content}
             </div>

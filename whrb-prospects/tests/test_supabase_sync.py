@@ -8,6 +8,7 @@ from db.supabase_sync import (
     _as_str,
     _build_insert,
     _coerce,
+    _fetch_existing_by_name,
     _patch_existing,
     _pipeline_source_for,
     _split_alt_fields,
@@ -68,6 +69,30 @@ class TestBusinessKey:
 
     def test_returns_none_when_nothing_usable(self) -> None:
         assert business_key({"zip": "02138"}) is None
+
+    def test_invalid_nanp_area_code_falls_through_to_name(self) -> None:
+        # The Reagle bug: a hallucinated 10-digit phone with a non-existent
+        # area code (114) must NOT become a phone: key — fall through to
+        # name|zip so the cross-run lookup can match an existing prospect.
+        bk = business_key({
+            "company_name": "Reagle Music Theater",
+            "company_phone": "1145128678",
+            "zip": "02452",
+        })
+        assert bk == "name:reagle music theater|02452"
+
+    def test_invalid_nanp_with_no_zip_falls_through_to_name_only(self) -> None:
+        bk = business_key({
+            "company_name": "Reagle Music Theater",
+            "company_phone": "5275619254",
+        })
+        assert bk == "name:reagle music theater"
+
+    def test_toll_free_accepted_as_phone_key(self) -> None:
+        # User confirmed: 800/833/844/855/866/877/888 count as valid for keying.
+        for tf in ("8005551212", "8775551212", "8665551212", "8335551212"):
+            bk = business_key({"company_name": "X", "company_phone": tf})
+            assert bk == f"phone:{tf}"
 
 
 class TestSplitAltFields:
@@ -282,3 +307,119 @@ class TestPatchExistingEmailGate010:
         }
         patch, _, _ = _patch_existing(row, existing, {}, "t", "name:x")
         assert "contact_email" not in patch  # 010: never written directly
+
+
+# ---------------------------------------------------------------------------
+# Cross-run dedupe: _fetch_existing_by_name builds the name->key index that
+# lets sync() rewrite a fresh ``name:`` key onto an existing prospect.
+# ---------------------------------------------------------------------------
+
+
+class _StubResult:
+    def __init__(self, data: list[dict]) -> None:
+        self.data = data
+
+
+class _StubProspectsQuery:
+    """Minimal PostgREST chain stub for the _fetch_existing_by_name read."""
+
+    def __init__(self, rows: list[dict]) -> None:
+        self._rows = rows
+        self._start = 0
+        self._end: int | None = None
+
+    def select(self, *_args: object, **_kwargs: object) -> _StubProspectsQuery:
+        return self
+
+    def order(self, *_args: object, **_kwargs: object) -> _StubProspectsQuery:
+        return self
+
+    def range(self, start: int, end_inclusive: int) -> _StubProspectsQuery:
+        self._start = start
+        self._end = end_inclusive
+        return self
+
+    def execute(self) -> _StubResult:
+        end = (self._end if self._end is not None else len(self._rows) - 1) + 1
+        return _StubResult(self._rows[self._start:end])
+
+
+class _StubClient:
+    def __init__(self, prospects: list[dict]) -> None:
+        self._prospects = prospects
+
+    def table(self, name: str) -> _StubProspectsQuery:
+        if name != "prospects":
+            raise AssertionError(f"unexpected table {name!r}")
+        return _StubProspectsQuery(list(self._prospects))
+
+
+class TestFetchExistingByName:
+    def _row(
+        self,
+        name: str,
+        bk: str,
+        zip_: str = "02138",
+        score: int = 50,
+        created_at: str = "2026-04-19T00:00:00+00:00",
+    ) -> dict:
+        return {
+            "business_key": bk,
+            "company_name": name,
+            "zip": zip_,
+            "priority_score": score,
+            "created_at": created_at,
+        }
+
+    def test_builds_with_zip_and_no_zip_indexes(self) -> None:
+        client = _StubClient([
+            self._row("Cafe Luna", "phone:6174953400", "02139"),
+            self._row("Solo Venue", "name:solo venue", ""),  # no zip
+        ])
+        with_zip, no_zip = _fetch_existing_by_name(client)
+        assert with_zip == {("cafe luna", "02139"): "phone:6174953400"}
+        # Both rows should appear in the no-zip fallback index.
+        assert no_zip == {
+            "cafe luna": "phone:6174953400",
+            "solo venue": "name:solo venue",
+        }
+
+    def test_higher_score_wins_on_collision(self) -> None:
+        client = _StubClient([
+            self._row("Reagle Music Theater", "phone:1145128678", "02452", score=10),
+            self._row("Reagle Music Theater", "phone:7818915600", "02452", score=100),
+        ])
+        with_zip, _ = _fetch_existing_by_name(client)
+        # The higher-score row's key is preferred — that's the canonical one
+        # we want future runs to fold onto.
+        assert with_zip[("reagle music theater", "02452")] == "phone:7818915600"
+
+    def test_earlier_created_at_breaks_score_tie(self) -> None:
+        client = _StubClient([
+            self._row("X", "name:x|02138", score=50, created_at="2026-04-22T00:00:00+00:00"),
+            self._row("X", "phone:6174953400", score=50, created_at="2026-04-18T00:00:00+00:00"),
+        ])
+        with_zip, _ = _fetch_existing_by_name(client)
+        # Same score → earlier created_at wins (the older, more-stable row).
+        assert with_zip[("x", "02138")] == "phone:6174953400"
+
+    def test_normalizes_company_name_for_lookup(self) -> None:
+        # The lookup key is the same _norm_name dedupe uses, so a future row
+        # with weird casing/punctuation still finds the canonical entry.
+        client = _StubClient([
+            self._row("Reagle Music Theater!", "phone:7818915600", "02452"),
+        ])
+        with_zip, no_zip = _fetch_existing_by_name(client)
+        assert ("reagle music theater", "02452") in with_zip
+        assert "reagle music theater" in no_zip
+
+    def test_skips_rows_without_name(self) -> None:
+        client = _StubClient([
+            {"business_key": "phone:6174953400", "company_name": None,
+             "zip": "02138", "priority_score": 50, "created_at": "t"},
+            self._row("Real One", "name:real one|02138"),
+        ])
+        with_zip, no_zip = _fetch_existing_by_name(client)
+        assert ("", "02138") not in with_zip
+        assert with_zip == {("real one", "02138"): "name:real one|02138"}
+        assert no_zip == {"real one": "name:real one|02138"}

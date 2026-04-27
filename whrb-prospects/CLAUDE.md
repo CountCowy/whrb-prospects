@@ -272,7 +272,7 @@ RLS: read-all-for-authed on most tables; writes scoped to owner/assignee/admin *
 
 ### 5.5 Pipeline integration — the critical contract
 - New final phase `08_supabase_sync` (added to `pipeline.py::PHASE_ORDER`) calls `db/supabase_sync.py::sync(rows)` after the CSV write.
-- **`business_key`** = normalized 10-digit phone (preferred) OR `normalized_name|zip`. Reuses `enrich/dedupe.py::_norm_phone` and `::_norm_name` (do not duplicate).
+- **`business_key`** = normalized 10-digit phone (preferred, *only* if its NANP area code is in `db/validators.py::VALID_NANP_AREA_CODES`) OR `normalized_name|zip`. Reuses `enrich/dedupe.py::_norm_phone` and `::_norm_name` (do not duplicate). The NANP gate prevents scraper-hallucinated phones (NPA 114/177/527) from creating per-run keys; rows with rejected phones fall through to `name|zip` and are caught by the cross-run lookup in `sync()` (`db/supabase_sync.py::_fetch_existing_by_name`).
 - **Edit-lock via `user_overrides` jsonb**: UI patches write to both the column and `user_overrides[field] = true`. Sync skips any locked field. Lockable field matrix is **15 columns** (see plan Stage 7 integrity tests).
 - **Tier, state, assignment, notes, nonprofit override, `priority_score` on user-edited rows** — rules vary, see plan's sync contract.
 - Reading `source_config` at pipeline start lets admins disable scrapers via `/admin/sources`.
@@ -362,6 +362,7 @@ Once Phase 4 ships, the pipeline will gain a `--no-supabase` flag for local dry 
 | Boston food floods output | No phone filter, tier too high, no cap | `sources/city_licenses.py::_fetch_boston_food` (fixed: require phone, Tier C, cap 500) |
 | Program-book noise | Over-broad regex + no context gating | `sources/program_books.py` (fixed: filename exclude + sponsor-context + blocklist + ≥2 words) |
 | Dedupe loses fields / wrong tier | `_merge` semantics + ignored return | `enrich/dedupe.py` (fixed: `alt_<field>`, `_best_tier`, zip-aware `_fuzz_threshold`, return-value capture) |
+| Same business duplicated across pipeline runs | `contact_scraper` hallucinates phones (e.g. NPA 114/177/527); each run produces a new `phone:<garbage>` business_key | Two-part fix: `db/validators.py::VALID_NANP_AREA_CODES` + `validate_phone` rejects bad NPAs (logs `phone_nanp_invalid`); `db/supabase_sync.py::business_key` falls through to `name|zip` for invalid NPAs; `db/supabase_sync.py::_fetch_existing_by_name` lets `sync()` reuse an existing prospect's key on a normalized-name match (logs `cross_run_dedupe_match`). Existing duplicates merged via `scripts/dedupe_cleanup.py`. |
 
 ---
 

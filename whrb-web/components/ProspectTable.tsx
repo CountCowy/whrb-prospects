@@ -11,6 +11,7 @@ import { TierBadge } from '@/components/TierBadge';
 import { StateBadge } from '@/components/StateBadge';
 import { formatDate } from '@/lib/time';
 import { Button } from '@/components/ui/button';
+import { useImpressions } from '@/lib/hooks/use-impressions';
 
 export const PAGE_SIZES = [25, 50, 100, 250] as const;
 
@@ -254,6 +255,14 @@ export function ProspectTable({
     () => COLUMNS({ tagsByProspect, currentUserId, isAdmin }),
     [tagsByProspect, currentUserId, isAdmin],
   );
+
+  // Fire impression pings for source-quality `searched_rate` metric. Key
+  // = pathname + searchParams so the dedup is per-filter-state, per-page.
+  // Empty filter ⇒ default view ⇒ key starts with the path; non-empty
+  // filter signatures distinguish "searched" from "default" downstream.
+  const impressionKey = `${pathname}?${params.toString()}`;
+  const visibleIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  useImpressions(visibleIds, impressionKey);
   const [visible, setVisible] = useState<Set<string>>(
     new Set(allColumns.filter((c) => c.defaultVisible !== false).map((c) => c.key)),
   );

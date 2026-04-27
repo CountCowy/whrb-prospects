@@ -3,7 +3,6 @@ import { test, expect } from '@playwright/test';
 test.describe('Stage 6 — Feedback widget', () => {
   test('T19 POST via modal inserts a feedback row; toast + history updates', async ({ page }) => {
     await page.goto('/');
-    const beforeCount = await page.getByTestId('feedback-history-item').count();
 
     await page.getByTestId('feedback-floating-button').click();
     const modal = page.getByTestId('feedback-modal');
@@ -11,21 +10,39 @@ test.describe('Stage 6 — Feedback widget', () => {
 
     await modal.getByTestId('feedback-category-bug').click();
     const now = new Date().toISOString();
-    await modal.getByTestId('feedback-body').fill(`Stage 6 e2e feedback ${now}`);
-    await modal.getByTestId('feedback-submit').click();
+    const body = `Stage 6 e2e feedback ${now}`;
+    await modal.getByTestId('feedback-body').fill(body);
 
-    // Modal closes.
+    // Wait for the POST response in parallel with the click so cold-start
+    // route compilation on the Vercel preview can take its time without
+    // racing the toBeHidden assertion.
+    const responsePromise = page.waitForResponse(
+      (resp) =>
+        resp.url().includes('/api/feedback') && resp.request().method() === 'POST',
+      { timeout: 30_000 },
+    );
+    await modal.getByTestId('feedback-submit').click();
+    const response = await responsePromise;
+    expect(response.ok()).toBe(true);
+
+    // Modal closes after success.
     await expect(modal).toBeHidden({ timeout: 10_000 });
 
     // Toast appears.
     await expect(page.getByText('Thanks — feedback logged.')).toBeVisible({ timeout: 5_000 });
 
-    // History updated via router.refresh().
-    await expect
-      .poll(async () => page.getByTestId('feedback-history-item').count(), {
-        timeout: 10_000,
-      })
-      .toBeGreaterThan(beforeCount);
+    // History updated via router.refresh(). Assert the new entry's body
+    // text is now visible in the history list. Count-based check is
+    // unreliable: `listMyFeedback()` caps at LIMIT 25, so a synthetic
+    // e2e user with 25+ accumulated entries shows no count delta even
+    // though the new row is at position 0 (oldest is dropped from
+    // the LIMIT 25 window).
+    await expect(
+      page
+        .getByTestId('feedback-history-item')
+        .filter({ hasText: body })
+        .first(),
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test('T21 client-side too-long body is clipped at 2000 chars; submit posts 2000', async ({

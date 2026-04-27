@@ -3,8 +3,10 @@ import { redirect } from 'next/navigation';
 import { Nav } from '@/components/Nav';
 import { FeedbackButton } from '@/components/FeedbackButton';
 import { CommandPalette } from '@/components/CommandPalette';
+import { ChangelogToast } from '@/components/ChangelogToast';
 import { createClient } from '@/lib/supabase/server';
 import { APP_VERSION } from '@/lib/app-version';
+import { getPendingChangelogForUser } from '@/lib/queries/changelog';
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
@@ -26,9 +28,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     .eq('recipient_id', user.id)
     .is('read_at', null);
 
+  // Resolve pending changelog before render so the client-side toast fires
+  // exactly once per `last_changelog_ack` reset (the toast component itself
+  // POSTs /api/changelog/ack to bump the cursor on dismiss).
+  const pendingChangelog = await getPendingChangelogForUser();
+
   return (
     <div className="flex min-h-screen flex-col">
       <Nav isAdmin={isAdmin} userId={user.id} initialUnreadCount={unreadCount ?? 0} />
+      <ChangelogToast pendingEntry={pendingChangelog} />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-6 sm:px-6 sm:pb-32">
         {children}
       </main>

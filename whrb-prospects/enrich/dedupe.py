@@ -25,12 +25,31 @@ Stage T2 additions:
 - Compliance axis is strict ("any wins") — any row carrying
   ``compliance:political`` wins that value for the merged row even when
   the other side is empty.
+
+Stage T4 additions:
+- Every successful ``_merge`` emits a ``dedupe_match`` event_log row
+  carrying ``{winning_source, losing_source, business_key}``. The web
+  app's /admin/sources duplicate-rate metric counts these. Pre-T4 merges
+  were synthesized into the same shape via the migration backfill in
+  011_instrumentation.sql.
 """
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from rapidfuzz import fuzz
+
+# Optional import — pipeline-side runs always have it, but the unit test
+# suite imports `enrich.dedupe` without the broader project context. Type
+# as `Any` so mypy accepts the None fallback (the strict typed module
+# inference would otherwise reject the reassignment).
+_event_log: Any
+try:
+    from util import event_log as _event_log_mod
+    _event_log = _event_log_mod
+except Exception:
+    _event_log = None
 
 PHONE_CLEAN = re.compile(r"\D+")
 
@@ -141,6 +160,40 @@ def _merge(a: dict, b: dict) -> dict:
 
     srcs = {winner.get("source"), loser.get("source")}
     winner["source"] = ",".join(sorted(s for s in srcs if s))
+
+    # T4: emit dedupe_match event for source-quality instrumentation. The
+    # winner_src here is conventional (the more-complete row's source);
+    # the loser_src is the other contributor. Fire-and-forget — never let
+    # a logging failure break a merge.
+    if _event_log is not None:
+        try:
+            winner_src = winner.get("source") or ""
+            loser_src = loser.get("source") or ""
+            # Pick the actual losing-source contribution from the loser
+            # row's source comma-list (if it accumulated any). Fall back
+            # to the loser's raw source verbatim.
+            loser_first = (
+                next(
+                    (s for s in loser_src.split(",") if s and s != winner_src),
+                    loser_src,
+                )
+                if loser_src
+                else None
+            )
+            _event_log.info(
+                "dedupe_match",
+                f"merged {loser_src or '?'} into {winner_src or '?'}",
+                context={
+                    "winning_source": winner_src,
+                    "losing_source": loser_first or loser_src or "",
+                    "business_key": winner.get("business_key")
+                    or winner.get("company_phone")
+                    or winner.get("company_name"),
+                },
+            )
+        except Exception:
+            pass
+
     return winner
 
 

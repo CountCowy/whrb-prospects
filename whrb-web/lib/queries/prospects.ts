@@ -87,6 +87,14 @@ export type ProspectListFilters = {
   source?: string;
   is_nonprofit?: 'true' | 'false';
   assigned?: 'true' | 'false';
+  /**
+   * Idle threshold in days. When set, the query restricts to prospects
+   * whose `updated_at` is older than `now() - idle_days`. Used by the
+   * home dashboard "Prospects gone quiet" tile (which combines
+   * `state=ongoing_contact` with `idle_days=90`) so the click-through
+   * lands on the same row set the tile counts.
+   */
+  idle_days?: string;
 };
 
 export type ProspectListSort = {
@@ -193,6 +201,15 @@ export async function listProspects(params: {
   if (filters.is_nonprofit === 'false') query = query.not('is_nonprofit', 'is', true);
   if (filters.assigned === 'false') query = query.is('assigned_to', null);
   if (filters.assigned === 'true') query = query.not('assigned_to', 'is', null);
+  if (filters.idle_days) {
+    const days = Number.parseInt(filters.idle_days, 10);
+    if (Number.isFinite(days) && days > 0) {
+      const idleCutoff = new Date(
+        Date.now() - days * 24 * 60 * 60 * 1000,
+      ).toISOString();
+      query = query.lt('updated_at', idleCutoff);
+    }
+  }
 
   query = query
     .order(sort.field, { ascending: sort.dir === 'asc', nullsFirst: false })
@@ -270,11 +287,48 @@ export type HomeStats = {
   myAssigned: number;
   withEmail: number;
   recent7d: number;
+  /** T4 delta: prospects whose pipeline_last_seen_at is more recent than
+   *  the prior pipeline run's finished_at. Approximates "new since the
+   *  last refresh". Zero if there's only one (or zero) successful run. */
+  newSinceLastRun: number;
+  /** T4 delta: tag-change events (added + removed + suppressed) emitted
+   *  since `date_trunc('week', now())`. Week-to-date counter; resets
+   *  Monday 00:00 UTC. Counts the union of `prospect_tag_added` /
+   *  `prospect_tag_removed` / `prospect_tag_suppressed` audit-trigger
+   *  events so soft-clears (compliance) AND hard-deletes (other axes)
+   *  are both reflected — matches plan §6.4 #2 "rows created or
+   *  deleted". Lock/unlock toggles are excluded; they're not "changes
+   *  to which tags are on the prospect". */
+  tagChangesThisWeek: number;
+  /** T4 delta: prospects in state ongoing_contact whose updated_at is
+   *  older than 90 days. The T4 plan calls this state `active_client`;
+   *  we map it to the schema's `ongoing_contact`. */
+  goneQuiet: number;
 };
 
 export async function getHomeStats(selfUserId: string): Promise<HomeStats> {
   const supabase = await createClient();
   const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const ninetyDaysAgoIso = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  // Week-to-date boundary in UTC: most recent Monday 00:00 UTC. Reset on
+  // the Monday boundary per plan §6.4 #2.
+  const now = new Date();
+  const dayUtc = now.getUTCDay(); // 0=Sun, 1=Mon, …
+  const daysSinceMon = (dayUtc + 6) % 7; // Mon=0, Sun=6
+  const weekStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysSinceMon),
+  );
+  const weekStartIso = weekStart.toISOString();
+
+  // Resolve "prior pipeline run finish" — the most recent successful run
+  // older than now. If there's none, fall back to `epoch` so the count is 0.
+  const { data: priorRunRows } = await supabase
+    .from('pipeline_runs')
+    .select('finished_at')
+    .eq('status', 'success')
+    .order('finished_at', { ascending: false })
+    .limit(2);
+  const priorFinishedAt = (priorRunRows && priorRunRows[1]?.finished_at) || null;
 
   const queries = await Promise.all([
     supabase.from('prospects').select('id', { count: 'exact', head: true }),
@@ -298,6 +352,33 @@ export async function getHomeStats(selfUserId: string): Promise<HomeStats> {
       .from('prospects')
       .select('id', { count: 'exact', head: true })
       .gte('created_at', sevenDaysAgoIso),
+    // T4 delta: new since last run.
+    priorFinishedAt
+      ? supabase
+          .from('prospects')
+          .select('id', { count: 'exact', head: true })
+          .gt('pipeline_last_seen_at', priorFinishedAt)
+      : Promise.resolve({ count: 0, error: null } as { count: number; error: null }),
+    // T4 delta: tag changes this week — counts the audit-trigger events
+    // (added + removed + suppressed) so both insertion AND deletion
+    // surface in the tile, matching plan §6.4 #2 "rows created or
+    // deleted". The previous form `prospect_tags.created_at >= weekStart`
+    // missed every clear (hard delete or compliance suppression).
+    supabase
+      .from('event_log')
+      .select('id', { count: 'exact', head: true })
+      .in('category', [
+        'prospect_tag_added',
+        'prospect_tag_removed',
+        'prospect_tag_suppressed',
+      ])
+      .gte('created_at', weekStartIso),
+    // T4 delta: ongoing_contact + updated_at older than 90d.
+    supabase
+      .from('prospects')
+      .select('id', { count: 'exact', head: true })
+      .eq('state', 'ongoing_contact')
+      .lt('updated_at', ninetyDaysAgoIso),
   ]);
   return {
     total: queries[0].count ?? 0,
@@ -309,6 +390,9 @@ export async function getHomeStats(selfUserId: string): Promise<HomeStats> {
     myAssigned: queries[6].count ?? 0,
     withEmail: queries[7].count ?? 0,
     recent7d: queries[8].count ?? 0,
+    newSinceLastRun: queries[9].count ?? 0,
+    tagChangesThisWeek: queries[10].count ?? 0,
+    goneQuiet: queries[11].count ?? 0,
   };
 }
 

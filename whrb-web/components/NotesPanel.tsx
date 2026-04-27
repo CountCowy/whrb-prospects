@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { formatDateTime, formatRelative } from '@/lib/time';
 
@@ -38,6 +39,7 @@ export function NotesPanel({
   isAdmin,
   authorLabels,
 }: NotesPanelProps) {
+  const router = useRouter();
   const [notes, setNotes] = useState<NoteView[]>(initialNotes);
   const [showDeleted, setShowDeleted] = useState(false);
   const [draft, setDraft] = useState('');
@@ -45,6 +47,15 @@ export function NotesPanel({
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+
+  // Sync the server-rendered notes into local state whenever the prop
+  // changes — after navigation, router.refresh(), or a remount caused by
+  // a tab switch. Without this, an optimistically-added note vanishes
+  // when the user leaves the Notes tab and comes back, because the panel
+  // re-mounts with the original page-load snapshot.
+  useEffect(() => {
+    setNotes(initialNotes);
+  }, [initialNotes]);
 
   useEffect(() => {
     if (!supabaseRef.current) supabaseRef.current = createClient();
@@ -116,6 +127,7 @@ export function NotesPanel({
         if (prev.some((n) => n.id === optimistic.id)) return prev;
         return [optimistic, ...prev];
       });
+      startTransition(() => router.refresh());
     }
     setDraft('');
   }
@@ -161,6 +173,7 @@ export function NotesPanel({
         ),
       );
     }
+    startTransition(() => router.refresh());
     return true;
   }
 
@@ -185,6 +198,7 @@ export function NotesPanel({
           : n,
       ),
     );
+    startTransition(() => router.refresh());
   }
 
   const counterTone =
