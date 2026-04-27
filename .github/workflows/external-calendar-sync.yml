@@ -1,0 +1,69 @@
+name: external-calendar-sync
+
+# Schedule Feature — periodic Google Calendar ICS pull.
+#
+# Runs every 15 minutes against every enabled row in
+# `schedule_external_calendars`, expanding RRULEs ±6mo/+12mo and
+# upserting into `schedule_events` keyed by (external_source, external_id).
+# The unique partial index makes the upsert idempotent. Rows that vanish
+# from the source feed are tombstoned (`metadata.cancelled_in_source=true`)
+# rather than deleted, so reps' reminders aren't quietly removed.
+#
+# Also responds to a `repository_dispatch` event of type
+# `sync_external_calendar` from the admin "Sync now" button, which passes
+# `client_payload.calendar_id` to scope the run to a single feed.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      calendar_id:
+        description: 'UUID of a single feed to sync (optional)'
+        required: false
+        default: ''
+        type: string
+  repository_dispatch:
+    types:
+      - sync_external_calendar
+
+concurrency:
+  group: external-calendar-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync ICS feeds
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: whrb-prospects
+    env:
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: whrb-prospects/.python-version
+          cache: pip
+          cache-dependency-path: whrb-prospects/requirements.lock
+
+      - name: Install deps
+        run: pip install -r requirements.lock || pip install -r requirements.txt
+
+      - name: Run sync_external_calendars
+        run: |
+          if [ -n "${{ github.event.client_payload.calendar_id }}" ]; then
+            python scripts/sync_external_calendars.py \
+              --calendar-id "${{ github.event.client_payload.calendar_id }}"
+          elif [ -n "${{ github.event.inputs.calendar_id }}" ]; then
+            python scripts/sync_external_calendars.py \
+              --calendar-id "${{ github.event.inputs.calendar_id }}"
+          else
+            python scripts/sync_external_calendars.py
+          fi

@@ -65,10 +65,10 @@ export const SCHEDULE_COLORS: Record<ScheduleCategory, ScheduleColor> = {
     fgHex: '#ffffff',
   },
   personal_task: {
-    bg: 'bg-sky-600',
+    bg: 'bg-sky-700',
     fg: 'text-white',
-    ring: 'ring-sky-500',
-    bgHex: '#0284c7',
+    ring: 'ring-sky-600',
+    bgHex: '#0369a1',
     fgHex: '#ffffff',
   },
   other: {
