@@ -348,7 +348,10 @@ def _repoint_prospect_contact_emails(client, loser_id: str, canonical_id: str) -
     """Move email rows; drop (canonical_id, lower(email)) duplicates.
 
     Same strategy as tags — fetch both sides, compute the loser-only diff,
-    update those. The duplicates remain on the loser and cascade-delete.
+    update those. Forces ``is_primary=false`` on every repointed row because
+    the canonical already has its own ``is_primary=true`` email (per the
+    ``uniq_prospect_primary_email`` partial UNIQUE on
+    (prospect_id) WHERE is_primary). Loser-origin emails become secondaries.
     """
     loser_res = (
         client.table("prospect_contact_emails")
@@ -371,15 +374,28 @@ def _repoint_prospect_contact_emails(client, loser_id: str, canonical_id: str) -
     ]
     if not repoint_ids:
         return 0
-    for i in range(0, len(repoint_ids), 200):
-        chunk = repoint_ids[i : i + 200]
-        (
-            client.table("prospect_contact_emails")
-            .update({"prospect_id": canonical_id})
-            .in_("id", chunk)
-            .execute()
-        )
-    return len(repoint_ids)
+    moved = 0
+    for eid in repoint_ids:
+        try:
+            (
+                client.table("prospect_contact_emails")
+                .update({"prospect_id": canonical_id, "is_primary": False})
+                .eq("id", eid)
+                .execute()
+            )
+            moved += 1
+        except Exception as exc:
+            event_log.warn(
+                "dedupe_cleanup_email_repoint_failed",
+                f"email row {eid} loser={loser_id} -> canonical={canonical_id}: {exc}",
+                context={
+                    "row_id": eid,
+                    "loser_id": loser_id,
+                    "canonical_id": canonical_id,
+                    "exception": type(exc).__name__,
+                },
+            )
+    return moved
 
 
 def _repoint_simple(client, table: str, loser_id: str, canonical_id: str) -> int:
