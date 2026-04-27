@@ -43,7 +43,7 @@ from config import (
     SUPABASE_RETRY_MIN_S,
     SUPABASE_UPSERT_BATCH_SIZE,
 )
-from db.validators import validate_ein, validate_phone
+from db.validators import VALID_NANP_AREA_CODES, validate_ein, validate_phone
 from enrich.dedupe import _norm_name, _norm_phone
 from util import event_log
 from util.http import RETRYABLE_EXCEPTIONS
@@ -151,12 +151,22 @@ def _as_str(value: Any) -> str | None:
 
 
 def business_key(row: dict) -> str | None:
-    """Stable identity: normalized phone (10 digits) if present, else
-    ``name|zip``. Returns ``None`` if neither is derivable (row is skipped).
+    """Stable identity: normalized phone (10 digits, valid NANP area code)
+    if present, else ``name|zip``. Returns ``None`` if neither is derivable
+    (row is skipped).
+
+    The NANP area-code check is what prevents scraper-hallucinated phones
+    (e.g. ``1145128678`` with NPA 114) from creating a per-run ``phone:<garbage>``
+    key — those rows fall through to the ``name|zip`` path and are caught by
+    the cross-run lookup in :func:`sync` instead of accumulating duplicates.
     """
     phone_raw = _as_str(row.get("company_phone")) or _as_str(row.get("contact_phone"))
     phone = _norm_phone(phone_raw)
-    if phone and len(phone) == PHONE_DIGIT_COUNT:
+    if (
+        phone
+        and len(phone) == PHONE_DIGIT_COUNT
+        and phone[:3] in VALID_NANP_AREA_CODES
+    ):
         return f"phone:{phone}"
     name = _norm_name(_as_str(row.get("company_name")))
     zip_ = (_as_str(row.get("zip")) or "")[:5].strip()
@@ -379,6 +389,71 @@ def _fetch_existing(client, keys: list[str]) -> dict[str, dict]:
     return out
 
 
+def _fetch_existing_by_name(
+    client,
+) -> tuple[dict[tuple[str, str], str], dict[str, str]]:
+    """Build cross-run name-based lookup indexes from every prospect in the DB.
+
+    Returns ``(with_zip, no_zip)`` where:
+
+    * ``with_zip[(_norm_name, zip5)]`` -> ``business_key`` (preferred match).
+    * ``no_zip[_norm_name]`` -> ``business_key`` (fallback when the new row
+      has no zip).
+
+    When two prospects collide on a key, the higher ``priority_score`` wins;
+    ties broken by earliest ``created_at``. The caller in :func:`sync` uses
+    this to reuse an existing row's ``business_key`` instead of inserting a
+    duplicate when the new row's ``business_key`` is a fresh ``name:`` form
+    (e.g. because its phone was NANP-invalid and got rejected upstream).
+
+    Paginates the prospects table in pages of 1000 — for ~3,300 rows this
+    is ~4 round-trips; cheap enough to run once per :func:`sync` call.
+    """
+    out_with_zip: dict[tuple[str, str], tuple[int, str, str]] = {}
+    out_no_zip: dict[str, tuple[int, str, str]] = {}
+    page = 1000
+    offset = 0
+    while True:
+        res = (
+            client.table("prospects")
+            .select("business_key,company_name,zip,priority_score,created_at")
+            .order("priority_score", desc=True)
+            .order("created_at", desc=False)
+            .range(offset, offset + page - 1)
+            .execute()
+        )
+        rows = res.data or []
+        for r in rows:
+            n = _norm_name(_as_str(r.get("company_name")))
+            if not n:
+                continue
+            bk = r.get("business_key")
+            if not bk:
+                continue
+            score = int(r.get("priority_score") or 0)
+            ts = _as_str(r.get("created_at")) or ""
+            # Tuple sort key: higher score wins; on tie, earlier ts wins
+            # (negative ts via a swap below isn't possible with strings, so
+            # we invert the comparison by storing (-score, ts) in candidates).
+            tup = (-score, ts, bk)
+            z = (_as_str(r.get("zip")) or "")[:5].strip()
+            if z:
+                key = (n, z)
+                cur = out_with_zip.get(key)
+                if cur is None or tup < cur:
+                    out_with_zip[key] = tup
+            cur_n = out_no_zip.get(n)
+            if cur_n is None or tup < cur_n:
+                out_no_zip[n] = tup
+        if len(rows) < page:
+            break
+        offset += page
+    return (
+        {k: v[2] for k, v in out_with_zip.items()},
+        {k: v[2] for k, v in out_no_zip.items()},
+    )
+
+
 @retry(
     stop=stop_after_attempt(SUPABASE_RETRY_MAX_ATTEMPTS),
     wait=wait_exponential(min=SUPABASE_RETRY_MIN_S, max=SUPABASE_RETRY_MAX_S),
@@ -419,9 +494,13 @@ def sync(rows: Iterable[dict]) -> dict:
     """Upsert ``rows`` into ``public.prospects``.
 
     Returns a summary dict: ``{'inserted': N, 'updated': N, 'skipped': N,
-    'failed': N, 'validation_warnings': N, 'total': N}``. ``validation_warnings``
-    counts per-field rejections surfaced by :mod:`db.validators` (malformed
-    EIN / phone); each rejection also emits a ``warn`` event on ``event_log``.
+    'failed': N, 'validation_warnings': N, 'cross_run_reused': N, 'total': N}``.
+    ``validation_warnings`` counts per-field rejections surfaced by
+    :mod:`db.validators` (malformed EIN / phone / NANP); each rejection also
+    emits a ``warn`` event on ``event_log``. ``cross_run_reused`` counts
+    incoming rows whose freshly-derived ``name:`` key was rewritten to an
+    already-existing prospect's key — those rows patch the existing row
+    instead of inserting a duplicate.
     """
     client = _client()
     summary = {
@@ -437,6 +516,10 @@ def sync(rows: Iterable[dict]) -> dict:
         "emails_inserted": 0,
         "email_failed": 0,
         "email_skipped": 0,
+        # Count of incoming rows whose freshly-derived ``name:`` business_key
+        # was rewritten to an already-existing prospect's key via the
+        # _fetch_existing_by_name lookup (the cross-run dedupe path).
+        "cross_run_reused": 0,
         "total": 0,
     }
 
@@ -463,6 +546,56 @@ def sync(rows: Iterable[dict]) -> dict:
 
     if not prepared:
         return summary
+
+    # Cross-run dedupe: any incoming row whose key starts with ``name:``
+    # (because its phone was missing or NANP-invalid) is rewritten to reuse
+    # the existing prospect's key when one matches by normalized name (and
+    # zip, if available). Without this step a fresh pipeline run with a
+    # newly-hallucinated phone, or no phone at all, would insert a duplicate
+    # under a brand-new ``name:`` key. Rows whose key starts with ``phone:``
+    # are already deduped by the existing _fetch_existing path.
+    name_with_zip, name_no_zip = _fetch_existing_by_name(client)
+    for i, (bk, base, alt) in enumerate(prepared):
+        if not bk.startswith("name:"):
+            continue
+        n = _norm_name(_as_str(base.get("company_name")))
+        if not n:
+            continue
+        z = (_as_str(base.get("zip")) or "")[:5].strip()
+        candidate: str | None = name_with_zip.get((n, z)) if z else None
+        if candidate is None:
+            candidate = name_no_zip.get(n)
+        if candidate and candidate != bk:
+            event_log.info(
+                "cross_run_dedupe_match",
+                f"reusing existing business_key for {base.get('company_name')!r}",
+                context={
+                    "new_key": bk,
+                    "existing_key": candidate,
+                    "company_name": base.get("company_name"),
+                },
+            )
+            prepared[i] = (candidate, base, alt)
+            summary["cross_run_reused"] += 1
+
+    # Post-rewrite dedupe: two prepared entries can collapse to the same key
+    # (e.g. one row matched an existing prospect by phone; another row for
+    # the same business matched the same prospect via the name lookup). Drop
+    # the later occurrence so we don't fire two patches for one prospect.
+    seen_after_rewrite: set[str] = set()
+    deduped: list[tuple[str, dict, dict]] = []
+    for bk, base, alt in prepared:
+        if bk in seen_after_rewrite:
+            event_log.warn(
+                "supabase_sync_dupe_key",
+                f"duplicate business_key after cross-run rewrite: {bk}",
+                context={"business_key": bk, "company_name": base.get("company_name")},
+            )
+            summary["skipped"] += 1
+            continue
+        seen_after_rewrite.add(bk)
+        deduped.append((bk, base, alt))
+    prepared = deduped
 
     existing = _fetch_existing(client, [bk for bk, _, _ in prepared])
     now_iso = _utcnow_iso()
