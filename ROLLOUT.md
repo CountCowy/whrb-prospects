@@ -5375,3 +5375,22 @@ to `origin/t4/instrumentation-and-guide`.
 Stage T4 implementation ends here. Per
 `feedback_no_auto_stage_advance.md`, T5 (competitor-station sponsor
 source) does **not** start until an explicit "start T5" command.
+
+### Stage T4 deferred follow-ups (not blocking T5 entry)
+
+A post-merge `/code-review` pass on PR #27 surfaced 11 findings (3 medium
++ 8 low). M1–M3 and L1–L6 landed inline as a follow-up commit; L7, L8,
+and O1 are recorded here as backlog because each requires touching
+artifacts that are out-of-scope for a review fix.
+
+| ID | File / surface | Issue | Why deferred | Suggested home |
+|----|---------------|-------|--------------|----------------|
+| L7 | `whrb-prospects/scripts/prune_event_log.py:131–141, 187–193` | Idempotence cursor is stashed as a synthetic `pipeline_runs` row with `args = 'prune_event_log:<YYYY-MM-DD>'`. Pollutes the audit table that powers `/admin/runs` and the run-complete notification fan-out; a dedicated `cron_state(key, last_run_at)` table would be cleaner. | Needs a new migration. T4 occupies slot `011`; T5's plan §7.4 reserves `012_peer_stations.sql`. Adding `012_cron_state.sql` mid-T4 would collide with T5; adding it as `013_*` mid-stage would jump the migration counter. | T5 PR (bundled with `012_peer_stations.sql` so both ride the same migration cadence), OR a standalone "ops cleanup" PR after T5 exits. |
+| L8 | `whrb-web/lib/queries/prospects.ts::getHomeStats` (lines 287–366) | 12 separate `count: 'exact', head: true` round-trips per home-page render. Fine at ~3k prospects (each is a HEAD, fully parallelized via `Promise.all`); will degrade past ~50k prospects or once we add user-personalised tiles. | Needs either a new SQL function (`select * from public.get_home_stats(p_user uuid)`) plus a `grant execute` migration, OR a materialised view with refresh-on-pipeline-finish. Either approach is a migration + supabase_sync wiring change too large for a review fix. | Re-evaluate at the **T8 scoring-tuning** checkpoint (≥3 months from launch, when prospect volume + tile count have grown). Track size + p50 latency on `/admin/runs` to know when to pull the trigger. |
+| O1 | PR #27 branch `t4/instrumentation-and-guide` | Three non-T4 commits live on the branch: `944d43d` (notes optimistic-state preservation across tab switches), `0b7ca0a` (ui-pre-push-gate recognises env-var-prefixed `git push`), and `37e3878` (Stage 6 e2e flake fix — LIMIT 25 cap + cold-compile race). Each is a defensible inline fix (the e2e fix specifically addresses cold-compile pressure caused by T4's added routes), but they conflate scope: a `git bisect` for "Stage T4 introduced X" will pull non-T4 changes. | Process issue, not a code defect. Rebasing now would invalidate the merged PR's CI and rewrite committed history. | Pre-merge for **future stages**: when a non-stage fix is needed mid-stage, branch off the stage branch into `fix/<short>` and PR it to `main` ahead of the stage merge. ROLLOUT entry for T5 onwards should cite this convention. |
+
+T5 (`competitor-station-source`) does not depend on any of the above.
+L7 is the most likely to bite first — every nightly `prune_event_log`
+run inserts one synthetic row, so `/admin/runs` page will accumulate
+~30 noise rows per month. L8 has zero practical impact at current
+scale and is purely a future-proofing note.

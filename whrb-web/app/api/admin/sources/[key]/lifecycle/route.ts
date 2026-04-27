@@ -77,9 +77,14 @@ export async function POST(
     .from('source_config')
     .update({
       status: nextStatus,
-      // status_changed_at is bumped by the trigger, but set it explicitly
-      // here too so the row's updated_at also moves and the audit row
-      // shows a fresh timestamp.
+      // `status_changed_at` is bumped by the BEFORE-UPDATE trigger
+      // `t_source_config_status_enabled` (migration 011) whenever
+      // `status` actually moves; we deliberately don't set it client-
+      // side so single-source-of-truth lives in the trigger. The
+      // no-op-promotion check above (line 69) ensures every reach into
+      // this UPDATE will actually shift `status`, so the trigger always
+      // fires. `updated_by` we DO set so the audit/email columns stamp
+      // the actor.
       updated_by: user.id,
     })
     .eq('source_key', key);

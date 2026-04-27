@@ -68,15 +68,20 @@ def _promote(cur, *, from_status: str, to_status: str, age_days: int, event_cate
     for source_key in rows:
         # Best-effort context: rows attributed to this source + close-rate
         # snapshot at sunset.
+        #
+        # Match the comma-joined `prospects.source` field at array-membership
+        # precision via `string_to_array(...) @> ARRAY[%s]`. The previous
+        # `like '%key%'` form would over-match if a future source_key was a
+        # substring of another (e.g. `osm` of `osm_extra`).
         cur.execute(
             """
             select count(*) filter (where state in ('sold','ongoing_contact'))::float
                    / nullif(count(*),0) as close_rate,
                    count(*) as rows
             from public.prospects
-            where source like %s
+            where string_to_array(source, ',') @> ARRAY[%s]
             """,
-            (f"%{source_key}%",),
+            (source_key,),
         )
         result = cur.fetchone()
         close_rate, rows_at_sunset = result if result else (None, None)

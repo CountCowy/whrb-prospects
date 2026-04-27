@@ -53,6 +53,15 @@ def _conn():
 
 ROLLUP_SQL = """
 with eligible as (
+  -- Only roll up impressions whose filter_signature was non-default
+  -- (matches the `signature like '%=%'` heuristic used by
+  -- whrb-web/lib/queries/sources.ts to compute searched_rate).
+  -- `filter_impression_stats` has no signature column, so by convention
+  -- every row in it represents a non-default impression — that lets the
+  -- post-rollup searched_rate query treat all stats rows as "searched"
+  -- without re-deriving the heuristic. Default-filter raw rows still
+  -- get deleted at the cutoff (the DELETE below is unconditional) —
+  -- they just don't carry forward.
   select
     user_id,
     prospect_id,
@@ -60,6 +69,8 @@ with eligible as (
     count(*) as cnt
   from public.filter_impressions
   where created_at < now() - (%s || ' days')::interval
+    and filter_signature is not null
+    and filter_signature like '%%=%%'
   group by 1, 2, 3
 ),
 inserted as (

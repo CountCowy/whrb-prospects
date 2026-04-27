@@ -169,23 +169,29 @@ export async function listSourceMetrics(): Promise<SourceMetricRow[]> {
     }
   }
 
-  // Bucket prospect-level signals per source.
+  // Bucket prospect-level signals per source. We stash each prospect's
+  // last-seen timestamp on the bucket so `rows_last_run` can be derived
+  // in a per-bucket pass instead of re-iterating every prospect for every
+  // source (O(sources × prospects) → O(prospects)).
   type Bucket = {
     contributed: Set<string>;
     closed: number;
     collisions: number;
     searched: number;
     lastSeen: string | null;
+    seenAt: string[]; // every contributing prospect's pipeline_last_seen_at
   };
+  const newBucket = (): Bucket => ({
+    contributed: new Set(),
+    closed: 0,
+    collisions: 0,
+    searched: 0,
+    lastSeen: null,
+    seenAt: [],
+  });
   const bySource = new Map<string, Bucket>();
   for (const cfg of configRows) {
-    bySource.set(cfg.source_key, {
-      contributed: new Set(),
-      closed: 0,
-      collisions: 0,
-      searched: 0,
-      lastSeen: null,
-    });
+    bySource.set(cfg.source_key, newBucket());
   }
 
   for (const p of prospectRows) {
@@ -203,13 +209,7 @@ export async function listSourceMetrics(): Promise<SourceMetricRow[]> {
       // metric isn't dropped silently.
       let bucket = bySource.get(key);
       if (!bucket) {
-        bucket = {
-          contributed: new Set(),
-          closed: 0,
-          collisions: 0,
-          searched: 0,
-          lastSeen: null,
-        };
+        bucket = newBucket();
         bySource.set(key, bucket);
       }
       bucket.contributed.add(p.id);
@@ -217,6 +217,7 @@ export async function listSourceMetrics(): Promise<SourceMetricRow[]> {
       if (isCollision) bucket.collisions += 1;
       if (isSearched) bucket.searched += 1;
       if (p.pipeline_last_seen_at) {
+        bucket.seenAt.push(p.pipeline_last_seen_at);
         if (!bucket.lastSeen || p.pipeline_last_seen_at > bucket.lastSeen) {
           bucket.lastSeen = p.pipeline_last_seen_at;
         }
@@ -224,23 +225,20 @@ export async function listSourceMetrics(): Promise<SourceMetricRow[]> {
     }
   }
 
-  // rows_last_run = prospects with pipeline_last_seen_at within 24h of the
-  // most recent value. Cheap proxy for "this run's output".
+  // rows_last_run = prospects whose pipeline_last_seen_at is within 24h
+  // of the most recent value for that source. Cheap proxy for "this
+  // run's output". Counted from each bucket's stashed timestamps so we
+  // don't iterate every prospect once per source again.
   const rowsLastRunBySource = new Map<string, number>();
   for (const [key, bucket] of bySource.entries()) {
     if (!bucket.lastSeen) {
       rowsLastRunBySource.set(key, 0);
       continue;
     }
-    const cutoff = new Date(new Date(bucket.lastSeen).getTime() - dayms(1));
+    const cutoffMs = new Date(bucket.lastSeen).getTime() - dayms(1);
     let count = 0;
-    for (const p of prospectRows) {
-      if (!p.source) continue;
-      const sources = p.source.split(',').map((s) => s.trim());
-      if (!sources.includes(key)) continue;
-      if (p.pipeline_last_seen_at && new Date(p.pipeline_last_seen_at) >= cutoff) {
-        count += 1;
-      }
+    for (const ts of bucket.seenAt) {
+      if (new Date(ts).getTime() >= cutoffMs) count += 1;
     }
     rowsLastRunBySource.set(key, count);
   }
@@ -254,13 +252,7 @@ export async function listSourceMetrics(): Promise<SourceMetricRow[]> {
   const out: SourceMetricRow[] = [];
   for (const key of Array.from(allKeys).sort()) {
     const cfg = configRows.find((c) => c.source_key === key);
-    const bucket = bySource.get(key) ?? {
-      contributed: new Set<string>(),
-      closed: 0,
-      collisions: 0,
-      searched: 0,
-      lastSeen: null,
-    };
+    const bucket = bySource.get(key) ?? newBucket();
     const losses = lossesBySource.get(key) ?? 0;
     const contributed = bucket.contributed.size;
     const ratio = (n: number) =>
@@ -379,15 +371,30 @@ export async function listSourceSampleRows(
   limit = 25,
 ): Promise<SourceSampleRow[]> {
   const supabase = await createClient();
+  // Server-side prefilter: 4 OR'd LIKE patterns cover exact + 3 comma
+  // positions (head / mid / tail). Tighter than `%key%` which would also
+  // match `keyfoo`. The JS post-filter is kept as a defense-in-depth pass
+  // in case a source_key ever lands with a literal `_` or `%` in it
+  // (currently impossible — source_keys are alphanumeric + underscore in
+  // a controlled allowlist — but the post-filter is cheap insurance).
+  const eq = sourceKey;
+  const head = `${sourceKey},%`;
+  const tail = `%,${sourceKey}`;
+  const mid = `%,${sourceKey},%`;
   const { data, error } = await supabase
     .from('prospects')
     .select('id, company_name, state, source, zip, pipeline_last_seen_at')
-    .ilike('source', `%${sourceKey}%`)
+    .or(
+      [
+        `source.eq.${eq}`,
+        `source.like.${head}`,
+        `source.like.${tail}`,
+        `source.like.${mid}`,
+      ].join(','),
+    )
     .order('pipeline_last_seen_at', { ascending: false, nullsFirst: false })
     .limit(limit);
   if (error) throw error;
-  // Keep only rows whose source comma-list actually contains the key
-  // (ilike `%key%` would match `key2` substring otherwise).
   const rows = (data ?? []) as SourceSampleRow[];
   return rows.filter((r) =>
     (r.source ?? '')

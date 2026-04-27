@@ -64,6 +64,7 @@ export default async function AllProspectsPage({
     source: firstString(sp.source),
     is_nonprofit: firstString(sp.is_nonprofit) as 'true' | 'false' | undefined,
     assigned: firstString(sp.assigned) as 'true' | 'false' | undefined,
+    idle_days: firstString(sp.idle_days),
   };
 
   const supabase = await createClient();

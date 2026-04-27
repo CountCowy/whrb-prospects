@@ -85,7 +85,11 @@ export default async function HomePage() {
       value: stats.goneQuiet,
       hint: 'Active client + 90d idle',
       testid: 'tile-delta-gone-quiet',
-      href: '/prospects?state=ongoing_contact',
+      // Click-through filters to the same set the tile counts:
+      // ongoing_contact AND updated_at < now - 90d. Without idle_days
+      // the link would surface every ongoing_contact row, including
+      // the active ones.
+      href: '/prospects?state=ongoing_contact&idle_days=90',
     },
   ];
 

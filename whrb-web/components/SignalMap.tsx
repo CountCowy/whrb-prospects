@@ -7,15 +7,16 @@ import { SIGNAL_CITIES, type SignalCity } from '@/config/rate-card';
  * city dots show coverage at a glance.
  *
  * Accessibility strategy:
- *   - The SVG itself is **purely decorative**: `role="img"` + a
- *     descriptive `aria-label` summarising what's drawn. Internal
- *     elements use `aria-hidden="true"` so axe doesn't flag the dots
- *     as nameless interactive elements.
- *   - Keyboard + screen-reader users navigate via the paired
- *     `<details>` fallback list below the SVG — every city is a real
- *     `<a>` anchor with the same `?affiliation=<slug>` query.
- *   - On mouse, hovering the SVG city dots highlights the matching
- *     `<details>` row via plain CSS (not interactive).
+ *   - The SVG carries `role="img"` + a descriptive `aria-label`
+ *     summarising what's drawn at a structural level.
+ *   - Each city dot is wrapped in an SVG `<a>` element with a
+ *     ≥44×44 px transparent hit-target overlay (per plan §6.4 and
+ *     WCAG 2.1 SC 2.5.5 / 2.5.8 touch target sizing). The `<a>` has
+ *     an `aria-label` describing the city + ring + destination so
+ *     screen-reader users can navigate the map directly.
+ *   - The paired `<details>` fallback list below the SVG remains a
+ *     scannable text view of the same data; both surfaces resolve to
+ *     the same `?affiliation=<slug>` URL.
  *   - Dark-mode safe: ring strokes use `stroke-current` so the parent
  *     text color drives them.
  */
@@ -92,10 +93,11 @@ export function SignalMap() {
             <text x="400" y="55">Fringe</text>
           </g>
 
-          {/* City dots are aria-hidden — they're decorative only.
-              Keyboard + screen-reader users land on the <details>
-              fallback list below. */}
-          <g aria-hidden="true">
+          {/* City dots — each wrapped in an SVG <a> with a 44×44 px
+              transparent hit-target overlay. Keyboard, mouse, and touch
+              users can all reach them; the <details> fallback list
+              below remains a separate text-only surface. */}
+          <g>
             {SIGNAL_CITIES.map((city) => (
               <CityDot key={city.name} city={city} />
             ))}
@@ -122,25 +124,43 @@ export function SignalMap() {
 
 function CityDot({ city }: { city: SignalCity }) {
   const dotR = 6;
+  // 44 px diameter satisfies WCAG 2.1 SC 2.5.5 / 2.5.8 touch-target
+  // sizing; the visible dot stays at 6 px so the map reads cleanly.
+  const hitR = 22;
   return (
-    <g data-testid="signal-map-city" data-city={city.name} data-ring={city.ring}>
-      <circle
-        cx={city.x}
-        cy={city.y}
-        r={dotR}
-        fill="currentColor"
-        opacity={city.ring === 'local' ? 1 : city.ring === 'distant' ? 0.7 : 0.4}
-      />
-      <text
-        x={city.x + 10}
-        y={city.y + 4}
-        fontSize="11"
-        fill="currentColor"
-        opacity="0.85"
-      >
-        {city.name}
-      </text>
-    </g>
+    <a
+      href={`/prospects?affiliation=${city.affiliationFilter}`}
+      data-testid="signal-map-city-link"
+      data-city={city.name}
+      data-ring={city.ring}
+      aria-label={`${city.name} — ${city.ring} ring; see matching prospects`}
+    >
+      <g data-testid="signal-map-city" data-city={city.name} data-ring={city.ring}>
+        <circle
+          cx={city.x}
+          cy={city.y}
+          r={hitR}
+          fill="transparent"
+          pointerEvents="all"
+        />
+        <circle
+          cx={city.x}
+          cy={city.y}
+          r={dotR}
+          fill="currentColor"
+          opacity={city.ring === 'local' ? 1 : city.ring === 'distant' ? 0.7 : 0.4}
+        />
+        <text
+          x={city.x + 10}
+          y={city.y + 4}
+          fontSize="11"
+          fill="currentColor"
+          opacity="0.85"
+        >
+          {city.name}
+        </text>
+      </g>
+    </a>
   );
 }
 

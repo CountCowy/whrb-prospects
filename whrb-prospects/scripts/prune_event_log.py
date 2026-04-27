@@ -162,22 +162,31 @@ def main() -> int:
                 "instrumentation ≥90d",
             )
 
-            # 3) pipeline_% debug: 90 days.
+            # 3) pipeline_% debug: 90 days. Escape the underscore so the LIKE
+            # pattern matches a literal `pipeline_<word>` and does NOT match
+            # categories that happen to start with `pipelineX...` (a bare `_`
+            # is a single-char wildcard).
             total += _aggregate_then_delete(
                 cur,
-                "category like %s and created_at < now() - interval '90 days'",
-                ("pipeline_%",),
+                "category like 'pipeline\\_%%' escape '\\' "
+                "and created_at < now() - interval '90 days'",
+                tuple(),
                 "pipeline debug ≥90d",
             )
 
             # 4) everything else: 90 days. Excluding the buckets above.
+            # NULL-safe on `level`: `level not in (...)` is null for NULL
+            # rows, which evaluates to false-not-true and would let
+            # null-level rows leak past retention indefinitely. Wrap in
+            # `(level is null or level not in (...))` so they fall into the
+            # default bucket like every other low-priority row.
             total += _aggregate_then_delete(
                 cur,
                 "(category is null or "
                 f"(category not in ({in_clause}) "
                 "and category not in ('prospect_change','prospect_tag_change') "
                 "and category not like 'pipeline\\_%%' escape '\\')) "
-                "and level not in ('error','fatal') "
+                "and (level is null or level not in ('error','fatal')) "
                 "and created_at < now() - interval '90 days'",
                 INSTRUMENTATION_CATEGORIES,
                 "default ≥90d",
