@@ -14,7 +14,9 @@
     "/admin/logs",
     "/admin/feedback",
     "/admin/users",
-    "/admin/prospects/bulk"
+    "/admin/prospects/bulk",
+    "/admin/schedule/calendars",
+    "/schedule"
   ],
   "dynamic": {
     "/prospects/:id": "first row from /api/prospects"
