@@ -7,12 +7,19 @@ import { SIGNAL_CITIES, type SignalCity } from '@/config/rate-card';
  * city dots show coverage at a glance.
  *
  * Accessibility strategy:
- *   - The SVG carries `role="img"` + a descriptive `aria-label`
- *     summarising what's drawn at a structural level.
- *   - Each city dot is wrapped in an SVG `<a>` element with a
- *     ≥44×44 px transparent hit-target overlay (per plan §6.4 and
- *     WCAG 2.1 SC 2.5.5 / 2.5.8 touch target sizing). The `<a>` has
- *     an `aria-label` describing the city + ring + destination so
+ *   - The SVG is a graphics-document container (no `role="img"`).
+ *     `role="img"` would treat the whole SVG as an opaque single
+ *     image, which conflicts with WCAG 4.1.2 / axe-core
+ *     `nested-interactive` once we put focusable `<a>` children
+ *     inside. Without the role, the SVG is the default
+ *     graphics-document, which legitimately accepts interactive
+ *     descendants. The `aria-label` still gives it an accessible
+ *     name so a screen reader announces what the graphic is before
+ *     diving into the city links.
+ *   - Each city dot wraps in an SVG `<a>` element with a ≥44×44 px
+ *     transparent hit-target overlay (per plan §6.4 and WCAG 2.1
+ *     SC 2.5.5 / 2.5.8 touch target sizing). The `<a>` has an
+ *     `aria-label` describing the city + ring + destination so
  *     screen-reader users can navigate the map directly.
  *   - The paired `<details>` fallback list below the SVG remains a
  *     scannable text view of the same data; both surfaces resolve to
@@ -48,7 +55,6 @@ export function SignalMap() {
       <div className="overflow-hidden rounded-xl border border-[hsl(var(--border-subtle))] bg-[hsl(var(--surface))] p-4">
         <svg
           viewBox="0 0 800 500"
-          role="img"
           aria-label="WHRB signal area map: Local ring around Cambridge and Boston, Distant ring out to Salem, Worcester, and Plymouth, Fringe ring covering Manchester NH, Hartford CT, and Providence RI."
           data-testid="signal-map-svg"
           className="h-auto w-full text-[hsl(var(--primary))]"

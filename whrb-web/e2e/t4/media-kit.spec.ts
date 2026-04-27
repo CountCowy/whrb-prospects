@@ -69,11 +69,17 @@ test.describe('T4 · /media-kit (Tks T24-T31)', () => {
 
   test('T27 · signal map SVG + fallback list + a11y posture', async ({ page }) => {
     const svg = page.getByTestId('signal-map-svg');
-    await expect(svg).toHaveAttribute('role', 'img');
+    // SVG is a graphics-document (no `role="img"` — see SignalMap.tsx
+    // header). The accessible name still comes from `aria-label`.
     await expect(svg).toHaveAttribute('aria-label', /WHRB signal area/i);
+    // No `role` attribute set on the SVG: `role="img"` would conflict
+    // with the focusable `<a>` city anchors inside (axe-core
+    // nested-interactive / WCAG 4.1.2).
+    await expect(svg).not.toHaveAttribute('role', 'img');
 
-    // <details> fallback is the keyboard + screen-reader path; expand it
-    // and verify every city is a real anchor.
+    // SVG city anchors are the primary clickable surface (≥44×44 px
+    // hit-target overlay); the `<details>` fallback below is the same
+    // links rendered as a text list for keyboard + screen-reader users.
     await page.getByTestId('signal-map-fallback').click();
     const fallbackLinks = page.getByTestId('signal-map-fallback-link');
     await expect(fallbackLinks).toHaveCount(15);
