@@ -49,6 +49,10 @@ function shortSummary(row: {
       const status = (p.status as string) ?? 'updated';
       return `Feedback status: ${status}`;
     }
+    case 'schedule_reminder': {
+      const title = (p.title as string) ?? 'event';
+      return `Reminder: ${title}`;
+    }
   }
 }
 

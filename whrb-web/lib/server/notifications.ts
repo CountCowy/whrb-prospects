@@ -8,7 +8,8 @@ export type NotificationKind =
   | 'unassigned'
   | 'note_mention'
   | 'run_complete'
-  | 'feedback_status';
+  | 'feedback_status'
+  | 'schedule_reminder';
 
 export interface NotifyInput {
   recipientId: string;
@@ -43,6 +44,13 @@ const EMAIL_PREF_COLUMN: Record<NotificationKind, keyof Omit<UserPrefs, 'user_id
   note_mention: 'notify_mention_email',
   run_complete: 'notify_run_complete_email',
   feedback_status: 'notify_feedback_status_email',
+  // Schedule reminders honor the channel encoded in the notifications.payload
+  // (`channel: 'in_app'|'email'`), set by the dispatcher when it splits one
+  // reminder row into one notification row per channel. The user_preferences
+  // table doesn't gate them — channel selection lives in
+  // user_schedule_preferences. Map to a benign existing column so the type
+  // stays exhaustive; the actual gate is the dispatcher.
+  schedule_reminder: 'notify_assignment_email',
 };
 
 export async function getPrefs(userId: string): Promise<Omit<UserPrefs, 'user_id'>> {

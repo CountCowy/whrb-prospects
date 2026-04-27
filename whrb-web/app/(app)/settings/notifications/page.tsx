@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation';
 import { getAuthed } from '@/lib/server/authz';
 import { createClient } from '@/lib/supabase/server';
 import { NotificationPreferencesForm } from '@/components/NotificationPreferencesForm';
+import { SchedulePreferencesForm } from '@/components/SchedulePreferencesForm';
 import { SignOutButton } from '@/components/SignOutButton';
+import { getSchedulePrefs } from '@/lib/queries/schedule-prefs';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +39,8 @@ export default async function NotificationsPreferencesPage() {
       data?.notify_feedback_status_email ?? DEFAULTS.notify_feedback_status_email,
   };
 
+  const schedulePrefs = await getSchedulePrefs(authz.user.id);
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
       <div className="mb-8">
@@ -50,6 +54,7 @@ export default async function NotificationsPreferencesPage() {
         </p>
       </div>
       <NotificationPreferencesForm initial={initial} />
+      <SchedulePreferencesForm initial={schedulePrefs} />
 
       <section
         data-testid="settings-account"

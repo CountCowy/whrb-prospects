@@ -23,6 +23,9 @@ import { ActivityTab } from '@/components/ActivityTab';
 import { PresenceChips } from '@/components/PresenceChips';
 import { TagChips } from '@/components/TagChips';
 import { TagAddDialog } from '@/components/TagAddDialog';
+import { CreateEventDialog } from '@/components/schedule/CreateEventDialog';
+import { Button } from '@/components/ui/button';
+import { Calendar as CalendarIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -96,6 +99,7 @@ export function ProspectDetail({
   const [tab, setTab] = useState<Tab>('fields');
   const [, startTransition] = useTransition();
   const [tags, setTags] = useState<ProspectTagView[]>(initialTags);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   // Live-update tags whenever the row table changes for this prospect.
   // Uses Supabase Realtime so two reps editing the same prospect see
@@ -200,7 +204,17 @@ export function ProspectDetail({
                 <StateBadge state={prospect.state} />
               </div>
             </div>
-            <div className="shrink-0">
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                data-testid="prospect-add-to-schedule"
+                onClick={() => setScheduleOpen(true)}
+              >
+                <CalendarIcon className="mr-1 h-4 w-4" aria-hidden="true" />
+                Add to schedule
+              </Button>
               <PresenceChips prospectId={prospect.id} currentUser={currentUser} />
             </div>
           </div>
@@ -515,6 +529,38 @@ export function ProspectDetail({
           />
         </TabsContent>
       </Tabs>
+      <CreateEventDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        currentUser={{
+          id: currentUserId,
+          email: currentUser.email,
+          role: isAdmin ? 'admin' : 'rep',
+        }}
+        profiles={profiles.map((p) => ({
+          id: p.id,
+          email: p.email,
+          display_name: p.display_name,
+          // role isn't displayed in the assignee picker; use 'rep' as a
+          // placeholder so the type satisfies RosterUser.
+          role: 'rep' as const,
+        }))}
+        defaults={{ prospect_id: prospect.id, mode: 'task' }}
+        onSubmit={async (payload) => {
+          const res = await fetch('/api/schedule/events', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            toast.error(j.error ?? 'Could not create schedule item.');
+            return false;
+          }
+          toast.success('Added to your schedule.');
+          return true;
+        }}
+      />
     </div>
   );
 }
