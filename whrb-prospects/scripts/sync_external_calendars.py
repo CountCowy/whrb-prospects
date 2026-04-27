@@ -25,9 +25,8 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterable
 from uuid import UUID, uuid5
 
 import psycopg2
@@ -108,8 +107,8 @@ def _fetch_feed(url: str) -> str:
 def _to_utc(value) -> datetime | None:
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
     return None
 
 
@@ -201,8 +200,8 @@ def _sync_feed(conn, row: dict, dry_run: bool = False) -> dict:
         summary["errors"] += 1
         return summary
 
-    horizon_start = datetime.now(timezone.utc) - timedelta(days=HORIZON_PAST_DAYS)
-    horizon_end = datetime.now(timezone.utc) + timedelta(days=HORIZON_FUTURE_DAYS)
+    horizon_start = datetime.now(UTC) - timedelta(days=HORIZON_PAST_DAYS)
+    horizon_end = datetime.now(UTC) + timedelta(days=HORIZON_FUTURE_DAYS)
 
     seen_external_ids: set[str] = set()
     upserts = 0
