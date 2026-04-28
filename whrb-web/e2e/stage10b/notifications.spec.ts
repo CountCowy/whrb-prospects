@@ -42,6 +42,51 @@ test.describe('stage10b notifications (rep)', () => {
     await page.goto(`${baseURL}/`);
     await expect(page.getByTestId('notification-bell')).toBeVisible();
   });
+
+  test('stage10b-t06 mark-read decrements bell badge without reload', async ({ page, baseURL }) => {
+    // Regression for the bug where /notifications mark-read updated the
+    // inbox row but left the bell badge stale until full page refresh.
+    // Fix: NotificationInbox calls router.refresh() after PATCH success,
+    // and NotificationBell syncs the fresh initialUnread prop into local
+    // state via useEffect. Together the badge converges to the server
+    // truth without the user reloading.
+    const snap = loadSnapshot();
+    const service = serviceClient();
+    await service.from('notifications').delete().eq('recipient_id', snap.rep_a_id);
+
+    const { data: inserted, error: insertError } = await service
+      .from('notifications')
+      .insert({
+        recipient_id: snap.rep_a_id,
+        kind: 'note_mention',
+        payload: { actor_email: 'qa-bot@example.com' },
+      })
+      .select('id')
+      .single();
+    expect(insertError).toBeNull();
+    const notifId = inserted!.id as string;
+
+    await page.goto(`${baseURL}/notifications`);
+
+    // Bell renders with the seeded unread surfaced as a badge.
+    const bell = page.getByTestId('notification-bell');
+    await expect(bell).toBeVisible();
+    await expect(page.getByTestId('notification-bell-badge')).toBeVisible();
+    await expect(bell).toHaveAttribute('data-unread-count', /^[1-9]\d*$/);
+
+    // Click the row's "Mark read" action.
+    const row = page.locator(
+      `[data-testid="notification-row"][data-notification-id="${notifId}"]`,
+    );
+    await expect(row).toBeVisible();
+    await row.getByRole('button', { name: 'Mark read' }).click();
+
+    // Without page.reload(), the bell badge should disappear because
+    // router.refresh() re-runs the layout's unread query and the bell's
+    // useEffect picks up the fresh prop.
+    await expect(bell).toHaveAttribute('data-unread-count', '0', { timeout: 5_000 });
+    await expect(page.getByTestId('notification-bell-badge')).toHaveCount(0);
+  });
 });
 
 test.describe('stage10b settings/notifications', () => {

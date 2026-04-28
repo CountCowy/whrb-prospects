@@ -67,6 +67,16 @@ export function NotificationBell({
   const prefsRef = useRef<TogglePrefs>(DEFAULT_TOAST_PREFS);
   const mountedRef = useRef(false);
 
+  // Sync the server-rendered count back into local state when the layout
+  // re-renders (e.g. after NotificationInbox calls router.refresh() on
+  // mark-read). Without this the useState seed only fires once, so a fresh
+  // initialUnread prop would silently be ignored. Realtime increments and
+  // decrements still apply between refreshes; on each refresh the count
+  // snaps to the server-truthful value.
+  useEffect(() => {
+    setUnread(initialUnread);
+  }, [initialUnread]);
+
   useEffect(() => {
     mountedRef.current = true;
     const supabase = createClient();

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { formatDateTime, formatRelative } from '@/lib/time';
@@ -93,6 +94,7 @@ function detailHref(n: NotificationItem): string | null {
 }
 
 export function NotificationInbox({ initial }: { initial: NotificationItem[] }) {
+  const router = useRouter();
   const [items, setItems] = useState(initial);
   const [pending, startTransition] = useTransition();
 
@@ -118,6 +120,11 @@ export function NotificationInbox({ initial }: { initial: NotificationItem[] }) 
         const nextReadAt = patchBody.action === 'mark_read' ? now : null;
         setItems((old) => old.map((it) => (it.id === patchBody.id ? { ...it, read_at: nextReadAt } : it)));
       }
+      // Re-run the (app)/layout.tsx server query so NotificationBell receives
+      // a fresh `initialUnread` prop. Without this the bell badge stays stale
+      // until full page reload — realtime UPDATE delivery is unreliable in
+      // practice (depends on Supabase realtime + replica-identity config).
+      router.refresh();
       void notif;
     });
   }
