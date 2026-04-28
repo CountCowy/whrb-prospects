@@ -12,6 +12,11 @@ export type AuthzResult =
   | { kind: 'unauth' }
   | { kind: 'authed'; user: AuthedUser };
 
+export type RequireAdminResult =
+  | { kind: 'unauth' }
+  | { kind: 'forbidden' }
+  | { kind: 'ok'; user: AuthedUser };
+
 export async function getAuthed(): Promise<AuthzResult> {
   const supabase = await createClient();
   const {
@@ -32,4 +37,11 @@ export async function getAuthed(): Promise<AuthzResult> {
       role: profile.role as 'admin' | 'rep',
     },
   };
+}
+
+export async function requireAdmin(): Promise<RequireAdminResult> {
+  const authz = await getAuthed();
+  if (authz.kind === 'unauth') return { kind: 'unauth' };
+  if (authz.user.role !== 'admin') return { kind: 'forbidden' };
+  return { kind: 'ok', user: authz.user };
 }

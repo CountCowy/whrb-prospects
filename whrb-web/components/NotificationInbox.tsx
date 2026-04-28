@@ -10,7 +10,8 @@ export type NotificationKind =
   | 'unassigned'
   | 'note_mention'
   | 'run_complete'
-  | 'feedback_status';
+  | 'feedback_status'
+  | 'schedule_reminder';
 
 export interface NotificationItem {
   id: string;
@@ -29,6 +30,7 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   note_mention: 'Mentioned in a note',
   run_complete: 'Pipeline run complete',
   feedback_status: 'Feedback update',
+  schedule_reminder: 'Schedule reminder',
 };
 
 function summary(n: NotificationItem): string {
@@ -56,12 +58,31 @@ function summary(n: NotificationItem): string {
       const status = (p.status as string) ?? 'updated';
       return `An admin set your feedback to “${status}”.`;
     }
+    case 'schedule_reminder': {
+      const title = (p.title as string) ?? 'an event';
+      const lead = p.lead_minutes as number | undefined;
+      const leadStr = lead == null
+        ? 'soon'
+        : lead < 60
+          ? `${lead}m`
+          : lead < 1440
+            ? `${Math.round(lead / 60)}h`
+            : `${Math.round(lead / 1440)}d`;
+      return `Reminder: ${title} (in ${leadStr}).`;
+    }
     default:
       return KIND_LABEL[n.kind];
   }
 }
 
 function detailHref(n: NotificationItem): string | null {
+  if (n.kind === 'schedule_reminder') {
+    const startsAt = n.payload.starts_at as string | undefined;
+    const dateParam = startsAt
+      ? `?date=${new Date(startsAt).toISOString().slice(0, 10)}`
+      : '';
+    return `/schedule${dateParam}`;
+  }
   if (n.prospect_id) return `/prospects/${n.prospect_id}`;
   if (n.kind === 'feedback_status') return `/`;
   if (n.kind === 'run_complete') {

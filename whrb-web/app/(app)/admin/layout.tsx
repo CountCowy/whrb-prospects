@@ -46,6 +46,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           ['/admin/logs', 'Logs'],
           ['/admin/feedback', 'Feedback'],
           ['/admin/prospects/bulk', 'Bulk'],
+          ['/admin/schedule/calendars', 'Calendars'],
         ].map(([href, label]) => (
           <a
             key={href}

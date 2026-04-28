@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   BookOpen,
+  Calendar,
   FileText,
   Home,
   LayoutGrid,
@@ -45,6 +46,7 @@ const TABS: Tab[] = [
   { href: '/prospects', label: 'All Prospects', icon: LayoutGrid },
   { href: '/my', label: 'My Clients', icon: UserCircle2 },
   { href: '/team', label: 'Team', icon: Users },
+  { href: '/schedule', label: 'Schedule', icon: Calendar },
   { href: '/media-kit', label: 'Media Kit', icon: FileText },
   { href: '/guide', label: 'Guide', icon: BookOpen },
 ];

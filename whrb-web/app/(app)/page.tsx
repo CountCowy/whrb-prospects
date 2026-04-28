@@ -4,8 +4,10 @@ import { createClient } from '@/lib/supabase/server';
 import { getHomeStats } from '@/lib/queries/prospects';
 import { listRecentActivity } from '@/lib/queries/notes';
 import { listMyFeedback } from '@/lib/queries/feedback';
+import { getUpcomingScheduleForUser } from '@/lib/queries/schedule';
 import { FeedbackWidget } from '@/components/FeedbackWidget';
 import { FeedbackHistory } from '@/components/FeedbackHistory';
+import { HomeUpcoming } from '@/components/HomeUpcoming';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -36,10 +38,11 @@ export default async function HomePage() {
   const userId = user!.id;
   const firstName = user?.email?.split('@')[0] ?? 'there';
 
-  const [stats, activity, feedback] = await Promise.all([
+  const [stats, activity, feedback, upcoming] = await Promise.all([
     getHomeStats(userId),
     listRecentActivity(10),
     listMyFeedback(),
+    getUpcomingScheduleForUser(userId, 14),
   ]);
 
   const now = formatInTz(new Date(), 'EEEE, MMMM d · h:mm a zzz');
@@ -257,6 +260,8 @@ export default async function HomePage() {
           );
         })}
       </section>
+
+      <HomeUpcoming events={upcoming} />
 
       <section
         data-testid="recent-activity"
