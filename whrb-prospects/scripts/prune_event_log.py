@@ -10,9 +10,11 @@ Buckets (per plan §1.3 #26):
   - category LIKE 'pipeline\\_%%' escape '\\': 90 days
   - everything else: 90 days
 
-Idempotent. Same-day re-runs are no-ops via a prune-cursor row stashed
-in pipeline_runs (we abuse the audit table by writing a synthetic row
-keyed off `args = 'prune_event_log:<YYYY-MM-DD>'`).
+Idempotent. Same-day re-runs are no-ops via the public.cron_state table
+(migration 014_cron_state.sql) keyed off CRON_KEY. Older builds of this
+script stashed the cursor in pipeline_runs as a synthetic row; that
+hack is gone — 014 backfills the latest cursor into cron_state and
+deletes the synthetic rows.
 """
 from __future__ import annotations
 
@@ -27,6 +29,8 @@ from dotenv import load_dotenv
 
 HERE = Path(__file__).resolve().parent
 WHRB_PROSPECTS = HERE.parent
+
+CRON_KEY = "prune_event_log"
 
 INSTRUMENTATION_CATEGORIES = (
     "dedupe_match",
@@ -114,33 +118,44 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument(
-        "--cursor-key",
-        default=None,
-        help="Override prune cursor (default: today's UTC date).",
+        "--force",
+        action="store_true",
+        help="Skip the same-day idempotence guard and run anyway.",
     )
     args = ap.parse_args()
 
-    cursor_key = args.cursor_key or dt.datetime.now(tz=dt.UTC).strftime(
-        "prune_event_log:%Y-%m-%d"
-    )
+    today = dt.datetime.now(tz=dt.UTC).date()
 
     conn = _conn()
     total = 0
     try:
         with conn, conn.cursor() as cur:
-            # Idempotence guard.
+            # Idempotence guard via cron_state. The table is created by
+            # 014_cron_state.sql; if it doesn't exist (e.g. running an
+            # unmigrated dev DB), the script hard-errors with a clear
+            # message rather than silently skipping the guard.
             cur.execute(
-                "select 1 from public.pipeline_runs where args = %s limit 1",
-                (cursor_key,),
+                """
+                select (last_run_at at time zone 'utc')::date
+                  from public.cron_state
+                 where key = %s
+                """,
+                (CRON_KEY,),
             )
-            if cur.fetchone() is not None:
+            row = cur.fetchone()
+            last_run_date = row[0] if row else None
+            if last_run_date == today and not args.force:
                 print(
-                    f"[prune_event_log] cursor {cursor_key} already ran today — "
-                    "no-op."
+                    f"[prune_event_log] cron_state[{CRON_KEY}].last_run_at "
+                    f"is {last_run_date} (today, UTC) — no-op. Pass --force "
+                    "to override."
                 )
                 return 0
             if args.dry_run:
-                print(f"[prune_event_log] (dry-run; cursor would be {cursor_key})")
+                print(
+                    f"[prune_event_log] (dry-run; would stamp cron_state[{CRON_KEY}] "
+                    f"for {today})"
+                )
                 return 0
 
             # 1) errors/fatal/audit categories: 6 months.
@@ -192,17 +207,20 @@ def main() -> int:
                 "default ≥90d",
             )
 
-            # Stamp cursor row.
+            # Stamp the cursor. UPSERT so the first ever run after the
+            # 014 migration creates the row; subsequent runs update it.
             cur.execute(
                 """
-                insert into public.pipeline_runs (status, args, started_at, finished_at)
-                values ('success', %s, now(), now())
+                insert into public.cron_state (key, last_run_at)
+                values (%s, now())
+                on conflict (key) do update
+                  set last_run_at = excluded.last_run_at
                 """,
-                (cursor_key,),
+                (CRON_KEY,),
             )
             print(
                 f"[prune_event_log] {total} rows deleted (rolled into event_log_stats);"
-                f" cursor stamped: {cursor_key}"
+                f" cron_state[{CRON_KEY}] stamped {today}"
             )
     finally:
         conn.close()

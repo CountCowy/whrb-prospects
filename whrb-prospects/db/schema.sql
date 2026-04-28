@@ -345,6 +345,20 @@ create policy p_runs_insert on pipeline_runs for insert with check (
   exists (select 1 from profiles where id = auth.uid() and role = 'admin')
 );
 
+-- cron_state (014_cron_state.sql) — opaque idempotence cursors per cron job.
+-- Read for admins only (powers /admin diagnostics if surfaced); writes only
+-- via service-role connections (cron jobs bypass RLS).
+create table if not exists public.cron_state (
+  key         text primary key,
+  last_run_at timestamptz not null default now()
+);
+alter table public.cron_state enable row level security;
+drop policy if exists p_cron_state_read on public.cron_state;
+create policy p_cron_state_read on public.cron_state
+  for select using (
+    exists (select 1 from profiles where id = auth.uid() and role = 'admin')
+  );
+
 -- event_log
 alter table event_log enable row level security;
 create policy p_log_read on event_log for select using (auth.uid() is not null);
