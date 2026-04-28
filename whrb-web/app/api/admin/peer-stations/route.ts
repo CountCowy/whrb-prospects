@@ -3,34 +3,22 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthed } from '@/lib/server/authz';
 import { logEvent } from '@/lib/logging/server';
+import { normalizeName } from '@/lib/norm-name';
 
 export const runtime = 'nodejs';
 
 const STATUSES = ['active', 'deprecated'] as const;
 
-// Normalized name = lowercase alnum + spaces, matching
-// `enrich/dedupe.py::_norm_name`. The pipeline matches scraped names by
-// substring containment on this form, so we normalize at write time and
-// reject anything that wouldn't survive the round-trip.
-const NORM_RE = /^[a-z0-9 ]+$/;
-
 const Body = z.object({
   display_name: z.string().min(1).max(120),
-  // normalized_name is optional — we'll derive it from display_name when
-  // omitted. When provided, validate the shape strictly so writes here
-  // exactly match the scraper-side normalization.
-  normalized_name: z.string().min(1).max(120).regex(NORM_RE).optional(),
+  // normalized_name is optional — derived from display_name when omitted.
+  // When provided, must already be in canonical form (round-trip equal to
+  // normalizeName(it)) so writes here exactly match the scraper-side
+  // semantics in `enrich/dedupe.py::_norm_name`.
+  normalized_name: z.string().min(1).max(120).optional(),
   status: z.enum(STATUSES).optional(),
   notes: z.string().max(2000).nullable().optional(),
 });
-
-function deriveNormalizedName(display: string): string {
-  return display
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 export async function POST(req: Request) {
   const authz = await getAuthed();
@@ -59,8 +47,17 @@ export async function POST(req: Request) {
   }
 
   const display_name = parsed.data.display_name.trim();
-  const normalized_name =
-    parsed.data.normalized_name?.trim() ?? deriveNormalizedName(display_name);
+  const userProvidedNorm = parsed.data.normalized_name?.trim();
+  if (userProvidedNorm && userProvidedNorm !== normalizeName(userProvidedNorm)) {
+    return NextResponse.json(
+      {
+        error:
+          'normalized_name must be canonical (lowercase, no punctuation, single-spaced). Omit to derive from display_name.',
+      },
+      { status: 400 },
+    );
+  }
+  const normalized_name = userProvidedNorm || normalizeName(display_name);
   if (!normalized_name) {
     return NextResponse.json(
       { error: 'normalized_name resolved to empty string.' },

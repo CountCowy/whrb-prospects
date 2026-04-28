@@ -3,16 +3,18 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { getAuthed } from '@/lib/server/authz';
 import { logEvent } from '@/lib/logging/server';
+import { normalizeName } from '@/lib/norm-name';
 
 export const runtime = 'nodejs';
 
 const STATUSES = ['active', 'deprecated'] as const;
-const NORM_RE = /^[a-z0-9 ]+$/;
 
 const PatchBody = z
   .object({
     display_name: z.string().min(1).max(120).optional(),
-    normalized_name: z.string().min(1).max(120).regex(NORM_RE).optional(),
+    // Canonical-form check happens in-handler against normalizeName so the
+    // contract stays in lockstep with `enrich/dedupe.py::_norm_name`.
+    normalized_name: z.string().min(1).max(120).optional(),
     status: z.enum(STATUSES).optional(),
     notes: z.string().max(2000).nullable().optional(),
   })
@@ -57,7 +59,17 @@ export async function PATCH(req: Request, { params }: RouteParams) {
     update.display_name = parsed.data.display_name.trim();
   }
   if (parsed.data.normalized_name !== undefined) {
-    update.normalized_name = parsed.data.normalized_name.trim();
+    const trimmed = parsed.data.normalized_name.trim();
+    if (trimmed !== normalizeName(trimmed)) {
+      return NextResponse.json(
+        {
+          error:
+            'normalized_name must be canonical (lowercase, no punctuation, single-spaced).',
+        },
+        { status: 400 },
+      );
+    }
+    update.normalized_name = trimmed;
   }
   if (parsed.data.status !== undefined) update.status = parsed.data.status;
   if (parsed.data.notes !== undefined) update.notes = parsed.data.notes;

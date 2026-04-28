@@ -136,16 +136,6 @@ _STATION_SELF_DOMAINS: dict[str, tuple[str, ...]] = {
     "wers": ("wers.org", "emerson.edu"),
 }
 
-#: Daypart hint emitted at scrape time. Other dayparts derive at view-read
-#: via ``derive_daypart`` (migration 008).
-_STATION_DAYPART: dict[str, str] = {
-    "wcrb": "classical",
-    "wumb": "blues_hillbilly",
-    # WGBH / WBUR / WERS lean general-interest; let the daypart view
-    # derive from sector / genre tags emitted by other sources after
-    # dedupe merge.
-}
-
 #: Which station maps to which ``history:<slug>_sponsor`` vocab value.
 #: Vocab seeded in ``util/tags.py::_SEED_VOCAB`` and migration ``007``.
 _STATION_HISTORY_TAG: dict[str, str] = {
@@ -595,21 +585,20 @@ _PARSERS: dict[str, Callable[[str], list[dict]]] = {
 
 
 def _build_row(slug: str, name: str, website: str) -> dict:
-    """Construct a pipeline row from a (station, sponsor name, website) triple."""
+    """Construct a pipeline row from a (station, sponsor name, website) triple.
+
+    Daypart hint flows via ``history:<station>_sponsor`` — the migration-008
+    daypart SQL view's history-axis branch maps WCRB → ``daypart_classical``
+    and WUMB → ``daypart_blues_hillbilly``. ``daypart_fit`` is a derived axis
+    and is intentionally not accepted by ``build_tag_set``, so the per-station
+    daypart isn't emitted directly here.
+    """
     history_tag = _STATION_HISTORY_TAG[slug]
-    daypart = _STATION_DAYPART.get(slug)
     tag_kwargs: dict[str, str | list[str]] = {
         "sector": "unknown",
         "operating_model": "unknown",
         "history": history_tag,
     }
-    if daypart:
-        # daypart_fit is a derived axis (computed by the migration-008 SQL
-        # view from genre/sector/affiliation/etc.) and is intentionally
-        # not accepted by build_tag_set. Encode the station-specific
-        # daypart hint as a `history:<station>_sponsor` tag instead — the
-        # daypart view's history-axis branch picks it up automatically.
-        pass
     tag_payload = build_tag_set(source=f"{SOURCE_KEY}:{slug}", **tag_kwargs)
     row: dict = {
         "source": SOURCE_KEY,

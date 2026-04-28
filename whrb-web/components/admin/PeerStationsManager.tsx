@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { normalizeName } from '@/lib/norm-name';
 import type {
   PeerStationRow,
   PeerStationStatus,
@@ -15,14 +16,6 @@ const STATUSES: ReadonlyArray<PeerStationStatus> = ['active', 'deprecated'];
 
 const SELECT_CLASS =
   'flex h-9 rounded-md border border-input bg-transparent px-2 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
-
-function deriveNormalizedName(display: string): string {
-  return display
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 export function PeerStationsManager({
   initialRows,
@@ -154,7 +147,6 @@ export function PeerStationsManager({
               name="normalized_name"
               maxLength={120}
               placeholder="wboz"
-              pattern="[a-z0-9 ]+"
               data-testid="peer-stations-input-normalized"
             />
           </div>
@@ -294,12 +286,9 @@ function PeerRowEditor({
       />
       <Input
         value={normalized}
-        onChange={(e) =>
-          setNormalized(deriveNormalizedName(e.target.value))
-        }
+        onChange={(e) => setNormalized(normalizeName(e.target.value))}
         placeholder="normalized form"
         maxLength={120}
-        pattern="[a-z0-9 ]+"
         data-testid={`peer-stations-edit-normalized-${row.normalized_name}`}
       />
       <Input
