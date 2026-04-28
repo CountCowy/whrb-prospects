@@ -1319,3 +1319,76 @@ end $$;
 -- =========================================================================
 -- End of 012_schedule.sql mirror
 -- =========================================================================
+
+-- =========================================================================
+-- 015_peer_stations.sql mirror — Stage T5
+-- =========================================================================
+-- Slot 015 because 013_schedule_fixes.sql + 014_cron_state.sql consumed
+-- 013/014. peer_stations is the admin-editable whitelist consumed by
+-- sources/competitor_stations.py: any scraped row whose normalized
+-- company_name matches an active row gets tagged history:peer_public_radio
+-- and suppressed from prospects output.
+
+create table if not exists public.peer_stations (
+  id              uuid primary key default gen_random_uuid(),
+  normalized_name text unique not null,
+  display_name    text not null,
+  status          text not null default 'active'
+                  check (status in ('active', 'deprecated')),
+  added_by        uuid references auth.users(id),
+  notes           text,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists peer_stations_status_active
+  on public.peer_stations(status)
+  where status = 'active';
+
+drop trigger if exists t_peer_stations_updated_at on public.peer_stations;
+create trigger t_peer_stations_updated_at
+  before update on public.peer_stations
+  for each row execute function public.set_updated_at();
+
+alter table public.peer_stations enable row level security;
+
+drop policy if exists p_peer_stations_read on public.peer_stations;
+create policy p_peer_stations_read on public.peer_stations
+  for select using (auth.uid() is not null);
+
+drop policy if exists p_peer_stations_admin_write on public.peer_stations;
+create policy p_peer_stations_admin_write on public.peer_stations
+  for all using (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role = 'admin'
+    )
+  ) with check (
+    exists (
+      select 1 from public.profiles
+      where id = auth.uid() and role = 'admin'
+    )
+  );
+
+insert into public.peer_stations (normalized_name, display_name, notes)
+values
+  ('whrb',  'WHRB',   'Self — WHRB 95.3 FM. Should never appear in any source output.'),
+  ('wcrb',  'WCRB',   'Classical 99.5 / GBH-owned classical sister station. Scrape target — never a prospect.'),
+  ('wgbh',  'WGBH',   'GBH 89.7. Scrape target — never a prospect.'),
+  ('gbh',   'GBH',    'Post-rebrand display form of WGBH; same entity.'),
+  ('wbur',  'WBUR',   'WBUR 90.9 (BU NPR). Scrape target — never a prospect.'),
+  ('wumb',  'WUMB',   'WUMB 91.9 (UMass Boston). Scrape target — never a prospect.'),
+  ('wers',  'WERS',   'WERS 88.9 (Emerson College). Scrape target — never a prospect.'),
+  ('wnyc',  'WNYC',   'NYC public radio. Often appears in WBUR / WGBH peer-content credits.'),
+  ('wqxr',  'WQXR',   'NYC classical sister-station of WNYC.'),
+  ('npr',   'NPR',    'National Public Radio.'),
+  ('prx',   'PRX',    'Public Radio Exchange.'),
+  ('pri',   'PRI',    'Public Radio International.'),
+  ('pbs',   'PBS',    'Public Broadcasting Service.'),
+  ('boston public radio', 'Boston Public Radio', 'GBH on-air program brand; not a sponsor.'),
+  ('classicalwcrb', 'Classical WCRB', 'Display form of WCRB used on classicalwcrb.org.')
+on conflict (normalized_name) do nothing;
+
+-- =========================================================================
+-- End of 015_peer_stations.sql mirror
+-- =========================================================================

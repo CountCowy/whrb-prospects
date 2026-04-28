@@ -79,4 +79,11 @@ export const COMMAND_PALETTE_ROUTES: CommandRoute[] = [
     adminOnly: true,
     value: 'admin changelog whats new',
   },
+  {
+    href: '/admin/peer-stations',
+    label: 'Admin · Peer stations',
+    section: 'Admin',
+    adminOnly: true,
+    value: 'admin peer stations whitelist competitor',
+  },
 ];
