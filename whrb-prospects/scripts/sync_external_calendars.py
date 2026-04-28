@@ -3,8 +3,9 @@
 
 Reads `schedule_external_calendars` for `enabled=true` rows, fetches each
 ICS feed, and upserts events into `schedule_events` keyed by
-`(external_source='google_calendar', external_id=<ICS UID>)`. The unique
-partial index makes the upsert idempotent.
+`(external_source='google_calendar', external_calendar_id, external_id)`.
+The unique partial index makes the upsert idempotent and per-feed scoped
+so feed A cannot clobber feed B's events by reusing a UID.
 
 Recurring ICS events are expanded into independent rows that share a
 deterministic `series_id = uuid5(NAMESPACE_URL, feed_id + master_uid)`,
@@ -22,11 +23,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
+import re
+import socket
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from urllib.parse import urlparse, urlsplit, urlunsplit
 from uuid import UUID, uuid5
 
 import psycopg2
@@ -51,7 +56,40 @@ HORIZON_FUTURE_DAYS = 365  # how far ahead to expand RRULEs
 HORIZON_PAST_DAYS = 180  # don't backfill events older than this
 MAX_OCCURRENCES_PER_RULE = 200
 MAX_UPSERTS_PER_RUN = 500
+MAX_FEED_BYTES = 10 * 1024 * 1024  # 10 MB cap on ICS body
+MAX_REDIRECTS = 3
 HTTP_TIMEOUT = 30
+USER_AGENT = "WHRB-prospects-sync/1.0 (+https://sales.whrb.org)"
+
+# Advisory-lock namespace key — pg_try_advisory_xact_lock(hashtext(...))
+# scoped per feed so two concurrent runs of this worker can't race on the
+# same row. The job-level concurrency: external-calendar-sync GHA group
+# is the primary defense; this is belt-and-suspenders.
+LOCK_PREFIX = "schedule_sync_feed:"
+
+_URL_RE = re.compile(r"https?://[^\s<>\"']+")
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.I,
+)
+
+
+class FetchError(RuntimeError):
+    """Raised by `_safe_fetch` when the feed can't be fetched safely.
+
+    Carries a category (one of: `scheme`, `host_resolve`, `private_ip`,
+    `redirect_loop`, `body_too_large`, `timeout`, `http_status`, `tls`,
+    `connect`) and a status code where applicable. Only the category and
+    a host-only detail string are persisted to `last_error` and
+    `event_log` so secrets in feed URLs (e.g. Google's "Secret address
+    in iCal format" tokens) do not leak into the DB or admin UI.
+    """
+
+    def __init__(self, category: str, status: int | None = None, detail: str = ""):
+        super().__init__(f"{category} (status={status})" if status else category)
+        self.category = category
+        self.status = status
+        self.detail = detail
 
 
 def _conn():
@@ -74,7 +112,12 @@ def _conn():
     )
     try:
         return psycopg2.connect(pooler, connect_timeout=10)
-    except Exception:
+    except Exception as exc:
+        # Log only the exception class — never the DSN, which carries the password.
+        print(
+            f"Pooler connect failed ({exc.__class__.__name__}); falling back to direct.",
+            file=sys.stderr,
+        )
         return psycopg2.connect(direct, connect_timeout=10)
 
 
@@ -95,13 +138,125 @@ def _emit_event(
     )
 
 
-def _fetch_feed(url: str) -> str:
-    res = requests.get(url, timeout=HTTP_TIMEOUT)
-    if res.status_code >= 500:
-        # one retry on 5xx
-        res = requests.get(url, timeout=HTTP_TIMEOUT)
-    res.raise_for_status()
-    return res.text
+def _strip_url_for_log(url: str) -> str:
+    """Return a host-only string safe to log; never the path/query/secret."""
+    try:
+        parsed = urlsplit(url)
+        return f"{parsed.scheme}://{parsed.hostname}" if parsed.hostname else "(invalid url)"
+    except Exception:
+        return "(invalid url)"
+
+
+def _resolve_and_validate_host(host: str) -> None:
+    """Resolve `host` and raise FetchError if any A/AAAA result is private.
+
+    Defense against SSRF via DNS rebinding or HTTP redirects to internal
+    services. We resolve once here; the actual `requests.get` will resolve
+    again, so a TOCTOU window exists — but combined with `allow_redirects=False`
+    and a host allow-list discipline at the admin layer, this raises the bar
+    significantly without requiring socket-level monkey-patching.
+    """
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as exc:
+        raise FetchError("host_resolve", detail=exc.__class__.__name__) from exc
+    for info in infos:
+        sockaddr = info[4]
+        ip_str = sockaddr[0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            raise FetchError("private_ip", detail=f"{host} -> {ip_str}")
+
+
+def _safe_fetch(url: str) -> str:
+    """Fetch an ICS feed with strict SSRF + size protections.
+
+    - HTTPS only.
+    - DNS-resolved IP must be globally routable (rejects RFC1918, loopback,
+      link-local, multicast, reserved, IPv6 ULA, etc.).
+    - Redirects walked manually, max 3 hops, every hop re-validated.
+    - `verify=True` (explicit, not relying on requests defaults).
+    - Streamed read with a hard byte cap (`MAX_FEED_BYTES`).
+    - No retry on 5xx — the cron will pick up next interval.
+    """
+    current = url
+    for _ in range(MAX_REDIRECTS + 1):
+        parsed = urlparse(current)
+        if parsed.scheme != "https":
+            raise FetchError("scheme", detail=parsed.scheme or "(empty)")
+        if not parsed.hostname:
+            raise FetchError("scheme", detail="(no host)")
+        _resolve_and_validate_host(parsed.hostname)
+        try:
+            res = requests.get(
+                current,
+                timeout=HTTP_TIMEOUT,
+                allow_redirects=False,
+                stream=True,
+                verify=True,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "Accept": "text/calendar, text/plain;q=0.5",
+                },
+            )
+        except requests.exceptions.SSLError as exc:
+            raise FetchError("tls", detail=exc.__class__.__name__) from exc
+        except requests.exceptions.Timeout as exc:
+            raise FetchError("timeout", detail=exc.__class__.__name__) from exc
+        except requests.exceptions.ConnectionError as exc:
+            raise FetchError("connect", detail=exc.__class__.__name__) from exc
+
+        if res.status_code in (301, 302, 303, 307, 308):
+            location = res.headers.get("Location", "")
+            res.close()
+            if not location:
+                raise FetchError("http_status", status=res.status_code)
+            if location.startswith("/"):
+                base = urlsplit(current)
+                location = urlunsplit((base.scheme, base.netloc, location, "", ""))
+            current = location
+            continue
+
+        if res.status_code >= 400:
+            res.close()
+            raise FetchError("http_status", status=res.status_code)
+
+        chunks: list[bytes] = []
+        total = 0
+        try:
+            for chunk in res.iter_content(chunk_size=64 * 1024):
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > MAX_FEED_BYTES:
+                    res.close()
+                    raise FetchError(
+                        "body_too_large",
+                        status=res.status_code,
+                        detail=str(MAX_FEED_BYTES),
+                    )
+                chunks.append(chunk)
+        finally:
+            res.close()
+
+        body = b"".join(chunks)
+        encoding = res.encoding or "utf-8"
+        try:
+            return body.decode(encoding, errors="replace")
+        except LookupError:
+            return body.decode("utf-8", errors="replace")
+
+    raise FetchError("redirect_loop", detail=f"max={MAX_REDIRECTS}")
 
 
 def _to_utc(value) -> datetime | None:
@@ -119,26 +274,41 @@ def _series_id(calendar_id: str, master_uid: str) -> str:
 def _extract_url(description: str | None) -> str | None:
     if not description:
         return None
-    import re
-
-    match = re.search(r"https?://\S+", description)
-    return match.group(0) if match else None
+    match = _URL_RE.search(description)
+    if not match:
+        return None
+    return match.group(0).rstrip(".,);]}>")
 
 
 def _expand_events(cal: icalendar.Calendar, horizon_start: datetime, horizon_end: datetime):
-    """Yield (uid, master_uid, dtstart, dtend, summary, description, location)."""
+    """Yield (uid, master_uid, dtstart, dtend, summary, description, location).
+
+    Per-rule cap (`MAX_OCCURRENCES_PER_RULE`) protects against pathological
+    RRULEs (e.g. `FREQ=SECONDLY;COUNT=999999999`) blowing up memory and CPU.
+    Single bad VEVENTs are skipped rather than killing the whole feed.
+    """
     expanded = recurring_ical_events.of(cal).between(horizon_start, horizon_end)
+    per_master: dict[str, int] = {}
     for vevent in expanded:
-        uid = str(vevent.get("UID") or "")
+        try:
+            uid = str(vevent.get("UID") or "")
+        except Exception:
+            continue
         if not uid:
             continue
-        # `recurring_ical_events` gives each occurrence a UID with a recur-id
-        # suffix; strip it to recover the master UID for series_id.
         master_uid = uid.split("_", 1)[0] if "_" in uid else uid
-        dtstart = _to_utc(vevent.decoded("DTSTART", default=None)) if vevent.get("DTSTART") else None
-        dtend = _to_utc(vevent.decoded("DTEND", default=None)) if vevent.get("DTEND") else None
+        if per_master.get(master_uid, 0) >= MAX_OCCURRENCES_PER_RULE:
+            continue
+        try:
+            dtstart_raw = vevent.get("DTSTART")
+            dtstart = _to_utc(dtstart_raw.dt) if dtstart_raw is not None else None
+            dtend_raw = vevent.get("DTEND")
+            dtend = _to_utc(dtend_raw.dt) if dtend_raw is not None else None
+        except Exception:
+            continue
         if not dtstart:
             continue
+        per_master[master_uid] = per_master.get(master_uid, 0) + 1
         yield (
             uid,
             master_uid,
@@ -150,53 +320,119 @@ def _expand_events(cal: icalendar.Calendar, horizon_start: datetime, horizon_end
         )
 
 
+def _persist_failure(
+    conn,
+    cal_id: str,
+    *,
+    error_category: str,
+    status: int | None,
+    host: str,
+) -> None:
+    """Write `last_status='failure'` and an event_log row in a fresh transaction.
+
+    Stores the error CATEGORY plus host-only metadata — never the raw URL,
+    response body, or exception text (which can leak feed-URL secret tokens
+    or DSN-bearing exception strings).
+    """
+    detail = error_category if status is None else f"{error_category} status={status}"
+    detail = detail[:200]
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            update public.schedule_external_calendars
+               set last_status='failure',
+                   last_error=%s,
+                   last_synced_at=now()
+             where id=%s
+            """,
+            (detail, cal_id),
+        )
+        _emit_event(
+            cur,
+            level="error",
+            category="external_calendar_sync_failed",
+            message="ICS sync failed",
+            context={
+                "calendar_id": cal_id,
+                "error_category": error_category,
+                "status": status,
+                "host": host,
+            },
+        )
+    conn.commit()
+
+
 def _sync_feed(conn, row: dict, dry_run: bool = False) -> dict:
+    """Sync a single feed.
+
+    All work for one feed runs inside a transaction guarded by an
+    advisory lock so two concurrent worker processes can't race on the
+    same row. On any error the transaction is rolled back and a
+    failure status is committed in a fresh transaction, so the calendar
+    never gets stuck in `last_status='running'`.
+    """
     cal_id = row["id"]
     feed_url = row["feed_url"]
-    summary = {"calendar_id": cal_id, "added": 0, "updated": 0, "tombstoned": 0, "errors": 0}
+    safe_url = _strip_url_for_log(feed_url)
+    summary = {
+        "calendar_id": cal_id,
+        "added": 0,
+        "updated": 0,
+        "tombstoned": 0,
+        "errors": 0,
+    }
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "select pg_try_advisory_xact_lock(hashtext(%s))",
+            (LOCK_PREFIX + str(cal_id),),
+        )
+        got_lock = cur.fetchone()[0]
+    if not got_lock:
+        return {**summary, "skipped": "lock_busy"}
 
     with conn.cursor() as cur:
         cur.execute(
             "update public.schedule_external_calendars set last_status='running' where id=%s",
             (cal_id,),
         )
-        try:
-            text = _fetch_feed(feed_url)
-        except Exception as exc:
-            cur.execute(
-                """
-                update public.schedule_external_calendars
-                   set last_status='failure',
-                       last_error=%s,
-                       last_synced_at=now()
-                 where id=%s
-                """,
-                (str(exc)[:500], cal_id),
-            )
-            _emit_event(
-                cur,
-                level="error",
-                category="external_calendar_sync_failed",
-                message="ICS fetch failed",
-                context={"calendar_id": cal_id, "error": str(exc)[:500]},
-            )
-            summary["errors"] += 1
-            return summary
 
+    try:
+        text = _safe_fetch(feed_url)
+    except FetchError as exc:
+        conn.rollback()
+        _persist_failure(
+            conn,
+            cal_id,
+            error_category=f"fetch:{exc.category}",
+            status=exc.status,
+            host=safe_url,
+        )
+        summary["errors"] += 1
+        return summary
+
+    if len(text) > MAX_FEED_BYTES:
+        conn.rollback()
+        _persist_failure(
+            conn,
+            cal_id,
+            error_category="parse:too_large",
+            status=None,
+            host=safe_url,
+        )
+        summary["errors"] += 1
+        return summary
     try:
         cal = icalendar.Calendar.from_ical(text)
     except Exception as exc:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                update public.schedule_external_calendars
-                   set last_status='failure',
-                       last_error=%s,
-                       last_synced_at=now()
-                 where id=%s
-                """,
-                (f"parse: {str(exc)[:500]}", cal_id),
-            )
+        conn.rollback()
+        _persist_failure(
+            conn,
+            cal_id,
+            error_category=f"parse:{exc.__class__.__name__}",
+            status=None,
+            host=safe_url,
+        )
         summary["errors"] += 1
         return summary
 
@@ -205,6 +441,7 @@ def _sync_feed(conn, row: dict, dry_run: bool = False) -> dict:
 
     seen_external_ids: set[str] = set()
     upserts = 0
+    truncated = False
 
     with conn.cursor() as cur:
         for (
@@ -217,6 +454,7 @@ def _sync_feed(conn, row: dict, dry_run: bool = False) -> dict:
             location,
         ) in _expand_events(cal, horizon_start, horizon_end):
             if upserts >= MAX_UPSERTS_PER_RUN:
+                truncated = True
                 _emit_event(
                     cur,
                     level="warn",
@@ -249,7 +487,8 @@ def _sync_feed(conn, row: dict, dry_run: bool = False) -> dict:
                    %(url)s, 'public', %(metadata)s::jsonb,
                    'google_calendar', %(calendar_id)s, %(external_id)s,
                    now(), %(series_id)s)
-                on conflict (external_source, external_id) where external_source is not null
+                on conflict (external_source, external_calendar_id, external_id)
+                  where external_source is not null
                 do update set
                   title = excluded.title,
                   description = excluded.description,
@@ -263,7 +502,7 @@ def _sync_feed(conn, row: dict, dry_run: bool = False) -> dict:
                     then public.schedule_events.metadata - 'cancelled_in_source'
                     else public.schedule_events.metadata
                   end
-                returning xmax::text::int as updated
+                returning (xmax = 0) as inserted
                 """,
                 {
                     "title": summary_str[:200],
@@ -280,16 +519,22 @@ def _sync_feed(conn, row: dict, dry_run: bool = False) -> dict:
                     "series_id": sid,
                 },
             )
-            updated_xmax = cur.fetchone()[0]
-            if updated_xmax == 0:
+            inserted = cur.fetchone()[0]
+            if inserted:
                 summary["added"] += 1
             else:
                 summary["updated"] += 1
             upserts += 1
 
         # Tombstone rows that disappeared from the feed but still have a future
-        # starts_at — surface "Cancelled in source" rather than deleting.
-        if seen_external_ids:
+        # starts_at — surface "Cancelled in source" rather than deleting. SKIP
+        # entirely when:
+        #   * we hit MAX_UPSERTS_PER_RUN (the seen set is incomplete, so we'd
+        #     wrongly tombstone everything past that cap and thrash on each run);
+        #   * the feed legitimately returned zero events (an empty seen set
+        #     would tombstone every future event in the calendar — almost
+        #     certainly an upstream incident, not a legitimate clear).
+        if seen_external_ids and not truncated:
             cur.execute(
                 """
                 update public.schedule_events
@@ -331,6 +576,10 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
+    if args.calendar_id and not _UUID_RE.match(args.calendar_id):
+        print("ERROR: --calendar-id must be a UUID", file=sys.stderr)
+        return 2
+
     conn = _conn()
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -347,8 +596,24 @@ def main() -> int:
 
         for feed in feeds:
             print(f"--- syncing {feed['name']} ({feed['id']}) ---")
-            summary = _sync_feed(conn, feed, dry_run=args.dry_run)
-            conn.commit()
+            try:
+                summary = _sync_feed(conn, feed, dry_run=args.dry_run)
+                conn.commit()
+            except Exception as exc:
+                # A bug in this worker must not poison subsequent feeds.
+                conn.rollback()
+                _persist_failure(
+                    conn,
+                    feed["id"],
+                    error_category=f"worker:{exc.__class__.__name__}",
+                    status=None,
+                    host=_strip_url_for_log(feed["feed_url"]),
+                )
+                print(
+                    f"ERROR syncing {feed['id']}: {exc.__class__.__name__}",
+                    file=sys.stderr,
+                )
+                continue
             print(json.dumps(summary, indent=2, default=str))
 
         if not feeds:

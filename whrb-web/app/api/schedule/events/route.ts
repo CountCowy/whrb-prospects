@@ -16,7 +16,17 @@ const RecurrenceBody = z.object({
   weekdays: z.array(z.number().int().min(0).max(6)).optional(),
   interval: z.number().int().min(1).max(52).optional(),
   count: z.number().int().min(1).max(100).optional(),
-  until: z.string().datetime().optional(),
+  // Accept either a full ISO datetime or a date-only YYYY-MM-DD. The
+  // recurrence generator interprets date-only as 23:59:59 ET (inclusive).
+  until: z
+    .string()
+    .refine(
+      (s) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(s) ||
+        !Number.isNaN(Date.parse(s)),
+      { message: 'until must be ISO datetime or YYYY-MM-DD' },
+    )
+    .optional(),
 });
 
 const EventBody = z
@@ -60,6 +70,12 @@ const EventBody = z
     }
   });
 
+// Largest from/to window the GET endpoint will accept. The `/schedule`
+// month grid asks for ~6 weeks; the agenda for ~30 days; "Upcoming for
+// you" for 14. 100 days is comfortably above all of those and prevents
+// `from=1970&to=9999` triple-join scans.
+const MAX_RANGE_MS = 100 * 86_400_000;
+
 export async function GET(req: NextRequest) {
   const authz = await getAuthed();
   if (authz.kind === 'unauth') {
@@ -70,6 +86,26 @@ export async function GET(req: NextRequest) {
   const to = url.searchParams.get('to');
   if (!from || !to) {
     return NextResponse.json({ error: 'from and to required' }, { status: 400 });
+  }
+  const fromMs = Date.parse(from);
+  const toMs = Date.parse(to);
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) {
+    return NextResponse.json(
+      { error: 'from and to must be ISO timestamps' },
+      { status: 400 },
+    );
+  }
+  if (toMs <= fromMs) {
+    return NextResponse.json(
+      { error: 'to must be after from' },
+      { status: 400 },
+    );
+  }
+  if (toMs - fromMs > MAX_RANGE_MS) {
+    return NextResponse.json(
+      { error: 'window too large (max 100 days)' },
+      { status: 400 },
+    );
   }
   const supabase = await createClient();
   let query = supabase

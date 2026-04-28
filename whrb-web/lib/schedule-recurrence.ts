@@ -30,7 +30,7 @@ export function generateRecurrenceUtc(
   const count = recurrence.count
     ? Math.min(MAX_OCCURRENCES, Math.max(1, recurrence.count))
     : null;
-  const untilUtc = recurrence.until ? new Date(recurrence.until) : null;
+  const untilUtc = recurrence.until ? parseUntilAsEtEndOfDay(recurrence.until) : null;
   if (count === null && !untilUtc) {
     throw new Error('Recurrence requires either `count` or `until`.');
   }
@@ -86,4 +86,23 @@ function withWallTime(date: Date, h: number, m: number, s: number): Date {
   const next = new Date(date);
   next.setHours(h, m, s, 0);
   return next;
+}
+
+/**
+ * Interpret the `until` field as the END of the user-picked day in ET.
+ *
+ * The HTML <input type="date"> control hands us "YYYY-MM-DD"; calling
+ * `new Date()` on that string parses to UTC midnight, which lands on the
+ * PREVIOUS day in ET — silently dropping the last expected occurrence.
+ *
+ * If a full ISO timestamp comes in (e.g. from older data) we honor it
+ * verbatim. Otherwise we anchor to 23:59:59 ET on the requested date so
+ * the date the user picked is INCLUSIVE.
+ */
+function parseUntilAsEtEndOfDay(raw: string): Date {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(raw);
+  if (!dateOnly) return new Date(raw);
+  const [y, mo, d] = raw.split('-').map((s) => Number(s));
+  const wall = new Date(y, mo - 1, d, 23, 59, 59, 999);
+  return fromZonedTime(wall, TIMEZONE);
 }

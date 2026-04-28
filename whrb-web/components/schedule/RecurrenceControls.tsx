@@ -153,7 +153,10 @@ export function RecurrenceControls({
             type="date"
             value={value.until ? value.until.slice(0, 10) : ''}
             onChange={(e) =>
-              onChange({ ...value, until: new Date(e.target.value).toISOString() })
+              // Send the YYYY-MM-DD string as-is. The server-side
+              // generator interprets it as 23:59:59 ET (inclusive) so the
+              // user's chosen date is the LAST expected occurrence.
+              onChange({ ...value, until: e.target.value })
             }
             className="rounded-md border bg-transparent px-2 py-1 text-sm"
           />

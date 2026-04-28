@@ -48,20 +48,37 @@ describe('generateRecurrenceUtc', () => {
     }
   });
 
-  it('respects an explicit until date', () => {
+  it('respects a date-only until field as inclusive end-of-day in ET', () => {
     const start = fromZonedTime(
       new Date(2026, 5, 1, 10, 0, 0),
       TZ,
     ).toISOString();
-    const until = new Date(2026, 5, 22).toISOString();
+    // Date-only string mirrors what <input type="date"> sends.
+    const out = generateRecurrenceUtc(start, {
+      pattern: 'weekly',
+      weekdays: [1],
+      until: '2026-06-22',
+    });
+    // Mondays in [Jun 1, Jun 22]: Jun 1, 8, 15, 22 → 4 occurrences.
+    expect(out).toHaveLength(4);
+  });
+
+  it('honors a full ISO until verbatim', () => {
+    const start = fromZonedTime(
+      new Date(2026, 5, 1, 10, 0, 0),
+      TZ,
+    ).toISOString();
+    // 23:00 ET on Jun 14 → Jun 8 is the last Mon strictly before this.
+    const until = fromZonedTime(
+      new Date(2026, 5, 14, 23, 0, 0),
+      TZ,
+    ).toISOString();
     const out = generateRecurrenceUtc(start, {
       pattern: 'weekly',
       weekdays: [1],
       until,
     });
-    // Mondays in [Jun 1, Jun 22]: Jun 1, 8, 15, 22 → 4 occurrences.
-    expect(out.length).toBeGreaterThanOrEqual(3);
-    expect(out.length).toBeLessThanOrEqual(4);
+    expect(out).toHaveLength(2);
   });
 
   it('caps daily occurrences', () => {

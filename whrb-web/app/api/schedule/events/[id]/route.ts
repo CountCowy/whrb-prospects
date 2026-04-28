@@ -81,7 +81,9 @@ export async function PATCH(
   const supabase = await createClient();
   const { data: existing } = await supabase
     .from('schedule_events')
-    .select('id, series_id, author_id, assigned_to, assignee_kind, external_source')
+    .select(
+      'id, series_id, author_id, assigned_to, assignee_kind, external_source, visibility',
+    )
     .eq('id', id)
     .maybeSingle();
   if (!existing) {
@@ -92,6 +94,25 @@ export async function PATCH(
       { error: 'imported_event_read_only' },
       { status: 403 },
     );
+  }
+
+  // Per the feature spec (Permissions table): edit on PUBLIC events is
+  // open to any authed rep. Edit on PRIVATE events is restricted to
+  // author + assignee + admin. Without this gate, RLS UPDATE (any
+  // authed) would let any rep mutate a private event whose ID they
+  // happened to learn (e.g. via realtime), which the plan disallows.
+  if (existing.visibility === 'private') {
+    const isAdmin = authz.user.role === 'admin';
+    const isAuthor = existing.author_id === authz.user.id;
+    const isAssignee =
+      existing.assignee_kind === 'user' &&
+      existing.assigned_to === authz.user.id;
+    if (!isAdmin && !isAuthor && !isAssignee) {
+      return NextResponse.json(
+        { error: 'only the author, assignee, or an admin may edit a private event' },
+        { status: 403 },
+      );
+    }
   }
 
   // Visibility implies user-kind constraint; reject illegal combos before the DB.

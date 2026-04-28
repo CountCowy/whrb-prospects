@@ -74,8 +74,11 @@ export async function PUT(
       recipient_id: authz.user.id,
       channel: o.channel,
       lead_minutes: o.lead_minutes,
-      // fire_at overwritten by the trigger.
-      fire_at: new Date(0).toISOString(),
+      // The derive_schedule_reminder_fire_at BEFORE-INSERT trigger
+      // overwrites this to event.starts_at - lead_minutes. The placeholder
+      // is intentionally past 2001-01-01 so it satisfies the table's
+      // tripwire CHECK if the trigger ever fails to fire.
+      fire_at: new Date('2001-01-01T00:00:00.000Z').toISOString(),
     }));
     const { error } = await supabase
       .from('schedule_event_reminders')

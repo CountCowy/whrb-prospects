@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 
 import { createClient } from '@/lib/supabase/server';
-import { getAuthed } from '@/lib/server/authz';
+import { requireAdmin } from '@/lib/server/authz';
 import { logEvent } from '@/lib/logging/server';
+import { validateFeedUrl } from '@/lib/server/safe-feed-url';
 import { SCHEDULE_CATEGORIES } from '@/styles/schedule-colors';
 
 export const runtime = 'nodejs';
@@ -17,13 +18,6 @@ const PostBody = z.object({
   default_assignee_kind: z.enum(['user', 'team_wide', 'admin']).optional(),
   enabled: z.boolean().optional(),
 });
-
-async function requireAdmin() {
-  const authz = await getAuthed();
-  if (authz.kind === 'unauth') return { kind: 'unauth' as const };
-  if (authz.user.role !== 'admin') return { kind: 'forbidden' as const };
-  return { kind: 'ok' as const, user: authz.user };
-}
 
 export async function GET() {
   const r = await requireAdmin();
@@ -58,6 +52,10 @@ export async function POST(req: NextRequest) {
       { error: `invalid: ${issue.path.join('.')} — ${issue.message}` },
       { status: 400 },
     );
+  }
+  const urlCheck = validateFeedUrl(parsed.data.feed_url);
+  if (!urlCheck.ok) {
+    return NextResponse.json({ error: urlCheck.error }, { status: 400 });
   }
   const supabase = await createClient();
   const { data, error } = await supabase

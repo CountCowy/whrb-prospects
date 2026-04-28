@@ -30,10 +30,14 @@ export async function resolveRecipients(
     return evt.assigned_to ? [evt.assigned_to] : [];
   }
   if (evt.assignee_kind === 'team_wide') {
+    // Restrict to roles that participate in the sales motion. The plan
+    // names "rep" and "admin" as the universe; future contractor/guest
+    // roles must opt in explicitly.
     const { data } = await supabase
       .from('profiles')
       .select('id')
-      .is('deactivated_at', null);
+      .is('deactivated_at', null)
+      .in('role', ['admin', 'rep']);
     return ((data ?? []) as RecipientRow[]).map((r) => r.id);
   }
   // admin
@@ -45,25 +49,45 @@ export async function resolveRecipients(
   return ((data ?? []) as RecipientRow[]).map((r) => r.id);
 }
 
-async function getPrefsFor(userId: string): Promise<SchedulePrefs> {
+/**
+ * Bulk-load `prefs` for the given user IDs, returning a Map.
+ * Replaces the per-recipient roundtrip that used to N+1 the table.
+ */
+async function loadPrefsBulk(
+  userIds: string[],
+): Promise<Map<string, SchedulePrefs>> {
+  const out = new Map<string, SchedulePrefs>();
+  if (userIds.length === 0) return out;
   const supabase = createServiceClient();
   const { data } = await supabase
     .from('user_schedule_preferences')
-    .select('prefs')
-    .eq('user_id', userId)
-    .maybeSingle();
-  return mergeWithDefaults(
-    (data?.prefs ?? null) as Partial<SchedulePrefs> | null,
-  );
+    .select('user_id, prefs')
+    .in('user_id', userIds);
+  for (const row of (data ?? []) as Array<{ user_id: string; prefs: unknown }>) {
+    out.set(
+      row.user_id,
+      mergeWithDefaults(row.prefs as Partial<SchedulePrefs> | null),
+    );
+  }
+  // Anyone with no row yet gets the in-memory defaults.
+  for (const id of userIds) {
+    if (!out.has(id)) out.set(id, mergeWithDefaults(null));
+  }
+  return out;
 }
 
 /**
  * Materialize default reminders for an event based on each recipient's
  * per-category preferences. Idempotent via the (event_id, recipient_id,
  * channel, lead_minutes) unique constraint — re-running is safe.
+ *
+ * Pass `recipientId` to materialize for a single user only (used by the
+ * "revert to defaults" path so one user's revert doesn't ripple writes
+ * to every team-wide recipient).
  */
 export async function materializeRemindersForEvent(
   eventId: string,
+  recipientId?: string,
 ): Promise<{ inserted: number }> {
   const supabase = createServiceClient();
   const { data: evt, error: evtErr } = await supabase
@@ -82,8 +106,13 @@ export async function materializeRemindersForEvent(
     return { inserted: 0 };
   }
 
-  const recipients = await resolveRecipients(evt as EventLite);
+  let recipients = await resolveRecipients(evt as EventLite);
+  if (recipientId) {
+    recipients = recipients.includes(recipientId) ? [recipientId] : [];
+  }
   if (recipients.length === 0) return { inserted: 0 };
+
+  const prefsByUser = await loadPrefsBulk(recipients);
 
   const rows: Array<{
     event_id: string;
@@ -93,8 +122,9 @@ export async function materializeRemindersForEvent(
     fire_at: string;
   }> = [];
   for (const userId of recipients) {
-    const prefs = await getPrefsFor(userId);
-    const cat = prefs[(evt as EventLite).category] ?? DEFAULT_SCHEDULE_PREFS.other;
+    const prefs = prefsByUser.get(userId) ?? mergeWithDefaults(null);
+    const cat =
+      prefs[(evt as EventLite).category] ?? DEFAULT_SCHEDULE_PREFS.other;
     for (const lead of cat.lead_minutes) {
       for (const channel of cat.channels) {
         rows.push({
@@ -104,8 +134,10 @@ export async function materializeRemindersForEvent(
           lead_minutes: lead,
           // fire_at is overwritten by the derive_schedule_reminder_fire_at
           // trigger; we still send a placeholder so the column NOT NULL
-          // constraint accepts the row.
-          fire_at: new Date(0).toISOString(),
+          // constraint accepts the row. The table's CHECK
+          // (fire_at > '2000-01-01') would catch a missing-trigger
+          // regression.
+          fire_at: new Date('2001-01-01T00:00:00.000Z').toISOString(),
         });
       }
     }

@@ -52,24 +52,32 @@ export function MonthView({
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7">
+      {/* Each cell is a div, not a button — wrapping <button> around the
+          inner <button>s in EventCell is invalid HTML. The cell exposes
+          a separate "Add to this day" button (the day-number) that gives
+          keyboard users a deterministic target. */}
+      <div className="grid grid-cols-7" role="grid">
         {gridDays.map((day) => {
           const key = formatInTz(day, 'yyyy-MM-dd');
           const dayEvents = byDay.get(key) ?? [];
           const inMonth = isSameMonth(day, anchor);
           return (
-            <button
+            <div
               key={key}
-              type="button"
-              onClick={() => onSelectDay(day)}
+              role="gridcell"
               data-testid={`schedule-day-${key}`}
-              className={`flex min-h-[88px] flex-col gap-1 border-b border-r p-1.5 text-left transition-colors hover:bg-muted ${
+              className={`flex min-h-[88px] flex-col gap-1 border-b border-r p-1.5 text-left ${
                 inMonth ? '' : 'bg-muted/40'
               }`}
             >
-              <div className="text-xs font-medium text-[hsl(var(--muted-foreground))]">
+              <button
+                type="button"
+                onClick={() => onSelectDay(day)}
+                aria-label={`Add to ${formatInTz(day, 'EEE MMM d')}`}
+                className="self-start rounded px-1 text-xs font-medium text-[hsl(var(--muted-foreground))] hover:bg-muted focus-visible:outline-2 focus-visible:outline-[hsl(var(--primary))]"
+              >
                 {formatInTz(day, 'd')}
-              </div>
+              </button>
               <div className="flex flex-col gap-0.5">
                 {dayEvents.slice(0, 3).map((evt) => (
                   <EventCell
@@ -90,7 +98,7 @@ export function MonthView({
                   </span>
                 ) : null}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>

@@ -23,25 +23,32 @@ const PRESETS = [
 
 export function SchedulePreferencesForm({ initial }: { initial: SchedulePrefs }) {
   const [prefs, setPrefs] = useState<SchedulePrefs>(initial);
+  // Tracks any in-flight save (across all categories) so we serialize
+  // saves and disable every input. Concurrent PATCHes against the same
+  // user can race in the API's read-merge-write upsert and lose updates.
   const [pending, setPending] = useState<ScheduleCategory | null>(null);
 
   async function save(category: ScheduleCategory, next: SchedulePrefs[ScheduleCategory]) {
+    if (pending) return; // gate concurrent clicks
     const prev = prefs[category];
     setPrefs((p) => ({ ...p, [category]: next }));
     setPending(category);
-    const res = await fetch('/api/user-schedule-preferences', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ category, prefs: next }),
-    });
-    setPending(null);
-    if (!res.ok) {
-      setPrefs((p) => ({ ...p, [category]: prev }));
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error ?? 'Could not save schedule preference.');
-      return;
+    try {
+      const res = await fetch('/api/user-schedule-preferences', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ category, prefs: next }),
+      });
+      if (!res.ok) {
+        setPrefs((p) => ({ ...p, [category]: prev }));
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.error ?? 'Could not save schedule preference.');
+        return;
+      }
+      toast.success('Saved.');
+    } finally {
+      setPending(null);
     }
-    toast.success('Saved.');
   }
 
   return (
@@ -77,7 +84,7 @@ export function SchedulePreferencesForm({ initial }: { initial: SchedulePrefs })
                         lead_minutes: cat.lead_minutes.filter((m) => m !== mins),
                       })
                     }
-                    disabled={pending === category}
+                    disabled={pending !== null}
                     className="rounded-full border bg-[hsl(var(--primary-soft))] px-2 py-0.5 text-xs text-[hsl(var(--primary))]"
                   >
                     {formatLead(mins)} ✕
@@ -120,7 +127,7 @@ export function SchedulePreferencesForm({ initial }: { initial: SchedulePrefs })
                       <input
                         type="checkbox"
                         checked={enabled}
-                        disabled={pending === category}
+                        disabled={pending !== null}
                         onChange={(e) =>
                           save(category, {
                             ...cat,

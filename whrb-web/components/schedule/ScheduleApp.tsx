@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { createClient } from '@/lib/supabase/client';
+import { formatInTz } from '@/lib/time';
 import type { ScheduleEvent } from '@/lib/queries/schedule';
 import type { ScheduleCategory } from '@/styles/schedule-colors';
 import { ScheduleHeader } from '@/components/schedule/ScheduleHeader';
@@ -50,12 +51,21 @@ export function ScheduleApp({
   }>({});
   const [detailEvent, setDetailEvent] = useState<ScheduleEvent | null>(null);
 
-  // Sync server-rendered events into local state on prop change (URL nav).
+  // Track the latest navigation (URL-driven) so realtime updates that
+  // arrive between renders survive. We replace local state from props
+  // ONLY when the server-side window changes — not on every render.
+  const lastSeenInitialRef = useRef(initialEvents);
   useEffect(() => {
-    setEvents(initialEvents);
+    if (lastSeenInitialRef.current !== initialEvents) {
+      lastSeenInitialRef.current = initialEvents;
+      setEvents(initialEvents);
+    }
   }, [initialEvents]);
 
-  // Realtime: schedule_events INSERT/UPDATE/DELETE.
+  // Realtime: schedule_events INSERT/UPDATE/DELETE. The handler is the
+  // sole authority for state during a session — mutation handlers (create
+  // / update / delete) no longer call router.refresh(), which previously
+  // stomped in-flight realtime events.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase
@@ -67,9 +77,8 @@ export function ScheduleApp({
           const type = payload.eventType;
           if (type === 'INSERT' || type === 'UPDATE') {
             const row = payload.new as ScheduleEvent;
-            // Re-fetch the joined view via the API for full author/assignee/prospect.
             const detailRes = await fetch(
-              `/api/schedule/events/${row.id}`,
+              `/api/schedule/events/${encodeURIComponent(row.id)}`,
             ).catch(() => null);
             if (!detailRes?.ok) return;
             const fresh = (await detailRes.json()) as ScheduleEvent;
@@ -104,6 +113,23 @@ export function ScheduleApp({
     [router, sp],
   );
 
+  // Helper: pull the row back from the server and reconcile local state.
+  // We use this in the mutation handlers as a defense-in-depth on top of
+  // the realtime channel — realtime can lag or drop, so a single targeted
+  // fetch keeps the dialog in sync with what was actually saved.
+  const reconcileById = useCallback(async (id: string) => {
+    const res = await fetch(`/api/schedule/events/${encodeURIComponent(id)}`);
+    if (!res.ok) return;
+    const fresh = (await res.json()) as ScheduleEvent;
+    setEvents((prev) => {
+      const idx = prev.findIndex((e) => e.id === fresh.id);
+      if (idx === -1) return [...prev, fresh];
+      const next = prev.slice();
+      next[idx] = fresh;
+      return next;
+    });
+  }, []);
+
   const onCreate = useCallback(
     async (payload: Record<string, unknown>) => {
       const res = await fetch('/api/schedule/events', {
@@ -117,15 +143,20 @@ export function ScheduleApp({
         return false;
       }
       toast.success('Event created.');
-      router.refresh();
+      const body = (await res.json().catch(() => null)) as
+        | { ids?: string[] }
+        | null;
+      for (const id of body?.ids ?? []) {
+        await reconcileById(id);
+      }
       return true;
     },
-    [router],
+    [reconcileById],
   );
 
   const onUpdate = useCallback(
     async (id: string, patch: Record<string, unknown>) => {
-      const res = await fetch(`/api/schedule/events/${id}`, {
+      const res = await fetch(`/api/schedule/events/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(patch),
@@ -136,16 +167,21 @@ export function ScheduleApp({
         return false;
       }
       toast.success('Saved.');
-      router.refresh();
+      const body = (await res.json().catch(() => null)) as
+        | { ids?: string[] }
+        | null;
+      for (const updatedId of body?.ids ?? [id]) {
+        await reconcileById(updatedId);
+      }
       return true;
     },
-    [router],
+    [reconcileById],
   );
 
   const onDelete = useCallback(
     async (id: string, series: boolean) => {
       const res = await fetch(
-        `/api/schedule/events/${id}${series ? '?series=true' : ''}`,
+        `/api/schedule/events/${encodeURIComponent(id)}${series ? '?series=true' : ''}`,
         { method: 'DELETE' },
       );
       if (!res.ok) {
@@ -155,10 +191,14 @@ export function ScheduleApp({
       }
       toast.success('Deleted.');
       setDetailEvent(null);
-      router.refresh();
+      const body = (await res.json().catch(() => null)) as
+        | { ids?: string[] }
+        | null;
+      const removed = new Set(body?.ids ?? [id]);
+      setEvents((prev) => prev.filter((e) => !removed.has(e.id)));
       return true;
     },
-    [router],
+    [],
   );
 
   const anchor = useMemo(() => new Date(anchorIso), [anchorIso]);
@@ -171,7 +211,10 @@ export function ScheduleApp({
         scope={scope}
         categories={categories}
         onChangeView={(v) => setUrl({ view: v })}
-        onChangeAnchor={(d) => setUrl({ date: d.toISOString().slice(0, 10) })}
+        // Encode the anchor as the user's ET wall-clock day, not UTC —
+        // otherwise picking "today" late at night ET sends tomorrow's
+        // date to the server and the next render's window is wrong.
+        onChangeAnchor={(d) => setUrl({ date: formatInTz(d, 'yyyy-MM-dd') })}
         onChangeScope={(s) => setUrl({ scope: s })}
         onChangeCategories={(c) => setUrl({ category: c.join(',') })}
         onCreateClick={() => {

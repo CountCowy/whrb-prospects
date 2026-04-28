@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 
 import { createClient } from '@/lib/supabase/server';
-import { getAuthed } from '@/lib/server/authz';
+import { requireAdmin } from '@/lib/server/authz';
+import { logEvent } from '@/lib/logging/server';
+import { validateFeedUrl } from '@/lib/server/safe-feed-url';
 import { SCHEDULE_CATEGORIES } from '@/styles/schedule-colors';
 
 export const runtime = 'nodejs';
@@ -18,13 +20,6 @@ const PatchBody = z
     enabled: z.boolean().optional(),
   })
   .strict();
-
-async function requireAdmin() {
-  const authz = await getAuthed();
-  if (authz.kind === 'unauth') return { kind: 'unauth' as const };
-  if (authz.user.role !== 'admin') return { kind: 'forbidden' as const };
-  return { kind: 'ok' as const, user: authz.user };
-}
 
 export async function PATCH(
   req: NextRequest,
@@ -46,6 +41,12 @@ export async function PATCH(
       { error: `invalid: ${issue.path.join('.')} — ${issue.message}` },
       { status: 400 },
     );
+  }
+  if (parsed.data.feed_url) {
+    const urlCheck = validateFeedUrl(parsed.data.feed_url);
+    if (!urlCheck.ok) {
+      return NextResponse.json({ error: urlCheck.error }, { status: 400 });
+    }
   }
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -75,12 +76,20 @@ export async function DELETE(
   const deleteImported = url.searchParams.get('delete_imported') === 'true';
 
   const supabase = await createClient();
+  let deletedEvents = 0;
   if (deleteImported) {
     // Hard-delete imported events tied to this feed (admin-confirmed).
-    await supabase
+    // schedule_event_reminders.event_id is ON DELETE CASCADE so the
+    // reminder rows get cleaned up automatically.
+    const { data: removed, error: rmErr } = await supabase
       .from('schedule_events')
       .delete()
-      .eq('external_calendar_id', id);
+      .eq('external_calendar_id', id)
+      .select('id');
+    if (rmErr) {
+      return NextResponse.json({ error: rmErr.message }, { status: 500 });
+    }
+    deletedEvents = removed?.length ?? 0;
   }
   // The FK on schedule_events.external_calendar_id is ON DELETE SET NULL,
   // so any remaining imported events become orphaned (external_source +
@@ -91,5 +100,17 @@ export async function DELETE(
     .delete()
     .eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  await logEvent({
+    source: 'web_server',
+    level: 'info',
+    category: 'schedule_ext_cal_delete',
+    message: 'external calendar deleted',
+    context: {
+      id,
+      delete_imported: deleteImported,
+      deleted_events: deletedEvents,
+    },
+    userId: r.user.id,
+  });
+  return NextResponse.json({ ok: true, deleted_events: deletedEvents });
 }

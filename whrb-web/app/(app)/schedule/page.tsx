@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
 import { getAuthed } from '@/lib/server/authz';
 import { listScheduleEvents } from '@/lib/queries/schedule';
 import { createClient } from '@/lib/supabase/server';
+import { TIMEZONE } from '@/lib/time';
 import { ScheduleApp } from '@/components/schedule/ScheduleApp';
 import type { ScheduleCategory } from '@/styles/schedule-colors';
 
@@ -89,6 +91,14 @@ export default async function SchedulePage({
 
 function parseAnchor(raw: string | undefined): Date {
   if (!raw) return new Date();
+  // Date-only "YYYY-MM-DD" anchors should be interpreted as noon ET so
+  // every downstream window-computation in ET treats it as the same day.
+  // Otherwise `new Date('2026-04-27')` is UTC midnight, which is the
+  // PREVIOUS day in ET and yields a wrong month grid.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const [y, mo, d] = raw.split('-').map((s) => Number(s));
+    return fromZonedTime(new Date(y, mo - 1, d, 12, 0, 0), TIMEZONE);
+  }
   const parsed = new Date(raw);
   return isNaN(parsed.getTime()) ? new Date() : parsed;
 }
@@ -108,21 +118,26 @@ function parseCategories(raw: string | string[] | undefined): ScheduleCategory[]
 }
 
 function computeWindow(view: 'month' | 'agenda', anchor: Date) {
-  const d = new Date(anchor);
+  // Compute the visible window in ET so it matches what the client grid
+  // renders via formatInTz, regardless of the host server's local TZ.
+  const et = toZonedTime(anchor, TIMEZONE);
   if (view === 'month') {
-    const first = new Date(d.getFullYear(), d.getMonth(), 1);
-    // Pad to a 6×7 grid: start of the week containing the 1st.
-    const dow = first.getDay();
-    const from = new Date(first);
-    from.setDate(first.getDate() - dow);
-    const to = new Date(from);
-    to.setDate(from.getDate() + 42);
-    return { from, to };
+    const firstEt = new Date(et.getFullYear(), et.getMonth(), 1);
+    const dow = firstEt.getDay();
+    const fromEt = new Date(firstEt);
+    fromEt.setDate(firstEt.getDate() - dow);
+    const toEt = new Date(fromEt);
+    toEt.setDate(fromEt.getDate() + 42);
+    return {
+      from: fromZonedTime(fromEt, TIMEZONE),
+      to: fromZonedTime(toEt, TIMEZONE),
+    };
   }
-  // Agenda: 30 days from the anchor.
-  const from = new Date(d);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(from);
-  to.setDate(from.getDate() + 30);
-  return { from, to };
+  const fromEt = new Date(et.getFullYear(), et.getMonth(), et.getDate(), 0, 0, 0);
+  const toEt = new Date(fromEt);
+  toEt.setDate(fromEt.getDate() + 30);
+  return {
+    from: fromZonedTime(fromEt, TIMEZONE),
+    to: fromZonedTime(toEt, TIMEZONE),
+  };
 }

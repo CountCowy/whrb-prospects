@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
+import { TIMEZONE } from '@/lib/time';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -351,14 +353,13 @@ function Field({
 }
 
 function combineDateTime(date: string, time: string): string {
-  // Both inputs are in local time; build an ISO string. The form treats the
-  // local browser time zone as the wall-clock — note that this differs from
-  // strict America/New_York; for v1 we accept this small caveat (devs run
-  // in ET; recurrence generator stays ET-anchored).
+  // Inputs are interpreted as ET wall-clock (the canonical schedule
+  // timezone) regardless of the user's browser locale. fromZonedTime
+  // converts an ET wall-clock Date to the corresponding UTC instant.
   const [h, m] = (time || '12:00').split(':').map((s) => Number(s));
-  const d = new Date(date);
-  d.setHours(h, m, 0, 0);
-  return d.toISOString();
+  const [y, mo, d] = date.split('-').map((s) => Number(s));
+  const wall = new Date(y, mo - 1, d, h, m, 0, 0);
+  return fromZonedTime(wall, TIMEZONE).toISOString();
 }
 
 function initialState(
@@ -366,13 +367,18 @@ function initialState(
   taskMode: boolean,
   defaults: { starts_at?: string; prospect_id?: string | null },
 ): FormState {
-  const start = defaults.starts_at ? new Date(defaults.starts_at) : roundToNextHour(new Date());
-  const dateStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(
+  // Pre-fill the form using ET wall-clock so the user sees the same time
+  // they will actually save, regardless of their browser's local TZ.
+  const startUtc = defaults.starts_at
+    ? new Date(defaults.starts_at)
+    : roundToNextHour(new Date());
+  const startEt = toZonedTime(startUtc, TIMEZONE);
+  const dateStr = `${startEt.getFullYear()}-${String(startEt.getMonth() + 1).padStart(
     2,
     '0',
-  )}-${String(start.getDate()).padStart(2, '0')}`;
-  const timeStr = `${String(start.getHours()).padStart(2, '0')}:${String(
-    start.getMinutes(),
+  )}-${String(startEt.getDate()).padStart(2, '0')}`;
+  const timeStr = `${String(startEt.getHours()).padStart(2, '0')}:${String(
+    startEt.getMinutes(),
   ).padStart(2, '0')}`;
   return {
     title: '',
@@ -382,8 +388,8 @@ function initialState(
     all_day: false,
     category: (taskMode ? 'personal_task' : 'internal_event') as ScheduleCategory,
     duration_minutes: taskMode ? 15 : 30,
-    assignee_kind: (taskMode ? 'user' : 'user') as AssigneeKind,
-    assigned_to: taskMode ? selfId : selfId,
+    assignee_kind: 'user' as AssigneeKind,
+    assigned_to: selfId,
     visibility: (taskMode ? 'private' : 'public') as 'public' | 'private',
     location: '',
     url: '',

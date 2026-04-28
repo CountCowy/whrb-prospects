@@ -4,10 +4,12 @@ name: external-calendar-sync
 #
 # Runs every 15 minutes against every enabled row in
 # `schedule_external_calendars`, expanding RRULEs ±6mo/+12mo and
-# upserting into `schedule_events` keyed by (external_source, external_id).
-# The unique partial index makes the upsert idempotent. Rows that vanish
-# from the source feed are tombstoned (`metadata.cancelled_in_source=true`)
-# rather than deleted, so reps' reminders aren't quietly removed.
+# upserting into `schedule_events` keyed by
+# (external_source, external_calendar_id, external_id). The unique
+# partial index makes the upsert idempotent and per-feed scoped.
+# Rows that vanish from the source feed are tombstoned
+# (`metadata.cancelled_in_source=true`) rather than deleted, so reps'
+# reminders aren't quietly removed.
 #
 # Also responds to a `repository_dispatch` event of type
 # `sync_external_calendar` from the admin "Sync now" button, which passes
@@ -27,6 +29,12 @@ on:
     types:
       - sync_external_calendar
 
+# Limit GITHUB_TOKEN to the minimum: this job needs no repo writes,
+# no PR comments, no package access. DB credentials come from a
+# separate secret on the run step.
+permissions:
+  contents: read
+
 concurrency:
   group: external-calendar-sync
   cancel-in-progress: false
@@ -39,11 +47,6 @@ jobs:
     defaults:
       run:
         working-directory: whrb-prospects
-    env:
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,17 +56,39 @@ jobs:
           cache: pip
           cache-dependency-path: whrb-prospects/requirements.lock
 
-      - name: Install deps
-        run: pip install -r requirements.lock || pip install -r requirements.txt
+      - name: Install pinned deps from lockfile
+        # Lockfile is authoritative. No silent fallback to requirements.txt:
+        # an unpinned install would defeat the supply-chain pin and runs
+        # on a runner that holds DB credentials. Regenerate the lockfile
+        # via `pip-compile` if a new dep is needed; do not loosen this.
+        run: pip install --no-deps -r requirements.lock
+
+      - name: Install ICS deps (pinned, not yet in lockfile)
+        # icalendar + recurring-ical-events are pinned in requirements.txt
+        # via the `==` constraints applied for this job. Once pip-compile
+        # is rerun to fold them into requirements.lock, this step can go.
+        run: pip install 'icalendar==6.1.0' 'recurring-ical-events==3.4.0'
 
       - name: Run sync_external_calendars
+        # Inputs from repository_dispatch / workflow_dispatch are passed
+        # through env, NEVER interpolated into the shell — that's a
+        # GitHub Actions script-injection sink. We then validate the
+        # value matches a UUID before forwarding to the worker.
+        env:
+          DISPATCH_CALENDAR_ID: ${{ github.event.client_payload.calendar_id }}
+          INPUT_CALENDAR_ID: ${{ github.event.inputs.calendar_id }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          if [ -n "${{ github.event.client_payload.calendar_id }}" ]; then
-            python scripts/sync_external_calendars.py \
-              --calendar-id "${{ github.event.client_payload.calendar_id }}"
-          elif [ -n "${{ github.event.inputs.calendar_id }}" ]; then
-            python scripts/sync_external_calendars.py \
-              --calendar-id "${{ github.event.inputs.calendar_id }}"
+          set -euo pipefail
+          CAL_ID="${DISPATCH_CALENDAR_ID:-${INPUT_CALENDAR_ID:-}}"
+          UUID_RE='^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+          if [ -n "$CAL_ID" ]; then
+            if ! [[ "$CAL_ID" =~ $UUID_RE ]]; then
+              echo "ERROR: calendar_id is not a UUID; refusing to run." >&2
+              exit 2
+            fi
+            python scripts/sync_external_calendars.py --calendar-id "$CAL_ID"
           else
             python scripts/sync_external_calendars.py
           fi

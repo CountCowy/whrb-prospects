@@ -990,8 +990,10 @@ create index if not exists idx_sched_starts_category  on public.schedule_events 
 create index if not exists idx_sched_assigned        on public.schedule_events (assigned_to) where assigned_to is not null;
 create index if not exists idx_sched_series          on public.schedule_events (series_id) where series_id is not null;
 create index if not exists idx_sched_prospect        on public.schedule_events (prospect_id) where prospect_id is not null;
+-- Conflict target for ICS upserts. Scoped by external_calendar_id so a
+-- malicious feed cannot hijack another feed's events by reusing a UID.
 create unique index if not exists idx_sched_external_unique
-  on public.schedule_events (external_source, external_id)
+  on public.schedule_events (external_source, external_calendar_id, external_id)
   where external_source is not null;
 
 drop trigger if exists t_sched_events_updated_at on public.schedule_events;
@@ -1009,7 +1011,10 @@ create table if not exists public.schedule_event_reminders (
   recipient_id uuid not null references public.profiles(id) on delete cascade,
   channel public.schedule_reminder_channel not null,
   lead_minutes int not null check (lead_minutes between 0 and 43200),
-  fire_at timestamptz not null,
+  -- Tripwire: derive_schedule_reminder_fire_at trigger overwrites the
+  -- placeholder API callers send (epoch). If the trigger fails to fire,
+  -- this CHECK prevents a row from persisting with an always-due fire_at.
+  fire_at timestamptz not null check (fire_at > timestamptz '2000-01-01'),
   dispatched_at timestamptz,
   notification_id uuid references public.notifications(id) on delete set null,
   created_at timestamptz not null default now(),

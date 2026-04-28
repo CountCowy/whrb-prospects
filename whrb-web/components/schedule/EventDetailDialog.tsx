@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
+import { TIMEZONE } from '@/lib/time';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -192,7 +194,7 @@ export function EventDetailDialog({
                   onChange={(e) =>
                     setDraft({
                       ...draft,
-                      starts_at: new Date(e.target.value).toISOString(),
+                      starts_at: localInputToUtcIso(e.target.value),
                     })
                   }
                   disabled={imported}
@@ -344,10 +346,28 @@ function labelFor(profiles: RosterUser[], id: string | null): string {
   return p.display_name ?? p.email;
 }
 
+/**
+ * Render a UTC ISO instant as a `YYYY-MM-DDTHH:mm` string in ET wall-clock
+ * for `<input type="datetime-local">` to display. The input always shows
+ * America/New_York time regardless of the user's browser locale.
+ */
 function toLocalInput(iso: string): string {
-  const d = new Date(iso);
+  const et = toZonedTime(new Date(iso), TIMEZONE);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
+  return `${et.getFullYear()}-${pad(et.getMonth() + 1)}-${pad(et.getDate())}T${pad(
+    et.getHours(),
+  )}:${pad(et.getMinutes())}`;
+}
+
+/**
+ * Inverse of `toLocalInput`: take the ET wall-clock string the input
+ * produced and convert it to a UTC ISO instant for storage.
+ */
+function localInputToUtcIso(value: string): string {
+  // value is "YYYY-MM-DDTHH:mm" — interpret as ET, convert to UTC.
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return new Date(value).toISOString();
+  const [, y, mo, d, h, mi] = m.map((s) => Number(s));
+  const wall = new Date(y, mo - 1, d, h, mi, 0, 0);
+  return fromZonedTime(wall, TIMEZONE).toISOString();
 }
