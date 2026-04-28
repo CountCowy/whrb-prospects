@@ -1,0 +1,1 @@
+# WBUR returned HTTP 404 for /robots.txt — no robots.txt published, no restrictions.

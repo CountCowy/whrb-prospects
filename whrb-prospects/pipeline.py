@@ -34,6 +34,7 @@ from sources import (
     best_of_boston,
     chambers,
     city_licenses,
+    competitor_stations,
     ma_hic,
     osm_overpass,
     program_books,
@@ -211,6 +212,8 @@ def collect(with_hic: bool, with_bbb: bool, enabled: set[str] | None = None) -> 
         rows += _safe_cached("huntington", huntington_sponsors)
     if with_bbb and _on("bbb"):
         rows += _safe_cached("bbb",        bbb.run_all)
+    if _on("competitor_stations"):
+        rows += _safe_cached("competitor_stations", competitor_stations.run_all)
     return rows
 
 

@@ -201,6 +201,7 @@ SOURCE_KEYS: tuple[str, ...] = (
     "program_books",
     "huntington",
     "bbb",
+    "competitor_stations",
 )
 
 # Sources that `pipeline.collect` should invoke by default (when the DB

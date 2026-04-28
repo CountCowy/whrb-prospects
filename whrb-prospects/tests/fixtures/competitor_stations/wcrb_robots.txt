@@ -1,0 +1,6 @@
+User-agent: * 
+Disallow:
+
+Sitemap: https://www.classicalwcrb.org/sitemap.xml
+Sitemap: https://www.classicalwcrb.org/sitemap-latest.xml
+Sitemap: https://www.classicalwcrb.org/news-sitemap-content.xml
