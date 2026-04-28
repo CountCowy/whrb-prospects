@@ -75,19 +75,25 @@ const THEME_OPTIONS: { value: ThemeOpt; label: string; Icon: LucideIcon }[] = [
   { value: 'dark', label: 'Dark', Icon: Moon },
 ];
 
+// next-themes resolves the persisted theme on the client only; gate on a
+// mount flag so the first render returns 'system' and avoids an
+// SSR-vs-hydration flash in the radio group / aria-pressed buttons.
+function useResolvedTheme(): { current: ThemeOpt; setTheme: (v: string) => void } {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const current: ThemeOpt =
+    (mounted ? (theme as ThemeOpt | undefined) : 'system') ?? 'system';
+  return { current, setTheme };
+}
+
 /**
  * Theme picker as flat radio items, embedded directly inside the avatar
  * DropdownMenu. Replaces the legacy ThemeToggle's nested-dropdown trigger
  * — one click depth instead of two, and no hover-intent submenu.
  */
 function ThemeRadioItems() {
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  // next-themes resolves persisted theme on the client only; defer until
-  // mount to avoid an SSR-vs-hydration radio flash.
-  useEffect(() => setMounted(true), []);
-  const current: ThemeOpt =
-    (mounted ? (theme as ThemeOpt | undefined) : 'system') ?? 'system';
+  const { current, setTheme } = useResolvedTheme();
   return (
     <DropdownMenuRadioGroup value={current} onValueChange={setTheme}>
       {THEME_OPTIONS.map(({ value, label, Icon }) => (
@@ -109,20 +115,16 @@ export function Nav({
   isAdmin,
   userId,
   userEmail,
-  initialUnreadCount,
+  initialUnread,
 }: {
   isAdmin: boolean;
   userId: string;
   userEmail: string;
-  initialUnreadCount: number;
+  initialUnread: number;
 }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const { theme, setTheme } = useTheme();
-  const [themeMounted, setThemeMounted] = useState(false);
-  useEffect(() => setThemeMounted(true), []);
-  const currentTheme: ThemeOpt =
-    (themeMounted ? (theme as ThemeOpt | undefined) : 'system') ?? 'system';
+  const { current: currentTheme, setTheme } = useResolvedTheme();
   const { signOut, pending: signOutPending } = useSignOut();
 
   const tabs: Tab[] = isAdmin
@@ -178,6 +180,7 @@ export function Nav({
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
+                aria-label="Resources menu"
                 aria-current={resourcesActive ? 'page' : undefined}
                 data-testid="nav-resources-trigger"
                 className={tabClasses(resourcesActive)}
@@ -219,7 +222,7 @@ export function Nav({
           </DropdownMenu>
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">
-          <NotificationBell userId={userId} initialUnread={initialUnreadCount} />
+          <NotificationBell userId={userId} initialUnread={initialUnread} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
