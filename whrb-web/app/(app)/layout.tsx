@@ -35,7 +35,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Nav isAdmin={isAdmin} userId={user.id} initialUnreadCount={unreadCount ?? 0} />
+      <Nav
+        isAdmin={isAdmin}
+        userId={user.id}
+        userEmail={user.email ?? ''}
+        initialUnreadCount={unreadCount ?? 0}
+      />
       <ChangelogToast pendingEntry={pendingChangelog} />
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 pb-28 pt-6 sm:px-6 sm:pb-32">
         {children}

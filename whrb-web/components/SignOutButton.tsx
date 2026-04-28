@@ -1,10 +1,7 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-
 import { Button } from '@/components/ui/button';
-import { createClient } from '@/lib/supabase/client';
+import { useSignOut } from '@/lib/hooks/use-sign-out';
 import { cn } from '@/lib/utils';
 
 type Variant = 'nav' | 'drawer' | 'settings';
@@ -18,22 +15,7 @@ export function SignOutButton({
   testId?: string;
   onBeforeSignOut?: () => void;
 }) {
-  const router = useRouter();
-  const [pending, setPending] = useState(false);
-
-  async function signOut() {
-    if (pending) return;
-    setPending(true);
-    try {
-      onBeforeSignOut?.();
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      router.push('/login');
-      router.refresh();
-    } finally {
-      setPending(false);
-    }
-  }
+  const { signOut, pending } = useSignOut({ onBeforeSignOut });
 
   const label = pending ? 'Signing out…' : 'Sign out';
 
