@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { formatDateTime, formatRelative } from '@/lib/time';
@@ -93,12 +94,13 @@ function detailHref(n: NotificationItem): string | null {
 }
 
 export function NotificationInbox({ initial }: { initial: NotificationItem[] }) {
+  const router = useRouter();
   const [items, setItems] = useState(initial);
   const [pending, startTransition] = useTransition();
 
   const unreadCount = items.filter((i) => i.read_at === null).length;
 
-  function patch(notif: NotificationItem, patchBody: { id: string; action: 'mark_read' | 'mark_unread' } | { action: 'mark_all_read' }) {
+  function patch(patchBody: { id: string; action: 'mark_read' | 'mark_unread' } | { action: 'mark_all_read' }) {
     startTransition(async () => {
       const res = await fetch('/api/notifications', {
         method: 'PATCH',
@@ -118,7 +120,11 @@ export function NotificationInbox({ initial }: { initial: NotificationItem[] }) 
         const nextReadAt = patchBody.action === 'mark_read' ? now : null;
         setItems((old) => old.map((it) => (it.id === patchBody.id ? { ...it, read_at: nextReadAt } : it)));
       }
-      void notif;
+      // Re-run the (app)/layout.tsx server query so NotificationBell receives
+      // a fresh `initialUnread` prop. Without this the bell badge stays stale
+      // until full page reload — realtime UPDATE delivery is unreliable in
+      // practice (depends on Supabase realtime + replica-identity config).
+      router.refresh();
     });
   }
 
@@ -142,7 +148,7 @@ export function NotificationInbox({ initial }: { initial: NotificationItem[] }) 
         </p>
         <button
           type="button"
-          onClick={() => patch(items[0], { action: 'mark_all_read' })}
+          onClick={() => patch({ action: 'mark_all_read' })}
           disabled={unreadCount === 0 || pending}
           className="rounded-md border border-[hsl(var(--border))] px-3 py-1.5 text-sm font-medium text-[hsl(var(--muted-foreground))] transition-colors hover:bg-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))] disabled:cursor-not-allowed disabled:opacity-50"
           data-testid="notifications-mark-all-read"
@@ -187,7 +193,7 @@ export function NotificationInbox({ initial }: { initial: NotificationItem[] }) 
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  patch(it, {
+                  patch({
                     id: it.id,
                     action: unread ? 'mark_read' : 'mark_unread',
                   });
@@ -205,7 +211,7 @@ export function NotificationInbox({ initial }: { initial: NotificationItem[] }) 
                 <Link
                   href={href}
                   onClick={() => {
-                    if (unread) patch(it, { id: it.id, action: 'mark_read' });
+                    if (unread) patch({ id: it.id, action: 'mark_read' });
                   }}
                   className="block"
                 >

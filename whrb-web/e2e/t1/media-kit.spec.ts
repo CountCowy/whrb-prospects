@@ -22,15 +22,31 @@ test.describe('t1 media kit', () => {
       await expect(page.getByText('Content coming in T4')).toBeVisible();
     });
 
-    test('t1-t26b nav contains Media Kit between Prospects and Guide', async ({ page }) => {
+    test('t1-t26b nav surfaces Media Kit and Guide via Resources dropdown', async ({ page }) => {
       await page.goto('/');
-      // Desktop nav uses an inline link list.
-      const links = page.locator('nav[aria-label="Primary"] a');
-      const labels = await links.allTextContents();
-      // Filter to known top-level labels and verify ordering.
-      const known = ['All Prospects', 'Media Kit', 'Guide'];
-      const filtered = labels.filter((l) => known.includes(l.trim()));
-      expect(filtered).toEqual(known);
+      // After the avatar/Resources nav refactor, Media Kit + Guide moved
+      // out of the inline tab list and into the Resources DropdownMenu.
+      // Spec: All Prospects stays inline; Resources trigger sits in the
+      // primary nav; opening it reveals Media Kit then Guide in order.
+      const inlineLabels = await page
+        .locator('nav[aria-label="Primary"] a')
+        .allTextContents();
+      const inlineKnown = inlineLabels
+        .map((l) => l.trim())
+        .filter((l) => ['All Prospects', 'Media Kit', 'Guide'].includes(l));
+      expect(inlineKnown).toEqual(['All Prospects']);
+
+      const resourcesTrigger = page.getByTestId('nav-resources-trigger');
+      await expect(resourcesTrigger).toBeVisible();
+      await resourcesTrigger.click();
+
+      // DropdownMenuContent is portaled to <body>, so query at page level.
+      const menuItems = page.getByRole('menuitem');
+      await expect(menuItems.first()).toBeVisible();
+      const itemLabels = (await menuItems.allTextContents())
+        .map((l) => l.trim())
+        .filter((l) => ['Media Kit', 'Guide'].includes(l));
+      expect(itemLabels).toEqual(['Media Kit', 'Guide']);
     });
   });
 
