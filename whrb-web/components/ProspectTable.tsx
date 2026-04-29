@@ -94,6 +94,12 @@ function COLUMNS(opts?: {
         </Link>
       ),
     },
+    {
+      key: 'assigned_to',
+      label: 'Assigned',
+      defaultVisible: true,
+      render: (p) => <span className="text-sm">{assigneeLabel(p)}</span>,
+    },
     { key: 'contact_name', label: 'Contact', defaultVisible: true, render: (p) => textCell(p.contact_name) },
     { key: 'tier', label: 'Tier', defaultVisible: true, sortable: true, render: (p) => <TierBadge tier={p.tier} /> },
     { key: 'state', label: 'State', defaultVisible: true, sortable: true, render: (p) => <StateBadge state={p.state} /> },
@@ -211,12 +217,6 @@ function COLUMNS(opts?: {
         ),
     },
     { key: 'ein', label: 'EIN', defaultVisible: false, render: (p) => textCell(p.ein) },
-    {
-      key: 'assigned_to',
-      label: 'Assigned',
-      defaultVisible: true,
-      render: (p) => <span className="text-sm">{assigneeLabel(p)}</span>,
-    },
     {
       key: 'pipeline_last_seen_at',
       label: 'Last seen',
