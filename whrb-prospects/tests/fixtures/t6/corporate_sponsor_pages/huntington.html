@@ -1,0 +1,38 @@
+<!--
+  Hand-crafted fallback fixture for the Huntington Theatre institutional
+  supporters page. Both the plan-specified URL
+  (`/support-us/supporters/institution/`) and the program-books-fetcher
+  URL (`/about/sponsors/`) returned 404 at T6 plant time. The Huntington
+  rotates this page's slug periodically; this fallback mirrors the
+  expected DOM shape so the parser is exercised against representative
+  input. Re-capture once the supporters page settles.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Institutional Supporters | Huntington Theatre Company</title>
+</head>
+<body>
+  <main>
+    <h1>Huntington Theatre &mdash; Institutional Supporters</h1>
+    <section class="institutional-sponsors">
+      <h2>Production Sponsors</h2>
+      <ul>
+        <li><a href="https://www.bnymellon.com/">BNY Mellon</a></li>
+        <li><a href="https://www.libertymutual.com/">Liberty Mutual Insurance</a></li>
+        <li><a href="https://www.ropesgray.com/">Ropes &amp; Gray LLP</a></li>
+        <li><a href="https://www.nutter.com/">Nutter McClennen &amp; Fish</a></li>
+        <li><a href="https://www.wilmerhale.com/">WilmerHale</a></li>
+      </ul>
+      <h2>Foundation &amp; Government Support</h2>
+      <ul>
+        <li><a href="https://massculturalcouncil.org/">Massachusetts Cultural Council</a></li>
+        <li><a href="https://www.barrfoundation.org/">Barr Foundation</a></li>
+        <li><a href="https://www.bankofamerica.com/">Bank of America Foundation</a></li>
+        <li><a href="https://www.nelliemaeefdn.org/">Nellie Mae Education Foundation</a></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

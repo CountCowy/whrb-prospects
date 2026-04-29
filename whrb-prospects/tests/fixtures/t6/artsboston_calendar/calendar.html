@@ -1,0 +1,144 @@
+<!--
+  Hand-crafted fallback fixture for the ArtsBoston events calendar.
+  The live URL https://www.artsboston.org/events/ returned a single-
+  article page (no calendar listing) at T6 plant time — ArtsBoston's
+  live calendar is JS-rendered and not visible to a static-HTML scrape.
+  This stand-in mirrors the expected DOM shape (event cards each linking
+  to /organization/<slug> presenter pages) so the parser is exercised
+  deterministically. Re-capture once a static rendering exists or move
+  the source to a JS-aware fetcher in T8.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Events Calendar | ArtsBoston</title>
+</head>
+<body>
+  <main>
+    <h1>ArtsBoston &mdash; Boston Arts Calendar</h1>
+    <ul class="event-list">
+      <li>
+        <h3>Tribute to Sondheim</h3>
+        <span class="evo_event_owner">Boston Symphony Orchestra</span>
+        <a href="https://www.artsboston.org/organization/boston-symphony-orchestra/">Boston Symphony Orchestra</a>
+      </li>
+      <li>
+        <h3>Lunar New Year Concert</h3>
+        <span class="evo_event_owner">Handel and Haydn Society</span>
+        <a href="https://www.artsboston.org/organization/handel-and-haydn-society/">Handel and Haydn Society</a>
+      </li>
+      <li>
+        <h3>Boston Pops Holiday</h3>
+        <span class="evo_event_owner">Boston Pops Orchestra</span>
+        <a href="https://www.artsboston.org/organization/boston-pops/">Boston Pops Orchestra</a>
+      </li>
+      <li>
+        <h3>The Nutcracker</h3>
+        <span class="evo_event_owner">Boston Ballet</span>
+        <a href="https://www.artsboston.org/organization/boston-ballet/">Boston Ballet</a>
+      </li>
+      <li>
+        <h3>La Boheme</h3>
+        <span class="evo_event_owner">Boston Lyric Opera</span>
+        <a href="https://www.artsboston.org/organization/boston-lyric-opera/">Boston Lyric Opera</a>
+      </li>
+      <li>
+        <h3>Spring Repertory</h3>
+        <span class="evo_event_owner">American Repertory Theater</span>
+        <a href="https://www.artsboston.org/organization/american-repertory-theater/">American Repertory Theater</a>
+      </li>
+      <li>
+        <h3>Summer Festival</h3>
+        <span class="evo_event_owner">Celebrity Series of Boston</span>
+        <a href="https://www.artsboston.org/organization/celebrity-series/">Celebrity Series of Boston</a>
+      </li>
+      <li>
+        <h3>Choral Sundays</h3>
+        <span class="evo_event_owner">Boston Children's Chorus</span>
+        <a href="https://www.artsboston.org/organization/boston-childrens-chorus/">Boston Children's Chorus</a>
+      </li>
+      <li>
+        <h3>Free Friday Concerts</h3>
+        <span class="evo_event_owner">Isabella Stewart Gardner Museum</span>
+        <a href="https://www.artsboston.org/organization/isabella-stewart-gardner-museum/">Isabella Stewart Gardner Museum</a>
+      </li>
+      <li>
+        <h3>Early Music Series</h3>
+        <span class="evo_event_owner">Boston Early Music Festival</span>
+        <a href="https://www.artsboston.org/organization/boston-early-music-festival/">Boston Early Music Festival</a>
+      </li>
+      <li>
+        <h3>Chamber Music Tonight</h3>
+        <span class="evo_event_owner">Boston Chamber Music Society</span>
+        <a href="https://www.artsboston.org/organization/boston-chamber-music-society/">Boston Chamber Music Society</a>
+      </li>
+      <li>
+        <h3>Free Sunday Series</h3>
+        <span class="evo_event_owner">Museum of Fine Arts</span>
+        <a href="https://www.artsboston.org/organization/museum-of-fine-arts/">Museum of Fine Arts</a>
+      </li>
+      <li>
+        <h3>Modern Sounds</h3>
+        <span class="evo_event_owner">Boston Modern Orchestra Project</span>
+        <a href="https://www.artsboston.org/organization/boston-modern-orchestra-project/">Boston Modern Orchestra Project</a>
+      </li>
+      <li>
+        <h3>Saxophone Showcase</h3>
+        <span class="evo_event_owner">Berklee Performance Center</span>
+        <a href="https://www.artsboston.org/organization/berklee-performance-center/">Berklee Performance Center</a>
+      </li>
+      <li>
+        <h3>Open Studios</h3>
+        <span class="evo_event_owner">SoWa Artists Guild</span>
+        <a href="https://www.artsboston.org/organization/sowa-artists-guild/">SoWa Artists Guild</a>
+      </li>
+      <li>
+        <h3>Spring Dance</h3>
+        <span class="evo_event_owner">Urbanity Dance</span>
+        <a href="https://www.artsboston.org/organization/urbanity-dance/">Urbanity Dance</a>
+      </li>
+      <li>
+        <h3>Live Jazz</h3>
+        <span class="evo_event_owner">Wally's Cafe Jazz Club</span>
+        <a href="https://www.artsboston.org/organization/wallys-cafe/">Wally's Cafe Jazz Club</a>
+      </li>
+      <li>
+        <h3>Symphony Hall Open House</h3>
+        <span class="evo_event_owner">Symphony Hall</span>
+        <a href="https://www.artsboston.org/organization/symphony-hall/">Symphony Hall</a>
+      </li>
+      <li>
+        <h3>Music in Methuen</h3>
+        <span class="evo_event_owner">Methuen Memorial Music Hall</span>
+        <a href="https://www.artsboston.org/organization/methuen-memorial-music-hall/">Methuen Memorial Music Hall</a>
+      </li>
+      <li>
+        <h3>Touring Productions</h3>
+        <span class="evo_event_owner">Citizens Bank Opera House</span>
+        <a href="https://www.artsboston.org/organization/boch-shubert-theater/">Citizens Bank Opera House</a>
+      </li>
+      <li>
+        <h3>Sunday Concerts</h3>
+        <span class="evo_event_owner">Trinity Church Boston</span>
+        <a href="https://www.artsboston.org/organization/trinity-church-boston/">Trinity Church Boston</a>
+      </li>
+      <li>
+        <h3>Spring Sing</h3>
+        <span class="evo_event_owner">Coro Allegro</span>
+        <a href="https://www.artsboston.org/organization/coro-allegro/">Coro Allegro</a>
+      </li>
+      <li>
+        <h3>Spring Repertory Showcase</h3>
+        <span class="evo_event_owner">Huntington Theatre Company</span>
+        <a href="https://www.artsboston.org/organization/huntington-theatre/">Huntington Theatre Company</a>
+      </li>
+      <li>
+        <h3>Statewide Cultural Festival</h3>
+        <span class="evo_event_owner">Mass Cultural Council</span>
+        <a href="https://www.artsboston.org/organization/mass-cultural-council/">Mass Cultural Council</a>
+      </li>
+    </ul>
+  </main>
+</body>
+</html>

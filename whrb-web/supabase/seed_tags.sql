@@ -22,7 +22,8 @@ insert into public.tag_vocabulary (axis, value, status) values
   ('other',          'unknown', 'active')
 on conflict (axis, value) do nothing;
 
--- 2) affiliation (10 rows) — gleaming-dawn §1.3 #4
+-- 2) affiliation (15 rows) — gleaming-dawn §1.3 #4 (10 base) + §8.4 (5 T6
+--    institution-specific values for music_school_departments.py).
 insert into public.tag_vocabulary (axis, value, status) values
   ('affiliation', 'harvard_affiliated',    'active'),
   ('affiliation', 'mit_affiliated',        'active'),
@@ -33,7 +34,12 @@ insert into public.tag_vocabulary (axis, value, status) values
   ('affiliation', 'cape_ann',              'active'),
   ('affiliation', 'new_england_regional',  'active'),
   ('affiliation', 'national',              'active'),
-  ('affiliation', 'international',         'active')
+  ('affiliation', 'international',         'active'),
+  ('affiliation', 'berklee_affiliated',    'active'),
+  ('affiliation', 'nec_affiliated',        'active'),
+  ('affiliation', 'longy_affiliated',      'active'),
+  ('affiliation', 'bu_affiliated',         'active'),
+  ('affiliation', 'yale_affiliated',       'active')
 on conflict (axis, value) do nothing;
 
 -- 3) genre (13 rows) — gleaming-dawn §1.3 #5
@@ -127,5 +133,6 @@ on conflict (axis, value) do nothing;
 --     organically via the `tag_vocab_pending` flow.
 
 -- =========================================================================
--- End of seed_tags.sql — 73 canonical rows
+-- End of seed_tags.sql — 78 canonical rows (73 base + 5 T6 institution-
+-- specific affiliations from migration 016_t6_vocab.sql).
 -- =========================================================================

@@ -30,12 +30,18 @@ from config import (
 )
 from enrich import apollo_free, contact_scraper, dedupe, email_validate, hunter_free
 from sources import (
+    arts_associations,
+    artsboston_calendar,
     bbb,
     best_of_boston,
     chambers,
+    church_concerts,
     city_licenses,
     competitor_stations,
+    corporate_sponsor_pages,
+    harvard_orgs,
     ma_hic,
+    music_school_departments,
     osm_overpass,
     program_books,
     yelp_fusion,
@@ -214,6 +220,21 @@ def collect(with_hic: bool, with_bbb: bool, enabled: set[str] | None = None) -> 
         rows += _safe_cached("bbb",        bbb.run_all)
     if _on("competitor_stations"):
         rows += _safe_cached("competitor_stations", competitor_stations.run_all)
+    # Stage T6 — Harvard + ensemble + corporate-sponsor batch (gleaming-dawn §8.4).
+    if _on("harvard_orgs"):
+        rows += _safe_cached("harvard_orgs", harvard_orgs.run_all)
+    if _on("arts_associations"):
+        rows += _safe_cached("arts_associations", arts_associations.run_all)
+    if _on("corporate_sponsor_pages"):
+        rows += _safe_cached("corporate_sponsor_pages", corporate_sponsor_pages.run_all)
+    if _on("artsboston_calendar"):
+        rows += _safe_cached("artsboston_calendar", artsboston_calendar.run_all)
+    if _on("church_concerts"):
+        rows += _safe_cached("church_concerts", church_concerts.run_all)
+    if _on("music_school_departments"):
+        rows += _safe_cached(
+            "music_school_departments", music_school_departments.run_all
+        )
     return rows
 
 

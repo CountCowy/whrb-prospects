@@ -109,6 +109,10 @@ _SEED_VOCAB: dict[str, set[str]] = {
         "unknown", "harvard_affiliated", "mit_affiliated", "cambridge_based",
         "boston_based", "greater_boston", "berkshires", "cape_ann",
         "new_england_regional", "national", "international",
+        # T6 (migration 016) — institution-specific affiliations for
+        # music_school_departments.py.
+        "berklee_affiliated", "nec_affiliated", "longy_affiliated",
+        "bu_affiliated", "yale_affiliated",
     },
     "cadence": {
         "unknown", "term_driven", "year_round", "admissions_window",

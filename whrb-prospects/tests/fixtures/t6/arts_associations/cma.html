@@ -1,0 +1,35 @@
+<!--
+  Hand-crafted fallback fixture for the Chamber Music America directory.
+  The live URL https://www.chamber-music.org/directory threw an
+  SSLCertVerificationError at T6 plant time. This stand-in mirrors the
+  page's expected DOM shape — a member-directory listing of chamber
+  ensembles (filtered to MA-based members for the WHRB ICP) — so the
+  parser is exercised against representative input even when the live
+  TLS chain isn't trusted by Python's bundled CA bundle.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Member Directory | Chamber Music America</title>
+</head>
+<body>
+  <main>
+    <h1>Chamber Music America &mdash; MA Member Directory</h1>
+    <div class="directory">
+      <ul>
+        <li><a href="https://afarcry.org/">A Far Cry</a></li>
+        <li><a href="https://www.bostonchambermusic.org/">Boston Chamber Music Society</a></li>
+        <li><a href="https://www.bostonbaroque.org/">Boston Baroque</a></li>
+        <li><a href="https://www.bostonmodern.org/">Boston Modern Orchestra Project</a></li>
+        <li><a href="https://www.boston-trio.com/">Boston Trio</a></li>
+        <li><a href="https://www.musiciansforhumanity.org/">Musicians for Humanity</a></li>
+        <li><a href="https://www.cantatasingers.org/">Cantata Singers</a></li>
+        <li><a href="https://www.borromeoquartet.org/">Borromeo String Quartet</a></li>
+        <li><a href="https://www.chameleonarts.org/">Chameleon Arts Ensemble</a></li>
+        <li><a href="https://www.callithumpian.org/">Callithumpian Consort</a></li>
+      </ul>
+    </div>
+  </main>
+</body>
+</html>

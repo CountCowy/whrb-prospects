@@ -202,6 +202,13 @@ SOURCE_KEYS: tuple[str, ...] = (
     "huntington",
     "bbb",
     "competitor_stations",
+    # Stage T6 — Harvard + ensemble + corporate-sponsor batch (gleaming-dawn §8.4)
+    "harvard_orgs",
+    "arts_associations",
+    "corporate_sponsor_pages",
+    "artsboston_calendar",
+    "church_concerts",
+    "music_school_departments",
 )
 
 # Sources that `pipeline.collect` should invoke by default (when the DB
