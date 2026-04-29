@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en-US" prefix="og: https://ogp.me/ns#">
+
+<head> <script type="text/javascript">
+/* <![CDATA[ */
+var gform;gform||(document.addEventListener("gform_main_scripts_loaded",function(){gform.scriptsLoaded=!0}),document.addEventListener("gform/theme/scripts_loaded",function(){gform.themeScriptsLoaded=!0}),window.addEventListener("DOMContentLoaded",function(){gform.domLoaded=!0}),gform={domLoaded:!1,scriptsLoaded:!1,themeScriptsLoaded:!1,isFormEditor:()=>"function"==typeof InitializeEditor,callIfLoaded:function(o){return!(!gform.domLoaded||!gform.scriptsLoaded||!gform.themeScriptsLoaded&&!gform.isFormEditor()||(gform.isFormEditor()&&console.warn("The use of gform.initializeOnLoaded() is deprecated in the form editor context and will be removed in Gravity Forms 3.1."),o(),0))},initializeOnLoaded:function(o){gform.callIfLoaded(o)||(document.addEventListener("gform_main_scripts_loaded",()=>{gform.scriptsLoaded=!0,gform.callIfLoaded(o)}),document.addEventListener("gform/theme/scripts_loaded",()=>{gform.themeScriptsLoaded=!0,gform.callIfLoaded(o)}),window.addEventListener("DOMContentLoaded",()=>{gform.domLoaded=!0,gform.callIfLoaded(o)}))},hooks:{action:{},filter:{}},addAction:function(o,r,e,t){gform.addHook("action",o,r,e,t)},addFilter:function(o,r,e,t){gform.addHook("filter",o,r,e,t)},doAction:function(o){gform.doHook("action",o,arguments)},applyFilters:function(o){return gform.doHook("filter",o,arguments)},removeAction:function(o,r){gform.removeHook("action",o,r)},removeFilter:function(o,r,e){gform.removeHook("filter",o,r,e)},addHook:function(o,r,e,t,n){null==gform.hooks[o][r]&&(gform.hooks[o][r]=[]);var d=gform.hooks[o][r];null==n&&(n=r+"_"+d.length),gform.hooks[o][r].push({tag:n,callable:e,priority:t=null==t?10:t})},doHook:function(r,o,e){var t;if(e=Array.prototype.slice.call(e,1),null!=gform.hooks[r][o]&&((o=gform.hooks[r][o]).sort(function(o,r){return o.priority-r.priority}),o.forEach(function(o){"function"!=typeof(t=o.callable)&&(t=window[t]),"action"==r?t.apply(null,e):e[0]=t.apply(null,e)})),"filter"==r)return e[0]},removeHook:function(o,r,t,n){var e;null!=gform.hooks[o][r]&&(e=(e=gform.hooks[o][r]).filter(function(o,r,e){return!!(null!=n&&n!=o.tag||null!=t&&t!=o.priority)}),gform.hooks[o][r]=e)}});
+/* ]]> */
+</script>
+
+
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="profile" href="https://gmpg.org/xfn/11">
+	<link rel="pingback" href="https://theadventboston.org/xmlrpc.php">
+
+		<style>
+		.site-header{background-color:#162b30;padding-bottom:50px;padding-top:50px;z-index:100}@media(max-width:1024px){.site-header{padding-bottom:20px;padding-top:20px}}.site-header--transparent{background-color:transparent;left:0;position:absolute;right:0;top:0}.admin-bar .site-header--transparent{top:46px}@media(min-width:1024px){.admin-bar .site-header--transparent{top:32px}}.site-header--transparent .off-canvas-open{top:46px}.admin-bar .site-header--transparent .off-canvas-open{top:36px}.site-header__container{align-items:center;display:flex;justify-content:space-between}.site-header .site-branding a{-webkit-text-decoration-line:none;text-decoration-line:none}@media(max-width:600px){.site-header .site-branding .custom-logo{height:60px}}.navigation-menu{display:none}@media (min-width:900px){.navigation-menu{display:block}}.navigation-menu .menu{display:flex;list-style:none;margin-bottom:0;padding-left:0}.navigation-menu .menu>li:not(:last-child){margin-right:39px}.navigation-menu .menu>li.menu-item-has-children:focus>a,.navigation-menu .menu>li.menu-item-has-children:hover>a{border-bottom:none;color:#e5e5e5}.navigation-menu .menu>li a{border-bottom:1px solid transparent;color:#e5e5e5;display:inline-block;font-size:18px;font-weight:500;letter-spacing:.02em;line-height:21px;padding:5px 3px;text-decoration:none}.navigation-menu .menu>li a:focus,.navigation-menu .menu>li a:hover,.navigation-menu .menu>li.current-menu-item a{border-bottom:1px solid #497882;color:#497882}.navigation-menu .menu>li.current-menu-item .sub-menu a{border-bottom:none;color:#e5e5e5}.navigation-menu .menu>li.current-menu-item .sub-menu a:focus,.navigation-menu .menu>li.current-menu-item .sub-menu a:hover{color:#497882}.navigation-menu .menu>li.current-menu-item .sub-menu .current-menu-item a{border-bottom:none;color:#e5e5e5}.navigation-menu .menu>li.current-menu-item .sub-menu .current-menu-item a:focus,.navigation-menu .menu>li.current-menu-item .sub-menu .current-menu-item a:hover{color:#497882}.navigation-menu .sub-menu{background-color:#162b30;border-left:2px solid #497882;left:-999em;list-style:none;padding-bottom:13px;padding-top:13px;position:absolute;top:30px;z-index:99999}.navigation-menu .sub-menu .menu-item{margin-left:15px;padding-bottom:2px;padding-top:1px}.navigation-menu .sub-menu .menu-item:focus a,.navigation-menu .sub-menu .menu-item:hover a{border-bottom:1px solid transparent;color:#497882;text-decoration:none}.navigation-menu .sub-menu .menu-item a{font-size:14px;line-height:16px}.navigation-menu .sub-menu .menu-item-has-children.focus>.sub-menu,.navigation-menu .sub-menu .menu-item-has-children:hover>.sub-menu{left:100%}.navigation-menu .sub-menu .menu-item-has-children.focus a,.navigation-menu .sub-menu .menu-item-has-children:hover a{border-bottom:none;color:#e5e5e5;text-decoration:none}.menu-item-has-children{position:relative}.menu-item-has-children.focus>.sub-menu,.menu-item-has-children:hover>.sub-menu{left:5px}.dropdown ul li{width:100%}.dropdown ul a{display:block;min-width:12rem;width:100%}.caret-down{display:none;height:100%;margin-left:.5rem;width:.5rem}.caret-down:before{background:url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNiIgaGVpZ2h0PSIyOCI+PHBhdGggZmlsbD0iIzQ5Nzg4MiIgZD0iTTE2IDExYS45OS45OSAwIDAgMS0uMjk3LjcwM2wtNyA3QzguNTE2IDE4Ljg5IDguMjY1IDE5IDggMTlzLS41MTYtLjEwOS0uNzAzLS4yOTdsLTctN0EuOTk2Ljk5NiAwIDAgMSAwIDExYzAtLjU0Ny40NTMtMSAxLTFoMTRjLjU0NyAwIDEgLjQ1MyAxIDF6Ii8+PC9zdmc+) 50% 50% no-repeat;background-size:100%;content:"";display:inline-block;height:100%;width:100%}.footer-navigation .menu{display:block}@media (min-width:900px){.footer-navigation .menu{display:flex}}.mobile-menu{list-style-type:none}.mobile-menu li{margin-bottom:16px}.mobile-menu li a{color:#162b30;font-size:18px;font-weight:500;letter-spacing:.02em;line-height:21px;text-decoration:none}.mobile-menu li a:focus,.mobile-menu li a:hover{color:#497882}.mobile-menu .sub-menu{display:none;list-style:none;margin-bottom:8px;margin-left:0;margin-top:16px}.mobile-menu .sub-menu.is-visible{display:block;opacity:1;visibility:visible}.mobile-menu .sub-menu.is-visible .menu-item a{font-size:14px;line-height:16px}.mobile-menu .menu-item-has-children.is-visible{max-height:8000px}.mobile-menu .menu-item-has-children.is-visible .parent-indicator:before{transform:rotate(180deg)}.mobile-menu .menu-item-has-children .menu-item-has-children:last-of-type .menu-item-has-children.is-visible{margin-bottom:0}.mobile-menu .menu-item-has-children .menu-item-has-children .parent-indicator:before{transform:rotate(0deg)}.mobile-menu .menu-item-has-children .menu-item-has-children.is-visible:last-of-type{margin-bottom:0}.mobile-menu .menu-item-has-children .menu-item-has-children.is-visible .parent-indicator:before{transform:rotate(180deg)}.mobile-menu .menu-item-has-children .menu-item-has-children .menu-item-has-children .parent-indicator:before{transform:rotate(0deg)}.mobile-menu .menu-item-has-children .menu-item-has-children .menu-item-has-children.is-visible .parent-indicator:before{transform:rotate(180deg)}.mobile-menu .menu-item-has-children:hover>.sub-menu:before{display:none}.mobile-menu .parent-indicator{display:inline-block;float:none;height:8px;position:relative;top:0;width:8px}	</style>
+		<link rel="preload" href="https://theadventboston.org/wp-content/themes/theadvent/build/index.css?ver=06dbad12e0ed73858d92" as="style">
+	<link rel="preload" href="https://theadventboston.org/wp-content/themes/theadvent/build/index.js?ver=06dbad12e0ed73858d92" as="script">
+			
+<!-- Search Engine Optimization by Rank Math - https://rankmath.com/ -->
+<title>Music at The Church of The Advent - The Church of the Advent</title>
+<meta name="description" content="Mark Dwyer came to the Advent from St. Paul’s Parish, K Street, in Washington, DC, in 2007. He was formerly the Music Director at the Cathedral of All Saints"/>
+<meta name="robots" content="follow, index, max-snippet:-1, max-video-preview:-1, max-image-preview:large"/>
+<link rel="canonical" href="https://theadventboston.org/music/" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Music at The Church of The Advent - The Church of the Advent" />
+<meta property="og:description" content="Mark Dwyer came to the Advent from St. Paul’s Parish, K Street, in Washington, DC, in 2007. He was formerly the Music Director at the Cathedral of All Saints" />
+<meta property="og:url" content="https://theadventboston.org/music/" />
+<meta property="og:site_name" content="The Church of the Advent" />
+<meta property="article:publisher" content="https://www.facebook.com/theadventboston/" />
+<meta property="og:updated_time" content="2026-04-13T16:41:37-04:00" />
+<meta property="og:image" content="https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-932x1024.jpg" />
+<meta property="og:image:secure_url" content="https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-932x1024.jpg" />
+<meta property="og:image:alt" content="Music at The Church of The Advent" />
+<meta property="article:published_time" content="2025-12-18T12:39:56-05:00" />
+<meta property="article:modified_time" content="2026-04-13T16:41:37-04:00" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Music at The Church of The Advent - The Church of the Advent" />
+<meta name="twitter:description" content="Mark Dwyer came to the Advent from St. Paul’s Parish, K Street, in Washington, DC, in 2007. He was formerly the Music Director at the Cathedral of All Saints" />
+<meta name="twitter:site" content="@adventboston" />
+<meta name="twitter:creator" content="@adventboston" />
+<meta name="twitter:image" content="https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-932x1024.jpg" />
+<script type="application/ld+json" class="rank-math-schema">{"@context":"https://schema.org","@graph":[{"@type":"Place","@id":"https://theadventboston.org/#place","address":{"@type":"PostalAddress","streetAddress":"30 Brimmer Street","addressLocality":"Boston","addressRegion":"MA","postalCode":"02108","addressCountry":"United States"}},{"@type":"Organization","@id":"https://theadventboston.org/#organization","name":"The Church of the Advent","url":"https://theadventboston.org/","sameAs":["https://www.facebook.com/theadventboston/","https://twitter.com/adventboston"],"address":{"@type":"PostalAddress","streetAddress":"30 Brimmer Street","addressLocality":"Boston","addressRegion":"MA","postalCode":"02108","addressCountry":"United States"},"logo":{"@type":"ImageObject","@id":"https://theadventboston.org/#logo","url":"https://theadventboston.org/wp-content/uploads/2022/08/Square-Profile.png","contentUrl":"https://theadventboston.org/wp-content/uploads/2022/08/Square-Profile.png","caption":"The Church of the Advent","inLanguage":"en-US","width":"1000","height":"1000"},"contactPoint":[{"@type":"ContactPoint","telephone":"+1-617-523-2377","contactType":"customer support"}],"location":{"@id":"https://theadventboston.org/#place"}},{"@type":"WebSite","@id":"https://theadventboston.org/#website","url":"https://theadventboston.org","name":"The Church of the Advent","publisher":{"@id":"https://theadventboston.org/#organization"},"inLanguage":"en-US"},{"@type":"ImageObject","@id":"https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-932x1024.jpg","url":"https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-932x1024.jpg","width":"200","height":"200","inLanguage":"en-US"},{"@type":"WebPage","@id":"https://theadventboston.org/music/#webpage","url":"https://theadventboston.org/music/","name":"Music at The Church of The Advent - The Church of the Advent","datePublished":"2025-12-18T12:39:56-05:00","dateModified":"2026-04-13T16:41:37-04:00","isPartOf":{"@id":"https://theadventboston.org/#website"},"primaryImageOfPage":{"@id":"https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-932x1024.jpg"},"inLanguage":"en-US"},{"@type":"Person","@id":"https://theadventboston.org/music/#author","name":"The Church of the Advent Internal Technology","image":{"@type":"ImageObject","@id":"https://secure.gravatar.com/avatar/0c6d42fbfe6053f48c66168225266a91d813df2960227d306b8a31d0a4e68391?s=96&amp;d=mm&amp;r=g","url":"https://secure.gravatar.com/avatar/0c6d42fbfe6053f48c66168225266a91d813df2960227d306b8a31d0a4e68391?s=96&amp;d=mm&amp;r=g","caption":"The Church of the Advent Internal Technology","inLanguage":"en-US"},"worksFor":{"@id":"https://theadventboston.org/#organization"}},{"@type":"Article","headline":"Music at The Church of The Advent - The Church of the Advent","datePublished":"2025-12-18T12:39:56-05:00","dateModified":"2026-04-13T16:41:37-04:00","author":{"@id":"https://theadventboston.org/music/#author","name":"The Church of the Advent Internal Technology"},"publisher":{"@id":"https://theadventboston.org/#organization"},"description":"Mark Dwyer came to the Advent from St. Paul\u2019s Parish, K Street, in Washington, DC, in 2007. He was formerly the Music Director at the Cathedral of All Saints","name":"Music at The Church of The Advent - The Church of the Advent","@id":"https://theadventboston.org/music/#richSnippet","isPartOf":{"@id":"https://theadventboston.org/music/#webpage"},"image":{"@id":"https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-932x1024.jpg"},"inLanguage":"en-US","mainEntityOfPage":{"@id":"https://theadventboston.org/music/#webpage"}}]}</script>
+<!-- /Rank Math WordPress SEO plugin -->
+
+<link rel="alternate" type="application/rss+xml" title="The Church of the Advent &raquo; Feed" href="https://theadventboston.org/feed/" />
+<link rel="alternate" type="application/rss+xml" title="The Church of the Advent &raquo; Comments Feed" href="https://theadventboston.org/comments/feed/" />
+<link rel="alternate" type="text/calendar" title="The Church of the Advent &raquo; iCal Feed" href="https://theadventboston.org/calendar/?ical=1" />
+<link rel="alternate" title="oEmbed (JSON)" type="application/json+oembed" href="https://theadventboston.org/wp-json/oembed/1.0/embed?url=https%3A%2F%2Ftheadventboston.org%2Fmusic%2F" />
+<link rel="alternate" title="oEmbed (XML)" type="text/xml+oembed" href="https://theadventboston.org/wp-json/oembed/1.0/embed?url=https%3A%2F%2Ftheadventboston.org%2Fmusic%2F&#038;format=xml" />
+<style id='wp-img-auto-sizes-contain-inline-css' type='text/css'>
+img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
+/*# sourceURL=wp-img-auto-sizes-contain-inline-css */
+</style>
+<link rel='stylesheet' id='tribe-events-pro-mini-calendar-block-styles-css' href='https://theadventboston.org/wp-content/plugins/events-calendar-pro/build/css/tribe-events-pro-mini-calendar-block.css?ver=7.7.14' type='text/css' media='all' />
+<style id='wp-emoji-styles-inline-css' type='text/css'>
+
+	img.wp-smiley, img.emoji {
+		display: inline !important;
+		border: none !important;
+		box-shadow: none !important;
+		height: 1em !important;
+		width: 1em !important;
+		margin: 0 0.07em !important;
+		vertical-align: -0.1em !important;
+		background: none !important;
+		padding: 0 !important;
+	}
+/*# sourceURL=wp-emoji-styles-inline-css */
+</style>
+<link rel='stylesheet' id='wp-block-library-css' href='https://theadventboston.org/wp-includes/css/dist/block-library/style.min.css?ver=6.9.4' type='text/css' media='all' />
+
+<style id='wp-block-heading-inline-css' type='text/css'>
+h1:where(.wp-block-heading).has-background,h2:where(.wp-block-heading).has-background,h3:where(.wp-block-heading).has-background,h4:where(.wp-block-heading).has-background,h5:where(.wp-block-heading).has-background,h6:where(.wp-block-heading).has-background{padding:1.25em 2.375em}h1.has-text-align-left[style*=writing-mode]:where([style*=vertical-lr]),h1.has-text-align-right[style*=writing-mode]:where([style*=vertical-rl]),h2.has-text-align-left[style*=writing-mode]:where([style*=vertical-lr]),h2.has-text-align-right[style*=writing-mode]:where([style*=vertical-rl]),h3.has-text-align-left[style*=writing-mode]:where([style*=vertical-lr]),h3.has-text-align-right[style*=writing-mode]:where([style*=vertical-rl]),h4.has-text-align-left[style*=writing-mode]:where([style*=vertical-lr]),h4.has-text-align-right[style*=writing-mode]:where([style*=vertical-rl]),h5.has-text-align-left[style*=writing-mode]:where([style*=vertical-lr]),h5.has-text-align-right[style*=writing-mode]:where([style*=vertical-rl]),h6.has-text-align-left[style*=writing-mode]:where([style*=vertical-lr]),h6.has-text-align-right[style*=writing-mode]:where([style*=vertical-rl]){rotate:180deg}
+/*# sourceURL=https://theadventboston.org/wp-includes/blocks/heading/style.min.css */
+</style>
+<style id='wp-block-image-inline-css' type='text/css'>
+.wp-block-image>a,.wp-block-image>figure>a{display:inline-block}.wp-block-image img{box-sizing:border-box;height:auto;max-width:100%;vertical-align:bottom}@media not (prefers-reduced-motion){.wp-block-image img.hide{visibility:hidden}.wp-block-image img.show{animation:show-content-image .4s}}.wp-block-image[style*=border-radius] img,.wp-block-image[style*=border-radius]>a{border-radius:inherit}.wp-block-image.has-custom-border img{box-sizing:border-box}.wp-block-image.aligncenter{text-align:center}.wp-block-image.alignfull>a,.wp-block-image.alignwide>a{width:100%}.wp-block-image.alignfull img,.wp-block-image.alignwide img{height:auto;width:100%}.wp-block-image .aligncenter,.wp-block-image .alignleft,.wp-block-image .alignright,.wp-block-image.aligncenter,.wp-block-image.alignleft,.wp-block-image.alignright{display:table}.wp-block-image .aligncenter>figcaption,.wp-block-image .alignleft>figcaption,.wp-block-image .alignright>figcaption,.wp-block-image.aligncenter>figcaption,.wp-block-image.alignleft>figcaption,.wp-block-image.alignright>figcaption{caption-side:bottom;display:table-caption}.wp-block-image .alignleft{float:left;margin:.5em 1em .5em 0}.wp-block-image .alignright{float:right;margin:.5em 0 .5em 1em}.wp-block-image .aligncenter{margin-left:auto;margin-right:auto}.wp-block-image :where(figcaption){margin-bottom:1em;margin-top:.5em}.wp-block-image.is-style-circle-mask img{border-radius:9999px}@supports ((-webkit-mask-image:none) or (mask-image:none)) or (-webkit-mask-image:none){.wp-block-image.is-style-circle-mask img{border-radius:0;-webkit-mask-image:url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50"/></svg>');mask-image:url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="50"/></svg>');mask-mode:alpha;-webkit-mask-position:center;mask-position:center;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-size:contain;mask-size:contain}}:root :where(.wp-block-image.is-style-rounded img,.wp-block-image .is-style-rounded img){border-radius:9999px}.wp-block-image figure{margin:0}.wp-lightbox-container{display:flex;flex-direction:column;position:relative}.wp-lightbox-container img{cursor:zoom-in}.wp-lightbox-container img:hover+button{opacity:1}.wp-lightbox-container button{align-items:center;backdrop-filter:blur(16px) saturate(180%);background-color:#5a5a5a40;border:none;border-radius:4px;cursor:zoom-in;display:flex;height:20px;justify-content:center;opacity:0;padding:0;position:absolute;right:16px;text-align:center;top:16px;width:20px;z-index:100}@media not (prefers-reduced-motion){.wp-lightbox-container button{transition:opacity .2s ease}}.wp-lightbox-container button:focus-visible{outline:3px auto #5a5a5a40;outline:3px auto -webkit-focus-ring-color;outline-offset:3px}.wp-lightbox-container button:hover{cursor:pointer;opacity:1}.wp-lightbox-container button:focus{opacity:1}.wp-lightbox-container button:focus,.wp-lightbox-container button:hover,.wp-lightbox-container button:not(:hover):not(:active):not(.has-background){background-color:#5a5a5a40;border:none}.wp-lightbox-overlay{box-sizing:border-box;cursor:zoom-out;height:100vh;left:0;overflow:hidden;position:fixed;top:0;visibility:hidden;width:100%;z-index:100000}.wp-lightbox-overlay .close-button{align-items:center;cursor:pointer;display:flex;justify-content:center;min-height:40px;min-width:40px;padding:0;position:absolute;right:calc(env(safe-area-inset-right) + 16px);top:calc(env(safe-area-inset-top) + 16px);z-index:5000000}.wp-lightbox-overlay .close-button:focus,.wp-lightbox-overlay .close-button:hover,.wp-lightbox-overlay .close-button:not(:hover):not(:active):not(.has-background){background:none;border:none}.wp-lightbox-overlay .lightbox-image-container{height:var(--wp--lightbox-container-height);left:50%;overflow:hidden;position:absolute;top:50%;transform:translate(-50%,-50%);transform-origin:top left;width:var(--wp--lightbox-container-width);z-index:9999999999}.wp-lightbox-overlay .wp-block-image{align-items:center;box-sizing:border-box;display:flex;height:100%;justify-content:center;margin:0;position:relative;transform-origin:0 0;width:100%;z-index:3000000}.wp-lightbox-overlay .wp-block-image img{height:var(--wp--lightbox-image-height);min-height:var(--wp--lightbox-image-height);min-width:var(--wp--lightbox-image-width);width:var(--wp--lightbox-image-width)}.wp-lightbox-overlay .wp-block-image figcaption{display:none}.wp-lightbox-overlay button{background:none;border:none}.wp-lightbox-overlay .scrim{background-color:#fff;height:100%;opacity:.9;position:absolute;width:100%;z-index:2000000}.wp-lightbox-overlay.active{visibility:visible}@media not (prefers-reduced-motion){.wp-lightbox-overlay.active{animation:turn-on-visibility .25s both}.wp-lightbox-overlay.active img{animation:turn-on-visibility .35s both}.wp-lightbox-overlay.show-closing-animation:not(.active){animation:turn-off-visibility .35s both}.wp-lightbox-overlay.show-closing-animation:not(.active) img{animation:turn-off-visibility .25s both}.wp-lightbox-overlay.zoom.active{animation:none;opacity:1;visibility:visible}.wp-lightbox-overlay.zoom.active .lightbox-image-container{animation:lightbox-zoom-in .4s}.wp-lightbox-overlay.zoom.active .lightbox-image-container img{animation:none}.wp-lightbox-overlay.zoom.active .scrim{animation:turn-on-visibility .4s forwards}.wp-lightbox-overlay.zoom.show-closing-animation:not(.active){animation:none}.wp-lightbox-overlay.zoom.show-closing-animation:not(.active) .lightbox-image-container{animation:lightbox-zoom-out .4s}.wp-lightbox-overlay.zoom.show-closing-animation:not(.active) .lightbox-image-container img{animation:none}.wp-lightbox-overlay.zoom.show-closing-animation:not(.active) .scrim{animation:turn-off-visibility .4s forwards}}@keyframes show-content-image{0%{visibility:hidden}99%{visibility:hidden}to{visibility:visible}}@keyframes turn-on-visibility{0%{opacity:0}to{opacity:1}}@keyframes turn-off-visibility{0%{opacity:1;visibility:visible}99%{opacity:0;visibility:visible}to{opacity:0;visibility:hidden}}@keyframes lightbox-zoom-in{0%{transform:translate(calc((-100vw + var(--wp--lightbox-scrollbar-width))/2 + var(--wp--lightbox-initial-left-position)),calc(-50vh + var(--wp--lightbox-initial-top-position))) scale(var(--wp--lightbox-scale))}to{transform:translate(-50%,-50%) scale(1)}}@keyframes lightbox-zoom-out{0%{transform:translate(-50%,-50%) scale(1);visibility:visible}99%{visibility:visible}to{transform:translate(calc((-100vw + var(--wp--lightbox-scrollbar-width))/2 + var(--wp--lightbox-initial-left-position)),calc(-50vh + var(--wp--lightbox-initial-top-position))) scale(var(--wp--lightbox-scale));visibility:hidden}}
+/*# sourceURL=https://theadventboston.org/wp-includes/blocks/image/style.min.css */
+</style>
+<style id='wp-block-columns-inline-css' type='text/css'>
+.wp-block-columns{box-sizing:border-box;display:flex;flex-wrap:wrap!important}@media (min-width:782px){.wp-block-columns{flex-wrap:nowrap!important}}.wp-block-columns{align-items:normal!important}.wp-block-columns.are-vertically-aligned-top{align-items:flex-start}.wp-block-columns.are-vertically-aligned-center{align-items:center}.wp-block-columns.are-vertically-aligned-bottom{align-items:flex-end}@media (max-width:781px){.wp-block-columns:not(.is-not-stacked-on-mobile)>.wp-block-column{flex-basis:100%!important}}@media (min-width:782px){.wp-block-columns:not(.is-not-stacked-on-mobile)>.wp-block-column{flex-basis:0;flex-grow:1}.wp-block-columns:not(.is-not-stacked-on-mobile)>.wp-block-column[style*=flex-basis]{flex-grow:0}}.wp-block-columns.is-not-stacked-on-mobile{flex-wrap:nowrap!important}.wp-block-columns.is-not-stacked-on-mobile>.wp-block-column{flex-basis:0;flex-grow:1}.wp-block-columns.is-not-stacked-on-mobile>.wp-block-column[style*=flex-basis]{flex-grow:0}:where(.wp-block-columns){margin-bottom:1.75em}:where(.wp-block-columns.has-background){padding:1.25em 2.375em}.wp-block-column{flex-grow:1;min-width:0;overflow-wrap:break-word;word-break:break-word}.wp-block-column.is-vertically-aligned-top{align-self:flex-start}.wp-block-column.is-vertically-aligned-center{align-self:center}.wp-block-column.is-vertically-aligned-bottom{align-self:flex-end}.wp-block-column.is-vertically-aligned-stretch{align-self:stretch}.wp-block-column.is-vertically-aligned-bottom,.wp-block-column.is-vertically-aligned-center,.wp-block-column.is-vertically-aligned-top{width:100%}
+/*# sourceURL=https://theadventboston.org/wp-includes/blocks/columns/style.min.css */
+</style>
+<style id='wp-block-group-inline-css' type='text/css'>
+.wp-block-group{box-sizing:border-box}:where(.wp-block-group.wp-block-group-is-layout-constrained){position:relative}
+/*# sourceURL=https://theadventboston.org/wp-includes/blocks/group/style.min.css */
+</style>
+<style id='wp-block-paragraph-inline-css' type='text/css'>
+.is-small-text{font-size:.875em}.is-regular-text{font-size:1em}.is-large-text{font-size:2.25em}.is-larger-text{font-size:3em}.has-drop-cap:not(:focus):first-letter{float:left;font-size:8.4em;font-style:normal;font-weight:100;line-height:.68;margin:.05em .1em 0 0;text-transform:uppercase}body.rtl .has-drop-cap:not(:focus):first-letter{float:none;margin-left:.1em}p.has-drop-cap.has-background{overflow:hidden}:root :where(p.has-background){padding:1.25em 2.375em}:where(p.has-text-color:not(.has-link-color)) a{color:inherit}p.has-text-align-left[style*="writing-mode:vertical-lr"],p.has-text-align-right[style*="writing-mode:vertical-rl"]{rotate:180deg}
+/*# sourceURL=https://theadventboston.org/wp-includes/blocks/paragraph/style.min.css */
+</style>
+<style id='wp-block-spacer-inline-css' type='text/css'>
+.wp-block-spacer{clear:both}
+/*# sourceURL=https://theadventboston.org/wp-includes/blocks/spacer/style.min.css */
+</style>
+
+<style id='classic-theme-styles-inline-css' type='text/css'>
+/*! This file is auto-generated */
+.wp-block-button__link{color:#fff;background-color:#32373c;border-radius:9999px;box-shadow:none;text-decoration:none;padding:calc(.667em + 2px) calc(1.333em + 2px);font-size:1.125em}.wp-block-file__button{background:#32373c;color:#fff;text-decoration:none}
+/*# sourceURL=/wp-includes/css/classic-themes.min.css */
+</style>
+<style id='global-styles-inline-css' type='text/css'>
+:root{--wp--preset--aspect-ratio--square: 1;--wp--preset--aspect-ratio--4-3: 4/3;--wp--preset--aspect-ratio--3-4: 3/4;--wp--preset--aspect-ratio--3-2: 3/2;--wp--preset--aspect-ratio--2-3: 2/3;--wp--preset--aspect-ratio--16-9: 16/9;--wp--preset--aspect-ratio--9-16: 9/16;--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: #abb8c3;--wp--preset--color--white: #ffffff;--wp--preset--color--pale-pink: #f78da7;--wp--preset--color--vivid-red: #cf2e2e;--wp--preset--color--luminous-vivid-orange: #ff6900;--wp--preset--color--luminous-vivid-amber: #fcb900;--wp--preset--color--light-green-cyan: #7bdcb5;--wp--preset--color--vivid-green-cyan: #00d084;--wp--preset--color--pale-cyan-blue: #8ed1fc;--wp--preset--color--vivid-cyan-blue: #0693e3;--wp--preset--color--vivid-purple: #9b51e0;--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple: linear-gradient(135deg,rgb(6,147,227) 0%,rgb(155,81,224) 100%);--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan: linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%);--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange: linear-gradient(135deg,rgb(252,185,0) 0%,rgb(255,105,0) 100%);--wp--preset--gradient--luminous-vivid-orange-to-vivid-red: linear-gradient(135deg,rgb(255,105,0) 0%,rgb(207,46,46) 100%);--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray: linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%);--wp--preset--gradient--cool-to-warm-spectrum: linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%);--wp--preset--gradient--blush-light-purple: linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%);--wp--preset--gradient--blush-bordeaux: linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%);--wp--preset--gradient--luminous-dusk: linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%);--wp--preset--gradient--pale-ocean: linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%);--wp--preset--gradient--electric-grass: linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%);--wp--preset--gradient--midnight: linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%);--wp--preset--font-size--small: 12px;--wp--preset--font-size--medium: 20px;--wp--preset--font-size--large: 36px;--wp--preset--font-size--x-large: 42px;--wp--preset--font-size--normal: 16px;--wp--preset--font-size--huge: 50px;--wp--preset--spacing--20: 0.44rem;--wp--preset--spacing--30: 0.67rem;--wp--preset--spacing--40: 1rem;--wp--preset--spacing--50: 1.5rem;--wp--preset--spacing--60: 2.25rem;--wp--preset--spacing--70: 3.38rem;--wp--preset--spacing--80: 5.06rem;--wp--preset--shadow--natural: 6px 6px 9px rgba(0, 0, 0, 0.2);--wp--preset--shadow--deep: 12px 12px 50px rgba(0, 0, 0, 0.4);--wp--preset--shadow--sharp: 6px 6px 0px rgba(0, 0, 0, 0.2);--wp--preset--shadow--outlined: 6px 6px 0px -3px rgb(255, 255, 255), 6px 6px rgb(0, 0, 0);--wp--preset--shadow--crisp: 6px 6px 0px rgb(0, 0, 0);}:where(.is-layout-flex){gap: 0.5em;}:where(.is-layout-grid){gap: 0.5em;}body .is-layout-flex{display: flex;}.is-layout-flex{flex-wrap: wrap;align-items: center;}.is-layout-flex > :is(*, div){margin: 0;}body .is-layout-grid{display: grid;}.is-layout-grid > :is(*, div){margin: 0;}:where(.wp-block-columns.is-layout-flex){gap: 2em;}:where(.wp-block-columns.is-layout-grid){gap: 2em;}:where(.wp-block-post-template.is-layout-flex){gap: 1.25em;}:where(.wp-block-post-template.is-layout-grid){gap: 1.25em;}.has-black-color{color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-color{color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-color{color: var(--wp--preset--color--white) !important;}.has-pale-pink-color{color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-color{color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-color{color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-color{color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-color{color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-color{color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-color{color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-color{color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-color{color: var(--wp--preset--color--vivid-purple) !important;}.has-black-background-color{background-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-background-color{background-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-background-color{background-color: var(--wp--preset--color--white) !important;}.has-pale-pink-background-color{background-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-background-color{background-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-background-color{background-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-background-color{background-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-background-color{background-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-background-color{background-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-background-color{background-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-background-color{background-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-background-color{background-color: var(--wp--preset--color--vivid-purple) !important;}.has-black-border-color{border-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-border-color{border-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-border-color{border-color: var(--wp--preset--color--white) !important;}.has-pale-pink-border-color{border-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-border-color{border-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-border-color{border-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-border-color{border-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-border-color{border-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-border-color{border-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-border-color{border-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-border-color{border-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-border-color{border-color: var(--wp--preset--color--vivid-purple) !important;}.has-vivid-cyan-blue-to-vivid-purple-gradient-background{background: var(--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple) !important;}.has-light-green-cyan-to-vivid-green-cyan-gradient-background{background: var(--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan) !important;}.has-luminous-vivid-amber-to-luminous-vivid-orange-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange) !important;}.has-luminous-vivid-orange-to-vivid-red-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-orange-to-vivid-red) !important;}.has-very-light-gray-to-cyan-bluish-gray-gradient-background{background: var(--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray) !important;}.has-cool-to-warm-spectrum-gradient-background{background: var(--wp--preset--gradient--cool-to-warm-spectrum) !important;}.has-blush-light-purple-gradient-background{background: var(--wp--preset--gradient--blush-light-purple) !important;}.has-blush-bordeaux-gradient-background{background: var(--wp--preset--gradient--blush-bordeaux) !important;}.has-luminous-dusk-gradient-background{background: var(--wp--preset--gradient--luminous-dusk) !important;}.has-pale-ocean-gradient-background{background: var(--wp--preset--gradient--pale-ocean) !important;}.has-electric-grass-gradient-background{background: var(--wp--preset--gradient--electric-grass) !important;}.has-midnight-gradient-background{background: var(--wp--preset--gradient--midnight) !important;}.has-small-font-size{font-size: var(--wp--preset--font-size--small) !important;}.has-medium-font-size{font-size: var(--wp--preset--font-size--medium) !important;}.has-large-font-size{font-size: var(--wp--preset--font-size--large) !important;}.has-x-large-font-size{font-size: var(--wp--preset--font-size--x-large) !important;}
+:where(.wp-block-columns.is-layout-flex){gap: 2em;}:where(.wp-block-columns.is-layout-grid){gap: 2em;}
+/*# sourceURL=global-styles-inline-css */
+</style>
+
+<link rel='stylesheet' id='eeb-css-frontend-css' href='https://theadventboston.org/wp-content/plugins/email-encoder-bundle/assets/css/style.css?ver=54d4eedc552c499c4a8d6b89c23d3df1' type='text/css' media='all' />
+<link rel='stylesheet' id='bda_style-css' href='https://theadventboston.org/wp-content/themes/theadvent/build/index.css?ver=06dbad12e0ed73858d92' type='text/css' media='all' />
+<script type="text/javascript" src="https://theadventboston.org/wp-includes/js/jquery/jquery.min.js?ver=3.7.1" id="jquery-core-js"></script>
+<script type="text/javascript" src="https://theadventboston.org/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1" id="jquery-migrate-js"></script>
+<script type="text/javascript" src="https://theadventboston.org/wp-content/plugins/email-encoder-bundle/assets/js/custom.js?ver=2c542c9989f589cd5318f5cef6a9ecd7" id="eeb-js-frontend-js"></script>
+<link rel="https://api.w.org/" href="https://theadventboston.org/wp-json/" /><link rel="alternate" title="JSON" type="application/json" href="https://theadventboston.org/wp-json/wp/v2/pages/24397" /><link rel="EditURI" type="application/rsd+xml" title="RSD" href="https://theadventboston.org/xmlrpc.php?rsd" />
+
+<link rel='shortlink' href='https://theadventboston.org/?p=24397' />
+<style>
+.page-id-2  {
+	margin-top: 50px;
+}
+
+.page-id-2 header {
+	margin-top: 50px;
+}
+
+.page-id-2 .calendar-widget {
+    top: 0;
+	margin-top: 0;
+	left: 50%;
+    margin-left: -50vw;
+    position: absolute;
+    width: 100vw;
+}
+
+.page-id-2 .calendar-widget__container {
+    width: 100%;
+    max-width: 100%;
+}
+
+.page-id-2 .calendar-widget__content {
+    padding: 0px 20px 0px;
+	flex-direction: row;
+	justify-content: space-between;
+	border: 0;
+}
+
+.page-id-2 .calendar-widget__label {
+	margin-bottom: 0;
+}
+
+
+
+@media screen and (max-width: 650px) {
+	.page-id-2  {
+		margin-top: 6rem;
+	}
+	
+	.page-id-2 header {
+	margin-top: 6rem;
+	}
+	
+	.page-id-2 .calendar-widget {
+		height: 6rem;
+	}
+	
+	.page-id-2 .calendar-widget__content {
+		height: 100%;
+		padding: 0;
+		gap: 2rem;
+	}
+	
+	.page-id-2 .calendar-widget__container {
+		height: 100%;
+	}
+	
+	.page-id-2 .calendar-widget__label {
+		width: 180px;
+	}
+}
+	
+	@media screen and (max-width: 300px) {
+		
+		.page-id-2 .calendar-widget__content {
+			padding: 0;
+		}
+		
+		.page-id-2 .calendar-widget__link {
+			font-size: 13px;
+			line-height: 5px;
+		}
+		
+		.page-id-2 .calendar-widget__label {
+			width: auto;
+		}
+	}
+.off-canvas-open {
+	background: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMCAyMCI+PGcgZGF0YS1uYW1lPSJMYXllciAyIj48cGF0aCBmaWxsPSIjZTVlNWU1IiBjbGFzcz0iYWE4ZWJhYjctMDc0Yy00ZjRkLTgzZTgtN2E0MzlkZGE0NWE4IiBkPSJNMTIuNSAxMS4yNWgxNi4yNUExLjE4IDEuMTggMCAwIDAgMzAgMTBhMS4xOCAxLjE4IDAgMCAwLTEuMjUtMS4yNUgxMi41QTEuMTggMS4xOCAwIDAgMCAxMS4yNSAxMGExLjE4IDEuMTggMCAwIDAgMS4yNSAxLjI1Wk0xLjI1IDIuNWgyNy41QTEuMTggMS4xOCAwIDAgMCAzMCAxLjI1IDEuMTggMS4xOCAwIDAgMCAyOC43NSAwSDEuMjVBMS4xOCAxLjE4IDAgMCAwIDAgMS4yNSAxLjE4IDEuMTggMCAwIDAgMS4yNSAyLjVabTAgMTcuNWgyNy41YTEuMjUgMS4yNSAwIDAgMCAwLTIuNUgxLjI1YTEuMjUgMS4yNSAwIDAgMCAwIDIuNVoiIGRhdGEtbmFtZT0iTGF5ZXIgMSIvPjwvZz48L3N2Zz4=") 50% 50% no-repeat transparent !important;
+}
+</style><meta name="tec-api-version" content="v1"><meta name="tec-api-origin" content="https://theadventboston.org"><link rel="alternate" href="https://theadventboston.org/wp-json/tribe/events/v1/" />	<meta property="og:title" content="Music at The Church of The Advent - The Church of the Advent" />
+	<meta property="og:description" content="Meet Our Team Mark Dwyer Organist &amp; Choirmaster Mark Dwyer came to the Advent from St. Paul’s Parish, K Street, in Washington, DC, in 2007. He was formerly the Music Director at the Cathedral of All Saints in Albany, NY, and before that Associate Organist &amp; Choirmaster here at the Advent. A Worcester..." />
+	<meta property="og:url" content="https://theadventboston.org/music/" />
+		<meta property="og:site_name" content="The Church of the Advent" />
+	<meta property="og:type" content="article" />
+	<meta name="description" content="Meet Our Team Mark Dwyer Organist &amp; Choirmaster Mark Dwyer came to the Advent from St. Paul’s Parish, K Street, in Washington, DC, in 2007. He was formerly the Music Director at the Cathedral of All Saints in Albany, NY, and before that Associate Organist &amp; Choirmaster here at the Advent. A Worcester native and 1985 graduate of the New England Conservatory, he studied with Yuko Hayashi, William Porter, Frank Taylor, and Charles Krigbaum. Mark has also been a faculty member and choirmaster at the annual Saint Michael’s Conference for Young People for many years. He is featured on several recordings by the Advent Choir and is the performer on a JAV recording of the Advent’s Aeolian-Skinner organ in the series “Great Organ Builders of America: A Retrospective.” Mark and his wife Cheryl have a son, Douglas. Andrew Scanlon Associate..." />
+	<script>  document.addEventListener('DOMContentLoaded', function() {
+    const popupContent = document.querySelector('#hustle-popup-id-18 .hustle-layout-content');
+	  
+    if (popupContent) {
+        popupContent.addEventListener('click', function() {
+			window.location.href = 'https://theadventboston.org/new-rector/';
+        });
+    }
+});</script><style class="wpcode-css-snippet">section.music-page__event {
+	display: none;
+}  /* HIDING SECTION THAT MAY BE HARD-CODED INTO FILE */
+
+.hero-block__content {
+	width: 760px !important;
+}
+
+.hero-block__image-overlay {
+	background: unset !important;
+}
+
+@media screen and (max-width: 761px) {
+	
+	.hero-block__content {
+		width: unset !important;
+	}
+}
+</style><style class="wpcode-css-snippet">:is(#menu-item-8905, #menu-item-640) :is(.sub-menu) {
+	left: 190px;
+    top: 10px;
+}</style><link rel="icon" href="https://theadventboston.org/wp-content/uploads/2022/08/cropped-Square-Profile-32x32.png" sizes="32x32" />
+<link rel="icon" href="https://theadventboston.org/wp-content/uploads/2022/08/cropped-Square-Profile-192x192.png" sizes="192x192" />
+<link rel="apple-touch-icon" href="https://theadventboston.org/wp-content/uploads/2022/08/cropped-Square-Profile-180x180.png" />
+<meta name="msapplication-TileImage" content="https://theadventboston.org/wp-content/uploads/2022/08/cropped-Square-Profile-270x270.png" />
+<style>
+
+@media screen and (max-width: 740px) {
+.page-id-13390 .alignright,
+.page-id-13390 .alignleft {
+margin-left: auto !important;
+margin-right: auto !important;
+float:none !important;
+} 
+
+.superblockslider__window .wp-block-media-text.is-stacked-on-mobile {
+gap: 2rem !important;
+}
+
+.superblockslider__slide_inner {
+width: 100%; left: 0; right: 0; bottom: 0; }
+
+}
+</style>
+<link rel='stylesheet' id='gform_basic-css' href='https://theadventboston.org/wp-content/plugins/gravityforms/assets/css/dist/basic.min.css?ver=2.10.0' type='text/css' media='all' />
+<link rel='stylesheet' id='gform_theme_components-css' href='https://theadventboston.org/wp-content/plugins/gravityforms/assets/css/dist/theme-components.min.css?ver=2.10.0' type='text/css' media='all' />
+<link rel='stylesheet' id='gform_theme-css' href='https://theadventboston.org/wp-content/plugins/gravityforms/assets/css/dist/theme.min.css?ver=2.10.0' type='text/css' media='all' />
+<style id='core-block-supports-inline-css' type='text/css'>
+.wp-container-core-columns-is-layout-9d6595d7{flex-wrap:nowrap;}
+/*# sourceURL=core-block-supports-inline-css */
+</style>
+
+</head>
+
+<body class="wp-singular page-template-default page page-id-24397 wp-embed-responsive wp-theme-theadvent site-wrapper tribe-no-js page-music no-js">
+
+	
+	<a class="skip-link screen-reader-text" href="#main">Skip to content</a>
+
+	<header class="site-header site-header--transparent">
+
+		<div class="site-header__container container">
+
+			<div class="site-branding">
+
+				
+			</div><!-- .site-branding -->
+
+							<button type="button" class="off-canvas-open" aria-expanded="false" aria-label="Open Menu"></button>
+			
+
+			<nav id="site-navigation" class="main-navigation navigation-menu" aria-label="Main Navigation">
+				<ul id="primary-menu" class="menu dropdown container"><li id="menu-item-23289" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-home menu-item-23289"><a href="https://theadventboston.org/">Home</a></li>
+<li id="menu-item-1023" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-1023"><a href="https://theadventboston.org/visit/">Visit</a>
+<ul class="sub-menu">
+	<li id="menu-item-3702" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3702"><a href="/visit/#connect">Connect</a></li>
+	<li id="menu-item-3703" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3703"><a href="/visit/#request_help">Request/Give Help</a></li>
+	<li id="menu-item-3704" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3704"><a href="/visit/#what_to_expect">What to Expect on Sundays</a></li>
+	<li id="menu-item-3711" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3711"><a href="/visit/#sacraments">Sacraments</a></li>
+</ul>
+</li>
+<li id="menu-item-1750" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-1750"><a href="/calendar/">Calendar</a></li>
+<li id="menu-item-20297" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-20297"><a href="https://theadventboston.org/mission/">About Us</a>
+<ul class="sub-menu">
+	<li id="menu-item-3709" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3709"><a href="https://theadventboston.org/mission/">Our Beliefs &#038; Mission</a></li>
+	<li id="menu-item-17243" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-17243"><a href="https://theadventboston.org/new-rector/">Our Rector</a></li>
+	<li id="menu-item-18250" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-18250"><a href="https://theadventboston.org/our-staff/">Our Staff</a></li>
+	<li id="menu-item-3707" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3707"><a href="https://theadventboston.org/about-us/history/">History</a></li>
+	<li id="menu-item-18249" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-18249"><a href="https://theadventboston.org/contact-us/">Contact Us</a></li>
+</ul>
+</li>
+<li id="menu-item-1160" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-1160"><a href="https://theadventboston.org/listen/">Listen</a>
+<ul class="sub-menu">
+	<li id="menu-item-3714" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3714"><a href="/listen/#podcast">Sermons</a></li>
+	<li id="menu-item-3712" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3712"><a href="/listen/#music">Music &#038; Mass Recordings</a></li>
+</ul>
+</li>
+<li id="menu-item-24655" class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-24397 current_page_item menu-item-has-children menu-item-24655"><a href="https://theadventboston.org/music/" aria-current="page">Music</a>
+<ul class="sub-menu">
+	<li id="menu-item-23938" class="menu-item menu-item-type-post_type menu-item-object-post menu-item-23938"><a href="https://theadventboston.org/9am-music-25-26/">9am Music Schedule</a></li>
+	<li id="menu-item-23923" class="menu-item menu-item-type-post_type menu-item-object-post menu-item-23923"><a href="https://theadventboston.org/11-am-music-25-26/">11am Music Schedule</a></li>
+</ul>
+</li>
+<li id="menu-item-3779" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-3779"><a href="https://theadventboston.org/community/">Community</a>
+<ul class="sub-menu">
+	<li id="menu-item-3720" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3720"><a href="https://theadventboston.org/community/christian-formation/">Christian Formation</a></li>
+	<li id="menu-item-3718" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3718"><a href="https://theadventboston.org/community/adult-education/">Adult Education</a></li>
+	<li id="menu-item-3715" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3715"><a href="https://theadventboston.org/community/adults/">Adults</a></li>
+	<li id="menu-item-3716" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3716"><a href="https://theadventboston.org/community/students/">Students</a></li>
+	<li id="menu-item-3717" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3717"><a href="https://theadventboston.org/community/children/">Families &amp; Children</a></li>
+	<li id="menu-item-25190" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-25190"><a href="https://theadventboston.org/community/christianity-101/">Christianity 101</a></li>
+	<li id="menu-item-25191" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-25191"><a href="https://theadventboston.org/community/theology-on-tap/">Theology on Tap</a></li>
+</ul>
+</li>
+<li id="menu-item-20295" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-has-children menu-item-20295"><a href="https://theadventboston.org/letters/">Updates</a>
+<ul class="sub-menu">
+	<li id="menu-item-20298" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-20298"><a href="https://theadventboston.org/letters/">Rector&#8217;s Letters</a></li>
+	<li id="menu-item-20299" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-20299"><a href="https://theadventboston.org/news/">News &#038; Updates</a></li>
+</ul>
+</li>
+<li id="menu-item-25252" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-25252"><a href="https://theadventboston.org/conferences-and-colloquia/">Conferences and Colloquia</a>
+<ul class="sub-menu">
+	<li id="menu-item-25303" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-25303"><a href="https://theadventboston.org/conferences-and-colloquia/annual-anglo-catholic-conference/">Annual Anglo-Catholic Conference</a></li>
+	<li id="menu-item-25304" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-25304"><a href="https://theadventboston.org/conferences-and-colloquia/colloquia/">Colloquia</a></li>
+</ul>
+</li>
+<li id="menu-item-3721" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3721"><a href="/give">Give</a></li>
+</ul>			</nav><!-- #site-navigation-->
+
+		</div><!-- .container -->
+	</header><!-- .site-header-->
+
+	<main id="main" class="container site-main">
+
+		
+	<article class="post-container post-24397 page type-page status-publish hentry">
+
+	
+		<div class="entry-content">
+			
+	<section id="page_title_block_f8652a94f3a3a4732c0b804e2dd867bc" class="page-title-block alignfull">
+
+		<div class="page-title-block__container container">
+
+			<!--Title -->
+							<h1 class="page-title-block__title">
+					Music at <br />
+The Church of <br />
+The Advent				</h1>
+			
+			<!--Image -->
+							<div class="page-title-block__image">
+					<img decoding="async" src="https://theadventboston.org/wp-content/uploads/2025/12/music-page-hero.png" alt="">
+				</div>
+			
+		</div>
+
+	</section>
+
+	
+
+
+	<section id="universal_block_3a0be9a63aadfbcf5c0228a96948e26d" class="universal-block alignfull data-padding" style="background-color:#E8E3DD;" data-padding-top-desktop=100 data-padding-bottom-desktop=100 data-padding-top-mobile=50 data-padding-bottom-mobile=50 data-breakpoint=1024>
+		
+		<div class="universal-block__container container">
+
+			<!-- Header Block -->
+										
+			<!-- Content Block -->
+						<div class="universal-block__wrapper universal-block__wrapper--illustration-content universal-block__wrapper--illustration-content-mob" style="justify-content:">
+
+				<!-- Illustration Block. -->
+				
+					<div
+					class="universal-block__illustration universal-block__illustration--container universal-block__illustration--mobile-show data-padding data-width"
+					style="width:50%"
+					data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=0 data-padding-left-desktop=0 data-padding-top-mobile=20 data-padding-right-mobile=0 data-padding-bottom-mobile=20 data-padding-left-mobile=0					data-width=50%					data-breakpoint=1024					>
+
+													<picture class="universal-block__image">
+								<source srcset="https://theadventboston.org/wp-content/uploads/2026/04/P1288871-scaled.jpg" media="(min-width: 900px)" />
+								<source srcset="https://theadventboston.org/wp-content/uploads/2026/04/P1288871-scaled.jpg" media="(max-width: 899px)" />
+								<img decoding="async" src="https://theadventboston.org/wp-content/uploads/2026/04/P1288871-scaled.jpg" alt="http://The%20Church%20of%20the%20Advent%20Choir,%20Easter%202026">
+							</picture>
+						
+						
+					</div>
+					
+				<!-- Contact Form Block. -->
+				
+				<!-- Flexible Content Block -->
+				
+					<div class="universal-block__content universal-block__content--illustration-content data-padding data-width"
+					style="width:50%;justify-content:center"
+						data-padding-top-desktop=0 data-padding-right-desktop=40 data-padding-bottom-desktop=0 data-padding-left-desktop=40 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=0 data-padding-left-mobile=0						data-breakpoint=1024						data-width=50%					>
+
+													
+								<!-- Content Label -->
+																	<h2 class="universal-block__content-title  data-padding" style="color:#162B30;text-align:left" data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=20 data-padding-left-desktop=0 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=10 data-padding-left-mobile=0>Liturgical worship preserves our sacred traditions.<br />
+</h2>
+
+								<!-- Content Subtitle -->
+									
+							
+								<!-- Content Label -->
+																	<div class="universal-block__content-text medium  data-padding" style="color:#162B30;" data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=40 data-padding-left-desktop=0 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=20 data-padding-left-mobile=0><p>The Advent’s musical heritage stretches across generations. Sourcing from a region rich in world-class musicians, the Advent Choirs offer a varied repertoire performed to the highest standards, supported by the historic Aeolian-Skinner organ, a landmark of the American Classic Style.</p>
+</div>
+
+								<!-- Content Icon List -->
+									
+							
+								<!-- Content Label -->
+																																						<div class="universal-block__content-action universal-block__content-action--left  data-padding" data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=0 data-padding-left-desktop=0 data-padding-top-mobile=0 data-padding-right-mobile= data-padding-bottom-mobile=0 data-padding-left-mobile=0>
+																									<a class="universal-block__content-link " href="https://theadventboston.org/11-am-music-25-26/" target="_self">
+													11am Music Schedule													</a>
+																							</div>
+										
+									
+								
+																		</div>
+				
+			</div>
+
+			<!-- Footer Block -->
+										
+		</div>
+
+	</section>
+
+	
+
+
+	<section id="Featured-Music" class="universal-block alignfull data-padding" style="background-color:#2f4d54;" data-padding-top-desktop=100 data-padding-bottom-desktop=100 data-padding-top-mobile=50 data-padding-bottom-mobile=50 data-breakpoint=1024>
+		
+		<div class="universal-block__container container">
+
+			<!-- Header Block -->
+										
+			<!-- Content Block -->
+						<div class="universal-block__wrapper universal-block__wrapper--content-illustration universal-block__wrapper--content-illustration-mob" style="justify-content:">
+
+				<!-- Illustration Block. -->
+				
+					<div
+					class="universal-block__illustration universal-block__illustration--container universal-block__illustration--mobile-show data-padding data-width"
+					style="width:50%"
+					data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=0 data-padding-left-desktop=0 data-padding-top-mobile=20 data-padding-right-mobile=0 data-padding-bottom-mobile=20 data-padding-left-mobile=0					data-width=50%					data-breakpoint=1024					>
+
+													<picture class="universal-block__image">
+								<source srcset="https://theadventboston.org/wp-content/uploads/2025/09/Monstrance-II-1.jpg" media="(min-width: 900px)" />
+								<source srcset="https://theadventboston.org/wp-content/uploads/2025/09/Monstrance-II-1.jpg" media="(max-width: 899px)" />
+								<img decoding="async" src="https://theadventboston.org/wp-content/uploads/2025/09/Monstrance-II-1.jpg" alt="">
+							</picture>
+						
+						
+					</div>
+					
+				<!-- Contact Form Block. -->
+				
+				<!-- Flexible Content Block -->
+				
+					<div class="universal-block__content universal-block__content--content-illustration data-padding data-width"
+					style="width:50%;justify-content:flex-start"
+						data-padding-top-desktop=0 data-padding-right-desktop=40 data-padding-bottom-desktop=0 data-padding-left-desktop=40 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=0 data-padding-left-mobile=0						data-breakpoint=1024						data-width=50%					>
+
+													
+								<!-- Content Label -->
+																	<div class="universal-block__content-label text-label  data-padding" style="color:#e8e3dd;" data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=20 data-padding-left-desktop=0 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=20 data-padding-left-mobile=0>Featured Music Event</div>
+
+								<!-- Content Title -->
+									
+							
+								<!-- Content Label -->
+																	<h1 class="universal-block__content-title  data-padding" style="color:#e8e3dd;text-align:left" data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=20 data-padding-left-desktop=0 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=10 data-padding-left-mobile=0>Evensong &amp; Benediction </h1>
+
+								<!-- Content Subtitle -->
+									
+							
+								<!-- Content Label -->
+																	<div class="universal-block__content-text medium  data-padding" style="color:#e8e3dd;" data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=40 data-padding-left-desktop=0 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=20 data-padding-left-mobile=0><p><strong>Sunday, April 19 at 4:30 p.m.</strong></p>
+<p>Evensong &amp; Benediction <wbr />continues on Sunday, April 19, at 5:00 p.m., preceded at 4:30 p.m. by an Organ Prelude Recital by Dr. Erica Johnson, College Organist and Instructor of Organ and Harpsichord at Wellesley College.</p>
+<div>
+<p>4:30 p.m. | Organ Prelude Recital by Dr. Erica Johnson with a program of works by Muffat, Chaminade, Karg-Elert and Ryder</p>
+</div>
+<div>
+<p>5:00 p.m. | Evensong &amp; Benediction</p>
+<p><strong>Music:</strong><br />
+Peter Aston: Evening Service in F Major<br />
+Thomas Tallis: Responses<br />
+Charles Wood: Hail, gladdening light<br />
+Giovanni Pierluigi da Palestrina: Hæc dies quam fecit Dominus à 6<br />
+David Conte: O salutaris Hostia</p>
+<p>Wine &amp; cheese follow in the Library. All are welcome!</p>
+</div>
+</div>
+
+								<!-- Content Icon List -->
+									
+																		</div>
+				
+			</div>
+
+			<!-- Footer Block -->
+										
+		</div>
+
+	</section>
+
+	
+
+
+<div style="height:55px" aria-hidden="true" class="wp-block-spacer"></div>
+
+
+
+<h2 class="wp-block-heading">Meet Our Team</h2>
+
+
+
+<div class="wp-block-group"><div class="wp-block-group__inner-container is-layout-constrained wp-block-group-is-layout-constrained">
+<div class="wp-block-columns is-layout-flex wp-container-core-columns-is-layout-9d6595d7 wp-block-columns-is-layout-flex">
+<div class="wp-block-column is-layout-flow wp-block-column-is-layout-flow" style="flex-basis:33.33%">
+<figure class="wp-block-image size-large is-resized"><img fetchpriority="high" decoding="async" width="932" height="1024" src="https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-932x1024.jpg" alt="" class="wp-image-24403" style="aspect-ratio:0.9102101464657185;width:246px;height:auto" srcset="https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-932x1024.jpg 932w, https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-273x300.jpg 273w, https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-768x844.jpg 768w, https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-1398x1536.jpg 1398w, https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-1864x2048.jpg 1864w, https://theadventboston.org/wp-content/uploads/2025/12/Mark-edited-1-983x1080.jpg 983w" sizes="(max-width: 932px) 100vw, 932px" /></figure>
+</div>
+
+
+
+<div class="wp-block-column is-layout-flow wp-block-column-is-layout-flow" style="flex-basis:66.66%">
+<h3 class="wp-block-heading">Mark Dwyer</h3>
+
+
+
+<h5 class="wp-block-heading">Organist &amp; Choirmaster</h5>
+
+
+
+<p>Mark Dwyer came to the Advent from St. Paul’s Parish, K Street, in Washington, DC, in 2007. He was formerly the Music Director at the Cathedral of All Saints in Albany, NY, and before that Associate Organist &amp; Choirmaster here at the Advent. A Worcester native and 1985 graduate of the New England Conservatory, he studied with Yuko Hayashi, William Porter, Frank Taylor, and Charles Krigbaum. Mark has also been a faculty member and choirmaster at the annual Saint Michael’s Conference for Young People for many years. He is featured on several recordings by the Advent Choir and is the performer on a JAV recording of the Advent’s Aeolian-Skinner organ in the series “Great Organ Builders of America: A Retrospective.” Mark and his wife Cheryl have a son, Douglas.</p>
+</div>
+</div>
+</div></div>
+
+
+
+<div class="wp-block-columns is-layout-flex wp-container-core-columns-is-layout-9d6595d7 wp-block-columns-is-layout-flex">
+<div class="wp-block-column is-layout-flow wp-block-column-is-layout-flow" style="flex-basis:33.33%">
+<figure class="wp-block-image size-large is-resized"><img decoding="async" width="862" height="1024" src="https://theadventboston.org/wp-content/uploads/2024/10/Andrew-scaled-e1765838238678-862x1024.jpg" alt="" class="wp-image-18039" style="aspect-ratio:0.8418159509202454;width:246px;height:auto" srcset="https://theadventboston.org/wp-content/uploads/2024/10/Andrew-scaled-e1765838238678-862x1024.jpg 862w, https://theadventboston.org/wp-content/uploads/2024/10/Andrew-scaled-e1765838238678-253x300.jpg 253w, https://theadventboston.org/wp-content/uploads/2024/10/Andrew-scaled-e1765838238678-768x912.jpg 768w, https://theadventboston.org/wp-content/uploads/2024/10/Andrew-scaled-e1765838238678-1293x1536.jpg 1293w, https://theadventboston.org/wp-content/uploads/2024/10/Andrew-scaled-e1765838238678-909x1080.jpg 909w, https://theadventboston.org/wp-content/uploads/2024/10/Andrew-scaled-e1765838238678.jpg 1706w" sizes="(max-width: 862px) 100vw, 862px" /></figure>
+</div>
+
+
+
+<div class="wp-block-column is-layout-flow wp-block-column-is-layout-flow" style="flex-basis:66.66%">
+<h3 class="wp-block-heading">Andrew Scanlon</h3>
+
+
+
+<h5 class="wp-block-heading">Associate Organist &amp; Choirmaster</h5>
+
+
+
+<p>Andrew Scanlon came to The Advent in September 2021. From 2009-2021 he was the organ professor at East Carolina University and Organist-Choirmaster at St. Paul’s Episcopal Church in Greenville, NC. Prior to Greenville, Andrew has spent time at Duquesne University, Christ &amp; St. Stephen’s Episcopal Church (New York), St. Paul’s Episcopal Cathedral (Buffalo), First Presbyterian Church (Pittsburgh), and Marquand Chapel at Yale Divinity School. His CD recording, Solemn and Celebratory, featuring the Fisk organ at St. Paul’s in Greenville, was released in 2013.</p>
+</div>
+</div>
+
+
+
+<div style="height:45px" aria-hidden="true" class="wp-block-spacer"></div>
+
+
+
+	<section id="universal_block_ac73b49a49375c50161dd1bfaca795f0" class="universal-block alignfull data-padding" style="background-color:#2f4d54;" data-padding-top-desktop=100 data-padding-bottom-desktop=100 data-padding-top-mobile=50 data-padding-bottom-mobile=50 data-breakpoint=1024>
+		
+		<div class="universal-block__container container">
+
+			<!-- Header Block -->
+										
+			<!-- Content Block -->
+						<div class="universal-block__wrapper universal-block__wrapper--only-content universal-block__wrapper--illustration-content-mob" style="justify-content:left">
+
+				<!-- Illustration Block. -->
+				
+				<!-- Contact Form Block. -->
+				
+				<!-- Flexible Content Block -->
+				
+					<div class="universal-block__content universal-block__content--only-content data-padding data-width"
+					style="width:100%;justify-content:flex-start"
+						data-padding-top-desktop=0 data-padding-right-desktop=40 data-padding-bottom-desktop=0 data-padding-left-desktop=40 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=0 data-padding-left-mobile=0						data-breakpoint=1024						data-width=100%					>
+
+													
+								<!-- Content Label -->
+																	<h1 class="universal-block__content-title  data-padding" style="color:#e8e3dd;text-align:left" data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=20 data-padding-left-desktop=0 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=10 data-padding-left-mobile=0>History</h1>
+
+								<!-- Content Subtitle -->
+									
+							
+								<!-- Content Label -->
+																	<div class="universal-block__content-text medium  data-padding" style="color:#e8e3dd;" data-padding-top-desktop=0 data-padding-right-desktop=0 data-padding-bottom-desktop=40 data-padding-left-desktop=0 data-padding-top-mobile=0 data-padding-right-mobile=0 data-padding-bottom-mobile=20 data-padding-left-mobile=0><p><!-- wp:columns --></p>
+<div class="wp-block-columns">
+<section>
+<div class="container">
+<div class="music-page__history-Container">
+<div class="music-page__history-Content">
+<div class="music-page__history-Content-text color--stone">
+<p>The Advent has always striven to witness to “the beauty of holiness and the holiness of beauty,” acquiring a worldwide reputation as a ‘shrine church’ of Anglo-Catholicism in the United States. In 1936 a parishioner, master organ-builder G. Donald Harrison of the Aeolian-Skinner Company, designed and installed a pipe organ which remains a world-renowned masterpiece of the art. Its reputation was such that no less a personage than Albert Schweitzer, on his tour of the United States in 1948-49, made playing it a highlight of his Boston visit.</p></div>
+<div class="music-page__history-Content-images">
+<div class="music-page__history-Content-image">
+<div class="music-page__history-Content-image-box"><img decoding="async" src="https://theadventboston.org/wp-content/uploads/2025/02/schweitz-1-1.jpg" alt="" /></div>
+<div class="music-page__history-Content-image-caption">Albert Schweitzer at the organ, 1949</div>
+</p></div>
+<div class="music-page__history-Content-image">
+<div class="music-page__history-Content-image-box"><img decoding="async" src="https://theadventboston.org/wp-content/uploads/2025/02/chor1900-1-1.jpg" alt="" /></div>
+<div class="music-page__history-Content-image-caption">Choir in procession, circa 1900</div>
+</p></div>
+</p></div>
+</p></div>
+</p></div>
+</p></div>
+</section>
+</div>
+<p><!-- /wp:columns --></p>
+</div>
+
+								<!-- Content Icon List -->
+									
+																		</div>
+				
+			</div>
+
+			<!-- Footer Block -->
+										
+		</div>
+
+	</section>
+
+	
+
+
+	<section id="hero_block_f2cb515f1cc128cff5e892f748775ea9" class="hero-block alignfull">
+
+					<picture class="hero-block__image">
+				<div class="hero-block__image-overlay"></div>
+				<source srcset="https://theadventboston.org/wp-content/uploads/2025/02/organs-background.jpg" media="(min-width: 900px)" />
+				<source srcset="https://theadventboston.org/wp-content/uploads/2025/02/organs-background.jpg" media="(max-width: 899px)" />
+				<img decoding="async" src="https://theadventboston.org/wp-content/uploads/2025/02/organs-background.jpg" alt="">
+			</picture>
+		
+		
+		<div class="hero-block__container hero-block__container--center container">
+
+			<!-- Content Block -->
+			<div class="hero-block__content">
+
+				<!--Title -->
+									<h1 class="hero-block__title hero-block__title--center hero-block__title--large">
+						The Advent&#8217;s Organ					</h1>
+				
+				<!--Text -->
+									<div class="hero-block__text large hero-block__text--center">
+						For two and a half centuries Boston has been a city of organs and organ-builders. When Thomas Brattle’s little chamber organ arrived from London in 1708 it was quite a novelty; the Reverend Joseph Green of Salem noted in his diary that he had been to Brattle’s house and “heard ye organ and saw strange things in a microscope.” (1) In those days an organ in a home was a delight, but an organ in a church was an abomination. When Brattle died and willed the instrument to the Brattle Square Church it was summarily refused, so it went to King’s Chapel. There the congregation did not refuse it, but they were exceedingly ambivalent. Cotton Mather and other dignitaries bitterly denounced the “box of whistles” and the organ remained outside the church in a crate on the porch. For seven months one of organ music’s longer debates dragged on; finally, in 1714, the Brattle Organ became the first church pipe organ in the Colonies.					</div>
+				
+				<!-- Link -->
+												<div class="hero-block__action hero-block__action--center">
+														<a class="hero-block__btn btn btn--white" href="https://theadventboston.org/a-history-of-advent-organs/" target="_self">
+								A History of Advent Organs							</a>
+											</div>
+				
+			
+			</div>
+
+		</div>
+
+	</section>
+
+	
+
+
+	<section id="join_us_block_262e2199fec1621283a9c6d4fb5033fe" class="join-us alignfull">
+
+		<div class="join-us__container container">
+
+			<!--Label -->
+								<div class="join-us__label text-label">
+					Join Us					</div>
+				
+			<!--Text -->
+							<div class="join-us__text h2">
+					Interested in Visiting? 				</div>
+			
+			<!-- Link -->
+			<div class="join-us__action">
+																						<a class="join-us__btn btn btn--primary" href="https://theadventboston.org/visit/" target="_self">
+								Learn what to expect							</a>
+											
+				
+																						<a class="join-us__btn btn btn--primary" href="https://theadventboston.org/calendar/" target="_self">
+								See Service Schedule							</a>
+											
+							</div>
+
+		</div>
+
+	</section>
+
+			</div><!-- .entry-content -->
+
+		<footer class="entry-footer">
+					</footer><!-- .entry-footer -->
+
+	</article><!-- #post-## -->
+
+	</main><!-- #main -->
+
+
+	<footer class="site-footer">
+
+		<div class="site-footer__container container">
+			<div class="site-footer__wrapper">
+				<div class="site-footer__column">
+					<div class="site-footer__block">
+					<ul id="footer-menu_1" class="site-footer__menu menu"><li id="menu-item-1724" class="site-footer-title menu-item menu-item-type-post_type menu-item-object-page menu-item-1724"><a href="https://theadventboston.org/about-us/contact-us/">Contact</a></li>
+</ul>						<div class="site-footer__contacts--address"><p>30 Brimmer Street<br />Boston, MA 02108</p></div>						<div class="site-footer__contacts--phone"><a href="tel:+16175232377">617-523-2377</a><br><br></div>													<ul class="flex social__list">
+						<li class="social__item Facebook">
+					<a href="https://www.facebook.com/theadventboston/" target="_blank">
+						Facebook					</a>
+				</li>
+								<li class="social__item Instagram">
+					<a href="https://www.instagram.com/adventboston/" target="_blank">
+						Instagram					</a>
+				</li>
+								<li class="social__item YouTube">
+					<a href="https://www.youtube.com/c/ChurchoftheAdvent" target="_blank">
+						YouTube					</a>
+				</li>
+								<li class="social__item Soundcloud">
+					<a href="https://soundcloud.com/mark-dwyer-2" target="_blank">
+						Soundcloud					</a>
+				</li>
+					</ul><!-- .social-icons -->
+						</div>
+					<div class="site-footer__block">
+						<div class="site-footer__contacts--worship"><h2>Weekly Worship</h2><h4>Sunday</h4><p>7:30am: Morning Prayer<br />8:00am: Low Mass<br />9:00am: Sung Mass<br />11:00am: Solemn Mass</p><h4>Monday-Tuesday / Thursday-Friday</h4><p>8:00am: Morning Prayer<br />12:15pm: Low Mass<br />5:30pm: Evening Prayer</p><h4>Wednesday</h4><p>8:00am: Morning Prayer<br />5:30pm: Evening Prayer<br />6:00pm: Low Mass with Healing</p><h4>Saturday</h4><p>8:30am: Morning Prayer<br />9:00am: Low Mass</p><p>Feast days as announced.</p></div>					</div>
+				</div>
+				<div class="site-footer__column">
+					<div class="site-footer__block">
+						<ul id="footer-menu_2" class="site-footer__menu menu"><li id="menu-item-1723" class="site-footer-title menu-item menu-item-type-post_type menu-item-object-page menu-item-1723"><a href="https://theadventboston.org/visit/">Visit</a></li>
+<li id="menu-item-599" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-599"><a href="/visit/#connect">Connect</a></li>
+<li id="menu-item-600" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-600"><a href="/visit/#request_help">Request/Give Help</a></li>
+<li id="menu-item-601" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-601"><a href="/visit/#what_to_expect">What to Expect on Sundays</a></li>
+<li id="menu-item-602" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-602"><a href="/visit/#faq">FAQ</a></li>
+</ul>					</div>
+					<div class="site-footer__block">
+						<ul id="footer-menu_3" class="site-footer__menu menu"><li id="menu-item-1727" class="site-footer-title menu-item menu-item-type-post_type menu-item-object-page menu-item-1727"><a href="https://theadventboston.org/about-us/">About Us</a></li>
+<li id="menu-item-3683" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3683"><a href="https://theadventboston.org/mission/">Beliefs &#038; Mission</a></li>
+<li id="menu-item-18326" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-18326"><a href="https://theadventboston.org/our-staff/">Our Staff</a></li>
+<li id="menu-item-3685" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3685"><a href="https://theadventboston.org/about-us/history/">History</a></li>
+<li id="menu-item-18327" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-18327"><a href="https://theadventboston.org/contact-us/">Contact Us</a></li>
+</ul>					</div>
+				</div>
+				<div class="site-footer__column">
+					<div class="site-footer__block">
+						<ul id="footer-menu_4" class="site-footer__menu menu"><li id="menu-item-1728" class="site-footer-title menu-item menu-item-type-post_type menu-item-object-page menu-item-1728"><a href="https://theadventboston.org/listen/">Listen</a></li>
+<li id="menu-item-611" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-611"><a href="/listen/#podcast">Sermons</a></li>
+<li id="menu-item-609" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-609"><a href="/listen/#music">Mass Recordings</a></li>
+<li id="menu-item-24745" class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-24397 current_page_item menu-item-24745"><a href="https://theadventboston.org/music/" aria-current="page">Music</a></li>
+</ul>					</div>
+					<div class="site-footer__block">
+						<ul id="footer-menu_5" class="site-footer__menu menu"><li id="menu-item-1731" class="site-footer-title menu-item menu-item-type-post_type menu-item-object-page menu-item-1731"><a href="https://theadventboston.org/community/">Community</a></li>
+<li id="menu-item-3692" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3692"><a href="https://theadventboston.org/community/christian-formation/">Christian Formation</a></li>
+<li id="menu-item-3694" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3694"><a href="https://theadventboston.org/community/adult-education/">Adult Education</a></li>
+<li id="menu-item-3697" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3697"><a href="https://theadventboston.org/community/adults/">Adults</a></li>
+<li id="menu-item-3696" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3696"><a href="https://theadventboston.org/community/students/">Students</a></li>
+<li id="menu-item-3695" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3695"><a href="https://theadventboston.org/community/children/">Families &amp; Children</a></li>
+</ul>					</div>
+				</div>
+				<div class="site-footer__column">
+					<div class="site-footer__block site-footer__block--100">
+						<ul id="footer-menu_6" class="site-footer__menu menu"><li id="menu-item-1733" class="site-footer-title menu-item menu-item-type-post_type menu-item-object-page menu-item-1733"><a href="https://theadventboston.org/serve/">Give</a></li>
+<li id="menu-item-618" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-618"><a href="/serve/#stewardship">Stewardship &#038; Giving</a></li>
+</ul>					</div>
+											<div class="site-footer__block site-footer__block--100">
+							
+                <div class='gf_browser_unknown gform_wrapper gravity-theme gform-theme--no-framework' data-form-theme='gravity-theme' data-form-index='0' id='gform_wrapper_1' ><div id='gf_1' class='gform_anchor' tabindex='-1'></div>
+                        <div class='gform_heading'>
+                            <h2 class="gform_title">Newsletter</h2>
+                            <p class='gform_description'>Find out about Sunday’s preacher, music, and exciting goings-on at The Advent.</p>
+                        </div><form method='post' enctype='multipart/form-data' target='gform_ajax_frame_1' id='gform_1'  action='/music/#gf_1' data-formid='1' novalidate>
+                        <div class='gform-body gform_body'><div id='gform_fields_1' class='gform_fields top_label form_sublabel_below description_below validation_below'><div id="field_1_5" class="gfield gfield--type-honeypot gform_validation_container field_sublabel_below gfield--has-description field_description_below field_validation_below gfield_visibility_visible"  ><label class='gfield_label gform-field-label' for='input_1_5'>X/Twitter</label><div class='ginput_container'><input name='input_5' id='input_1_5' type='text' value='' autocomplete='new-password'/></div><div class='gfield_description' id='gfield_description_1_5'>This field is for validation purposes and should be left unchanged.</div></div><div id="field_1_4" class="gfield gfield--type-text gfield--width-full gfield_contains_required field_sublabel_below gfield--no-description field_description_below hidden_label field_validation_below gfield_visibility_visible"  ><label class='gfield_label gform-field-label' for='input_1_4'>Name<span class="gfield_required"><span class="gfield_required gfield_required_text">(Required)</span></span></label><div class='ginput_container ginput_container_text'><input name='input_4' id='input_1_4' type='text' value='' class='large'    placeholder='Name' aria-required="true" aria-invalid="false"   /></div></div><div id="field_1_3" class="gfield gfield--type-email gfield--width-full gfield_contains_required field_sublabel_below gfield--no-description field_description_below hidden_label field_validation_below gfield_visibility_visible"  ><label class='gfield_label gform-field-label' for='input_1_3'>Email<span class="gfield_required"><span class="gfield_required gfield_required_text">(Required)</span></span></label><div class='ginput_container ginput_container_email'>
+                            <input name='input_3' id='input_1_3' type='email' value='' class='large'   placeholder='Email' aria-required="true" aria-invalid="false"  />
+                        </div></div></div></div>
+        <div class='gform-footer gform_footer top_label'> <input type="submit" id="gform_submit_button_1" class="gform_button button btn btn--primary" onclick="gform.submission.handleButtonClick(this);" data-submission-type="submit" value="Submit"> <input type='hidden' name='gform_ajax' value='form_id=1&amp;title=1&amp;description=1&amp;tabindex=0&amp;theme=gravity-theme&amp;hash=031c3e7ea13c52f98168337516143491' />
+            <input type='hidden' class='gform_hidden' name='gform_submission_method' data-js='gform_submission_method_1' value='iframe' />
+            <input type='hidden' class='gform_hidden' name='gform_theme' data-js='gform_theme_1' id='gform_theme_1' value='gravity-theme' />
+            <input type='hidden' class='gform_hidden' name='gform_style_settings' data-js='gform_style_settings_1' id='gform_style_settings_1' value='' />
+            <input type='hidden' class='gform_hidden' name='is_submit_1' value='1' />
+            <input type='hidden' class='gform_hidden' name='gform_submit' value='1' />
+            
+            <input type='hidden' class='gform_hidden' name='gform_currency' data-currency='USD' value='cGoIn3Ye/E+V7fLLA2yTkW2SY5Uihg2ruY+vtZD0tTCXdqkJcrdJUs7OARrknAcrt9sqRlSfyL+CxwD+uZ+LsdqjQ5Y8uPwAbd1SjbKZNyb4r3Y=' />
+            <input type='hidden' class='gform_hidden' name='gform_unique_id' value='' />
+            <input type='hidden' class='gform_hidden' name='state_1' value='WyJbXSIsIjM0Y2I1M2UwZmQ0NDIxMzkxODgyYjQ1ZjcyNTdiNWNkIl0=' />
+            <input type='hidden' autocomplete='off' class='gform_hidden' name='gform_target_page_number_1' id='gform_target_page_number_1' value='0' />
+            <input type='hidden' autocomplete='off' class='gform_hidden' name='gform_source_page_number_1' id='gform_source_page_number_1' value='1' />
+            <input type='hidden' name='gform_field_values' value='' />
+            
+        </div>
+                        <p style="display: none !important;" class="akismet-fields-container" data-prefix="ak_"><label>&#916;<textarea name="ak_hp_textarea" cols="45" rows="8" maxlength="100"></textarea></label><input type="hidden" id="ak_js_1" name="ak_js" value="82"/><script type="text/javascript">
+/* <![CDATA[ */
+document.getElementById( "ak_js_1" ).setAttribute( "value", ( new Date() ).getTime() );
+/* ]]> */
+</script>
+</p></form>
+                        </div>
+		                <iframe style='display:none;width:0px;height:0px;' src='about:blank' name='gform_ajax_frame_1' id='gform_ajax_frame_1' title='This iframe contains the logic required to handle Ajax powered Gravity Forms.'></iframe>
+		                <script type="text/javascript">
+/* <![CDATA[ */
+ gform.initializeOnLoaded( function() {gformInitSpinner( 1, 'https://theadventboston.org/wp-content/plugins/gravityforms/images/spinner.svg', true );jQuery('#gform_ajax_frame_1').on('load',function(){var contents = jQuery(this).contents().find('*').html();var is_postback = contents.indexOf('GF_AJAX_POSTBACK') >= 0;if(!is_postback){return;}var form_content = jQuery(this).contents().find('#gform_wrapper_1');var is_confirmation = jQuery(this).contents().find('#gform_confirmation_wrapper_1').length > 0;var is_redirect = contents.indexOf('gformRedirect(){') >= 0;var is_form = form_content.length > 0 && ! is_redirect && ! is_confirmation;var mt = parseInt(jQuery('html').css('margin-top'), 10) + parseInt(jQuery('body').css('margin-top'), 10) + 100;if(is_form){jQuery('#gform_wrapper_1').html(form_content.html());if(form_content.hasClass('gform_validation_error')){jQuery('#gform_wrapper_1').addClass('gform_validation_error');} else {jQuery('#gform_wrapper_1').removeClass('gform_validation_error');}setTimeout( function() { /* delay the scroll by 50 milliseconds to fix a bug in chrome */ jQuery(document).scrollTop(jQuery('#gform_wrapper_1').offset().top - mt); }, 50 );if(window['gformInitDatepicker']) {gformInitDatepicker();}if(window['gformInitPriceFields']) {gformInitPriceFields();}var current_page = jQuery('#gform_source_page_number_1').val();gformInitSpinner( 1, 'https://theadventboston.org/wp-content/plugins/gravityforms/images/spinner.svg', true );jQuery(document).trigger('gform_page_loaded', [1, current_page]);window['gf_submitting_1'] = false;}else if(!is_redirect){var confirmation_content = jQuery(this).contents().find('.GF_AJAX_POSTBACK').html();if(!confirmation_content){confirmation_content = contents;}jQuery('#gform_wrapper_1').replaceWith(confirmation_content);jQuery(document).scrollTop(jQuery('#gf_1').offset().top - mt);jQuery(document).trigger('gform_confirmation_loaded', [1]);window['gf_submitting_1'] = false;wp.a11y.speak(jQuery('#gform_confirmation_message_1').text());}else{jQuery('#gform_1').append(contents);if(window['gformRedirect']) {gformRedirect();}}jQuery(document).trigger("gform_pre_post_render", [{ formId: "1", currentPage: "current_page", abort: function() { this.preventDefault(); } }]);        if (event && event.defaultPrevented) {                return;        }        const gformWrapperDiv = document.getElementById( "gform_wrapper_1" );        if ( gformWrapperDiv ) {            const visibilitySpan = document.createElement( "span" );            visibilitySpan.id = "gform_visibility_test_1";            gformWrapperDiv.insertAdjacentElement( "afterend", visibilitySpan );        }        const visibilityTestDiv = document.getElementById( "gform_visibility_test_1" );        let postRenderFired = false;        function triggerPostRender() {            if ( postRenderFired ) {                return;            }            postRenderFired = true;            gform.core.triggerPostRenderEvents( 1, current_page );            if ( visibilityTestDiv ) {                visibilityTestDiv.parentNode.removeChild( visibilityTestDiv );            }        }        function debounce( func, wait, immediate ) {            var timeout;            return function() {                var context = this, args = arguments;                var later = function() {                    timeout = null;                    if ( !immediate ) func.apply( context, args );                };                var callNow = immediate && !timeout;                clearTimeout( timeout );                timeout = setTimeout( later, wait );                if ( callNow ) func.apply( context, args );            };        }        const debouncedTriggerPostRender = debounce( function() {            triggerPostRender();        }, 200 );        if ( visibilityTestDiv && visibilityTestDiv.offsetParent === null ) {            const observer = new MutationObserver( ( mutations ) => {                mutations.forEach( ( mutation ) => {                    if ( mutation.type === 'attributes' && visibilityTestDiv.offsetParent !== null ) {                        debouncedTriggerPostRender();                        observer.disconnect();                    }                });            });            observer.observe( document.body, {                attributes: true,                childList: false,                subtree: true,                attributeFilter: [ 'style', 'class' ],            });        } else {            triggerPostRender();        }    } );} ); 
+/* ]]> */
+</script>
+						</div>
+									</div>
+			</div>
+			<div class="site-footer__info">
+				<a href="https://theadventboston.org/" class="site-footer__logo" rel="home"><img src="https://theadventboston.org/wp-content/uploads/2022/07/logo_footer.svg" alt="Footer logo" /></a>				<div class="site-footer__copyright"><p>The Church of the Advent is a parish of the Episcopal Diocese of Massachusetts.</p></div>			</div>
+		</div>
+
+	</footer><!-- .site-footer-->
+
+		<div class="off-canvas-screen"></div>
+	<nav class="off-canvas-container" aria-label="Mobile Menu" aria-hidden="true" tabindex="-1">
+		<div class="off-canvas-content"><ul id="site-mobile-menu" class="mobile-menu"><li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-home menu-item-23289"><a href="https://theadventboston.org/">Home</a></li>
+<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-1023"><a href="https://theadventboston.org/visit/">Visit</a>
+<ul class="sub-menu">
+	<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3702"><a href="/visit/#connect">Connect</a></li>
+	<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3703"><a href="/visit/#request_help">Request/Give Help</a></li>
+	<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3704"><a href="/visit/#what_to_expect">What to Expect on Sundays</a></li>
+	<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3711"><a href="/visit/#sacraments">Sacraments</a></li>
+</ul>
+</li>
+<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-1750"><a href="/calendar/">Calendar</a></li>
+<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-20297"><a href="https://theadventboston.org/mission/">About Us</a>
+<ul class="sub-menu">
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3709"><a href="https://theadventboston.org/mission/">Our Beliefs &#038; Mission</a></li>
+	<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-17243"><a href="https://theadventboston.org/new-rector/">Our Rector</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-18250"><a href="https://theadventboston.org/our-staff/">Our Staff</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3707"><a href="https://theadventboston.org/about-us/history/">History</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-18249"><a href="https://theadventboston.org/contact-us/">Contact Us</a></li>
+</ul>
+</li>
+<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-1160"><a href="https://theadventboston.org/listen/">Listen</a>
+<ul class="sub-menu">
+	<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3714"><a href="/listen/#podcast">Sermons</a></li>
+	<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3712"><a href="/listen/#music">Music &#038; Mass Recordings</a></li>
+</ul>
+</li>
+<li class="menu-item menu-item-type-post_type menu-item-object-page current-menu-item page_item page-item-24397 current_page_item menu-item-has-children menu-item-24655"><a href="https://theadventboston.org/music/" aria-current="page">Music</a>
+<ul class="sub-menu">
+	<li class="menu-item menu-item-type-post_type menu-item-object-post menu-item-23938"><a href="https://theadventboston.org/9am-music-25-26/">9am Music Schedule</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-post menu-item-23923"><a href="https://theadventboston.org/11-am-music-25-26/">11am Music Schedule</a></li>
+</ul>
+</li>
+<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-3779"><a href="https://theadventboston.org/community/">Community</a>
+<ul class="sub-menu">
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3720"><a href="https://theadventboston.org/community/christian-formation/">Christian Formation</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3718"><a href="https://theadventboston.org/community/adult-education/">Adult Education</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3715"><a href="https://theadventboston.org/community/adults/">Adults</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3716"><a href="https://theadventboston.org/community/students/">Students</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-3717"><a href="https://theadventboston.org/community/children/">Families &amp; Children</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-25190"><a href="https://theadventboston.org/community/christianity-101/">Christianity 101</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-25191"><a href="https://theadventboston.org/community/theology-on-tap/">Theology on Tap</a></li>
+</ul>
+</li>
+<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-has-children menu-item-20295"><a href="https://theadventboston.org/letters/">Updates</a>
+<ul class="sub-menu">
+	<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-20298"><a href="https://theadventboston.org/letters/">Rector&#8217;s Letters</a></li>
+	<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-20299"><a href="https://theadventboston.org/news/">News &#038; Updates</a></li>
+</ul>
+</li>
+<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-25252"><a href="https://theadventboston.org/conferences-and-colloquia/">Conferences and Colloquia</a>
+<ul class="sub-menu">
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-25303"><a href="https://theadventboston.org/conferences-and-colloquia/annual-anglo-catholic-conference/">Annual Anglo-Catholic Conference</a></li>
+	<li class="menu-item menu-item-type-post_type menu-item-object-page menu-item-25304"><a href="https://theadventboston.org/conferences-and-colloquia/colloquia/">Colloquia</a></li>
+</ul>
+</li>
+<li class="menu-item menu-item-type-custom menu-item-object-custom menu-item-3721"><a href="/give">Give</a></li>
+</ul></div>	</nav>
+		<script type="speculationrules">
+{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/wp-*.php","/wp-admin/*","/wp-content/uploads/*","/wp-content/*","/wp-content/plugins/*","/wp-content/themes/theadvent/*","/*\\?(.+)"]}},{"not":{"selector_matches":"a[rel~=\"nofollow\"]"}},{"not":{"selector_matches":".no-prefetch, .no-prefetch a"}}]},"eagerness":"conservative"}]}
+</script>
+<!-- Matomo --><script type="text/javascript">
+/* <![CDATA[ */
+(function () {
+function initTracking() {
+var _paq = window._paq = window._paq || [];
+_paq.push(['trackPageView']);_paq.push(['enableLinkTracking']);_paq.push(['alwaysUseSendBeacon']);_paq.push(['setTrackerUrl', "\/\/theadventboston.org\/wp-content\/plugins\/matomo\/app\/matomo.php"]);_paq.push(['setSiteId', '1']);var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+g.type='text/javascript'; g.async=true; g.src="\/\/theadventboston.org\/wp-content\/uploads\/matomo\/matomo.js"; s.parentNode.insertBefore(g,s);
+}
+if (document.prerendering) {
+	document.addEventListener('prerenderingchange', initTracking, {once: true});
+} else {
+	initTracking();
+}
+})();
+/* ]]> */
+</script>
+<!-- End Matomo Code -->		<script>
+		( function ( body ) {
+			'use strict';
+			body.className = body.className.replace( /\btribe-no-js\b/, 'tribe-js' );
+		} )( document.body );
+		</script>
+		<script> /* <![CDATA[ */var tribe_l10n_datatables = {"aria":{"sort_ascending":": activate to sort column ascending","sort_descending":": activate to sort column descending"},"length_menu":"Show _MENU_ entries","empty_table":"No data available in table","info":"Showing _START_ to _END_ of _TOTAL_ entries","info_empty":"Showing 0 to 0 of 0 entries","info_filtered":"(filtered from _MAX_ total entries)","zero_records":"No matching records found","search":"Search:","all_selected_text":"All items on this page were selected. ","select_all_link":"Select all pages","clear_selection":"Clear Selection.","pagination":{"all":"All","next":"Next","previous":"Previous"},"select":{"rows":{"0":"","_":": Selected %d rows","1":": Selected 1 row"}},"datepicker":{"dayNames":["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],"dayNamesShort":["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],"dayNamesMin":["S","M","T","W","T","F","S"],"monthNames":["January","February","March","April","May","June","July","August","September","October","November","December"],"monthNamesShort":["January","February","March","April","May","June","July","August","September","October","November","December"],"monthNamesMin":["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],"nextText":"Next","prevText":"Prev","currentText":"Today","closeText":"Done","today":"Today","clear":"Clear"}};/* ]]> */ </script><script type="text/javascript" src="https://theadventboston.org/wp-content/plugins/the-events-calendar/common/build/js/user-agent.js?ver=da75d0bdea6dde3898df" id="tec-user-agent-js"></script>
+<script type="text/javascript" src="https://theadventboston.org/wp-content/themes/theadvent/build/index.js?ver=06dbad12e0ed73858d92" id="bda-scripts-js"></script>
+<script type="text/javascript" id="bda-scripts-js-after">
+/* <![CDATA[ */
+	document.addEventListener("DOMContentLoaded", function() {
+		const popup = document.querySelector(".hustle-popup");
+		const ctaButton = document.querySelector(".hustle-whole-module-cta");
+
+		if (popup && ctaButton) {
+			const footer = popup.querySelector(".hustle-layout-footer");
+			const buttonLink = footer ? footer.querySelector(".hustle-button") : null;
+
+			if (buttonLink && buttonLink.href) {
+				ctaButton.addEventListener("click", function() {
+					window.open(buttonLink.href, "_blank");
+				});
+			}
+		}
+	});
+//# sourceURL=bda-scripts-js-after
+/* ]]> */
+</script>
+<script type="text/javascript" src="https://theadventboston.org/wp-includes/js/dist/dom-ready.min.js?ver=f77871ff7694fffea381" id="wp-dom-ready-js"></script>
+<script type="text/javascript" src="https://theadventboston.org/wp-includes/js/dist/hooks.min.js?ver=dd5603f07f9220ed27f1" id="wp-hooks-js"></script>
+<script type="text/javascript" src="https://theadventboston.org/wp-includes/js/dist/i18n.min.js?ver=c26c3dc7bed366793375" id="wp-i18n-js"></script>
+<script type="text/javascript" id="wp-i18n-js-after">
+/* <![CDATA[ */
+wp.i18n.setLocaleData( { 'text direction\u0004ltr': [ 'ltr' ] } );
+//# sourceURL=wp-i18n-js-after
+/* ]]> */
+</script>
+<script type="text/javascript" src="https://theadventboston.org/wp-includes/js/dist/a11y.min.js?ver=cb460b4676c94bd228ed" id="wp-a11y-js"></script>
+<script type="text/javascript" defer='defer' src="https://theadventboston.org/wp-content/plugins/gravityforms/js/jquery.json.min.js?ver=2.10.0" id="gform_json-js"></script>
+<script type="text/javascript" id="gform_gravityforms-js-extra">
+/* <![CDATA[ */
+var gform_i18n = {"datepicker":{"days":{"monday":"Mo","tuesday":"Tu","wednesday":"We","thursday":"Th","friday":"Fr","saturday":"Sa","sunday":"Su"},"months":{"january":"January","february":"February","march":"March","april":"April","may":"May","june":"June","july":"July","august":"August","september":"September","october":"October","november":"November","december":"December"},"firstDay":0,"iconText":"Select date"}};
+var gf_legacy_multi = [];
+var gform_gravityforms = {"strings":{"invalid_file_extension":"This type of file is not allowed. Must be one of the following:","delete_file":"Delete this file","in_progress":"in progress","file_exceeds_limit":"File exceeds size limit","illegal_extension":"This type of file is not allowed.","max_reached":"Maximum number of files reached","unknown_error":"There was a problem while saving the file on the server","currently_uploading":"Please wait for the uploading to complete","cancel":"Cancel","cancel_upload":"Cancel this upload","cancelled":"Cancelled","error":"Error","message":"Message"},"vars":{"images_url":"https://theadventboston.org/wp-content/plugins/gravityforms/images"}};
+var gf_global = {"gf_currency_config":{"name":"U.S. Dollar","symbol_left":"$","symbol_right":"","symbol_padding":"","thousand_separator":",","decimal_separator":".","decimals":2,"code":"USD"},"base_url":"https://theadventboston.org/wp-content/plugins/gravityforms","number_formats":[],"spinnerUrl":"https://theadventboston.org/wp-content/plugins/gravityforms/images/spinner.svg","version_hash":"768bcf4c19b186456f7652d3b5446385","strings":{"newRowAdded":"New row added.","rowRemoved":"Row removed","formSaved":"The form has been saved.  The content contains the link to return and complete the form."}};
+//# sourceURL=gform_gravityforms-js-extra
+/* ]]> */
+</script>
+<script type="text/javascript" defer='defer' src="https://theadventboston.org/wp-content/plugins/gravityforms/js/gravityforms.min.js?ver=2.10.0" id="gform_gravityforms-js"></script>
+<script type="text/javascript" defer='defer' src="https://theadventboston.org/wp-content/plugins/gravityforms/js/placeholders.jquery.min.js?ver=2.10.0" id="gform_placeholder-js"></script>
+<script type="text/javascript" defer='defer' src="https://theadventboston.org/wp-content/plugins/gravityforms/assets/js/dist/utils.min.js?ver=3f278756f0a3032bed328ff6a9f6c01d" id="gform_gravityforms_utils-js"></script>
+<script type="text/javascript" defer='defer' src="https://theadventboston.org/wp-content/plugins/gravityforms/assets/js/dist/vendor-theme.min.js?ver=4f8b3915c1c1e1a6800825abd64b03cb" id="gform_gravityforms_theme_vendors-js"></script>
+<script type="text/javascript" id="gform_gravityforms_theme-js-extra">
+/* <![CDATA[ */
+var gform_theme_config = {"common":{"form":{"honeypot":{"version_hash":"768bcf4c19b186456f7652d3b5446385"},"ajax":{"ajaxurl":"https://theadventboston.org/wp-admin/admin-ajax.php","ajax_submission_nonce":"4e9268531a","i18n":{"step_announcement":"Step %1$s of %2$s, %3$s","unknown_error":"There was an unknown error processing your request. Please try again."}}}},"hmr_dev":"","public_path":"https://theadventboston.org/wp-content/plugins/gravityforms/assets/js/dist/","config_nonce":"df7ae3786d"};
+//# sourceURL=gform_gravityforms_theme-js-extra
+/* ]]> */
+</script>
+<script type="text/javascript" defer='defer' src="https://theadventboston.org/wp-content/plugins/gravityforms/assets/js/dist/scripts-theme.min.js?ver=c6a2001023348ccf279dfc6bcec0a654" id="gform_gravityforms_theme-js"></script>
+<script id="wp-emoji-settings" type="application/json">
+{"baseUrl":"https://s.w.org/images/core/emoji/17.0.2/72x72/","ext":".png","svgUrl":"https://s.w.org/images/core/emoji/17.0.2/svg/","svgExt":".svg","source":{"concatemoji":"https://theadventboston.org/wp-includes/js/wp-emoji-release.min.js?ver=6.9.4"}}
+</script>
+<script type="module">
+/* <![CDATA[ */
+/*! This file is auto-generated */
+const a=JSON.parse(document.getElementById("wp-emoji-settings").textContent),o=(window._wpemojiSettings=a,"wpEmojiSettingsSupports"),s=["flag","emoji"];function i(e){try{var t={supportTests:e,timestamp:(new Date).valueOf()};sessionStorage.setItem(o,JSON.stringify(t))}catch(e){}}function c(e,t,n){e.clearRect(0,0,e.canvas.width,e.canvas.height),e.fillText(t,0,0);t=new Uint32Array(e.getImageData(0,0,e.canvas.width,e.canvas.height).data);e.clearRect(0,0,e.canvas.width,e.canvas.height),e.fillText(n,0,0);const a=new Uint32Array(e.getImageData(0,0,e.canvas.width,e.canvas.height).data);return t.every((e,t)=>e===a[t])}function p(e,t){e.clearRect(0,0,e.canvas.width,e.canvas.height),e.fillText(t,0,0);var n=e.getImageData(16,16,1,1);for(let e=0;e<n.data.length;e++)if(0!==n.data[e])return!1;return!0}function u(e,t,n,a){switch(t){case"flag":return n(e,"\ud83c\udff3\ufe0f\u200d\u26a7\ufe0f","\ud83c\udff3\ufe0f\u200b\u26a7\ufe0f")?!1:!n(e,"\ud83c\udde8\ud83c\uddf6","\ud83c\udde8\u200b\ud83c\uddf6")&&!n(e,"\ud83c\udff4\udb40\udc67\udb40\udc62\udb40\udc65\udb40\udc6e\udb40\udc67\udb40\udc7f","\ud83c\udff4\u200b\udb40\udc67\u200b\udb40\udc62\u200b\udb40\udc65\u200b\udb40\udc6e\u200b\udb40\udc67\u200b\udb40\udc7f");case"emoji":return!a(e,"\ud83e\u1fac8")}return!1}function f(e,t,n,a){let r;const o=(r="undefined"!=typeof WorkerGlobalScope&&self instanceof WorkerGlobalScope?new OffscreenCanvas(300,150):document.createElement("canvas")).getContext("2d",{willReadFrequently:!0}),s=(o.textBaseline="top",o.font="600 32px Arial",{});return e.forEach(e=>{s[e]=t(o,e,n,a)}),s}function r(e){var t=document.createElement("script");t.src=e,t.defer=!0,document.head.appendChild(t)}a.supports={everything:!0,everythingExceptFlag:!0},new Promise(t=>{let n=function(){try{var e=JSON.parse(sessionStorage.getItem(o));if("object"==typeof e&&"number"==typeof e.timestamp&&(new Date).valueOf()<e.timestamp+604800&&"object"==typeof e.supportTests)return e.supportTests}catch(e){}return null}();if(!n){if("undefined"!=typeof Worker&&"undefined"!=typeof OffscreenCanvas&&"undefined"!=typeof URL&&URL.createObjectURL&&"undefined"!=typeof Blob)try{var e="postMessage("+f.toString()+"("+[JSON.stringify(s),u.toString(),c.toString(),p.toString()].join(",")+"));",a=new Blob([e],{type:"text/javascript"});const r=new Worker(URL.createObjectURL(a),{name:"wpTestEmojiSupports"});return void(r.onmessage=e=>{i(n=e.data),r.terminate(),t(n)})}catch(e){}i(n=f(s,u,c,p))}t(n)}).then(e=>{for(const n in e)a.supports[n]=e[n],a.supports.everything=a.supports.everything&&a.supports[n],"flag"!==n&&(a.supports.everythingExceptFlag=a.supports.everythingExceptFlag&&a.supports[n]);var t;a.supports.everythingExceptFlag=a.supports.everythingExceptFlag&&!a.supports.flag,a.supports.everything||((t=a.source||{}).concatemoji?r(t.concatemoji):t.wpemoji&&t.twemoji&&(r(t.twemoji),r(t.wpemoji)))});
+//# sourceURL=https://theadventboston.org/wp-includes/js/wp-emoji-loader.min.js
+/* ]]> */
+</script>
+<script type="text/javascript">
+/* <![CDATA[ */
+ gform.initializeOnLoaded( function() { jQuery(document).on('gform_post_render', function(event, formId, currentPage){if(formId == 1) {if(typeof Placeholders != 'undefined'){
+                        Placeholders.enable();
+                    }} } );jQuery(document).on('gform_post_conditional_logic', function(event, formId, fields, isInit){} ) } ); 
+/* ]]> */
+</script>
+<script type="text/javascript">
+/* <![CDATA[ */
+ gform.initializeOnLoaded( function() {jQuery(document).trigger("gform_pre_post_render", [{ formId: "1", currentPage: "1", abort: function() { this.preventDefault(); } }]);        if (event && event.defaultPrevented) {                return;        }        const gformWrapperDiv = document.getElementById( "gform_wrapper_1" );        if ( gformWrapperDiv ) {            const visibilitySpan = document.createElement( "span" );            visibilitySpan.id = "gform_visibility_test_1";            gformWrapperDiv.insertAdjacentElement( "afterend", visibilitySpan );        }        const visibilityTestDiv = document.getElementById( "gform_visibility_test_1" );        let postRenderFired = false;        function triggerPostRender() {            if ( postRenderFired ) {                return;            }            postRenderFired = true;            gform.core.triggerPostRenderEvents( 1, 1 );            if ( visibilityTestDiv ) {                visibilityTestDiv.parentNode.removeChild( visibilityTestDiv );            }        }        function debounce( func, wait, immediate ) {            var timeout;            return function() {                var context = this, args = arguments;                var later = function() {                    timeout = null;                    if ( !immediate ) func.apply( context, args );                };                var callNow = immediate && !timeout;                clearTimeout( timeout );                timeout = setTimeout( later, wait );                if ( callNow ) func.apply( context, args );            };        }        const debouncedTriggerPostRender = debounce( function() {            triggerPostRender();        }, 200 );        if ( visibilityTestDiv && visibilityTestDiv.offsetParent === null ) {            const observer = new MutationObserver( ( mutations ) => {                mutations.forEach( ( mutation ) => {                    if ( mutation.type === 'attributes' && visibilityTestDiv.offsetParent !== null ) {                        debouncedTriggerPostRender();                        observer.disconnect();                    }                });            });            observer.observe( document.body, {                attributes: true,                childList: false,                subtree: true,                attributeFilter: [ 'style', 'class' ],            });        } else {            triggerPostRender();        }    } ); 
+/* ]]> */
+</script>
+<div class="svg-sprite-wrapper"><svg xmlns="http://www.w3.org/2000/svg"><symbol id="caret-down" viewBox="0 0 16 28"><title>caret-down</title><path fill="#497882" d="M16 11a.99.99 0 0 1-.297.703l-7 7C8.516 18.89 8.265 19 8 19s-.516-.109-.703-.297l-7-7A.996.996 0 0 1 0 11c0-.547.453-1 1-1h14c.547 0 1 .453 1 1z"/></symbol><symbol id="close" viewBox="0 0 22.5 22.27"><defs><style>.e976b01e-b823-4a33-afa4-7e423e5efc07{fill:#303536}</style></defs><title>close</title><g id="bc0933f0-4035-477f-a26f-3729a5f20fc6" data-name="Layer 2"><g id="ac142a7b-f51d-4aa6-8dfb-c0c4fdfa64fb" data-name="Layer 1"><path class="e976b01e-b823-4a33-afa4-7e423e5efc07" d="m.4 2.17 19.44 19.44a1.25 1.25 0 1 0 1.77-1.77L2.17.4A1.18 1.18 0 0 0 .4.4a1.18 1.18 0 0 0 0 1.77Z"/><path class="e976b01e-b823-4a33-afa4-7e423e5efc07" d="M2.66 21.87 22.1 2.43a1.18 1.18 0 0 0 0-1.77 1.18 1.18 0 0 0-1.77 0L.89 20.1a1.18 1.18 0 0 0 0 1.77 1.18 1.18 0 0 0 1.77 0Z"/></g></g></symbol><symbol id="facebook-square" viewBox="0 0 24 28"><title>facebook-square</title><path fill="currentColor" d="M19.5 2q1.859 0 3.18 1.32T24 6.5v15q0 1.859-1.32 3.18T19.5 26h-2.938v-9.297h3.109l.469-3.625h-3.578v-2.312q0-.875.367-1.313t1.43-.438l1.906-.016V5.765q-.984-.141-2.781-.141-2.125 0-3.398 1.25t-1.273 3.531v2.672H9.688v3.625h3.125v9.297H4.5q-1.859 0-3.18-1.32T0 21.499v-15q0-1.859 1.32-3.18t3.18-1.32h15z"/></symbol><symbol id="hamburger" viewBox="0 0 30 20"><title>hamburger</title><g data-name="Layer 2"><path fill="#e5e5e5" class="aa8ebab7-074c-4f4d-83e8-7a439dda45a8" d="M12.5 11.25h16.25A1.18 1.18 0 0 0 30 10a1.18 1.18 0 0 0-1.25-1.25H12.5A1.18 1.18 0 0 0 11.25 10a1.18 1.18 0 0 0 1.25 1.25ZM1.25 2.5h27.5A1.18 1.18 0 0 0 30 1.25 1.18 1.18 0 0 0 28.75 0H1.25A1.18 1.18 0 0 0 0 1.25 1.18 1.18 0 0 0 1.25 2.5Zm0 17.5h27.5a1.25 1.25 0 0 0 0-2.5H1.25a1.25 1.25 0 0 0 0 2.5Z" data-name="Layer 1"/></g></symbol><symbol id="instagram-square" viewBox="0 0 27 32"><title>instagram-square</title><path fill="currentColor" d="M18.286 16q0-1.893-1.339-3.232t-3.232-1.339-3.232 1.339T9.144 16t1.339 3.232 3.232 1.339 3.232-1.339T18.286 16zm2.464 0q0 2.929-2.054 4.982t-4.982 2.054-4.982-2.054T6.678 16t2.054-4.982 4.982-2.054 4.982 2.054T20.75 16zm1.929-7.321q0 .679-.482 1.161t-1.161.482-1.161-.482-.482-1.161.482-1.161 1.161-.482 1.161.482.482 1.161zM13.714 4.75l-1.366-.009q-1.241-.009-1.884 0t-1.723.054-1.839.179-1.277.33q-.893.357-1.571 1.036T3.018 7.911q-.196.518-.33 1.277t-.179 1.839-.054 1.723 0 1.884T2.464 16t-.009 1.366 0 1.884.054 1.723.179 1.839.33 1.277q.357.893 1.036 1.571t1.571 1.036q.518.196 1.277.33t1.839.179 1.723.054 1.884 0 1.366-.009 1.366.009 1.884 0 1.723-.054 1.839-.179 1.277-.33q.893-.357 1.571-1.036t1.036-1.571q.196-.518.33-1.277t.179-1.839.054-1.723 0-1.884T24.964 16t.009-1.366 0-1.884-.054-1.723-.179-1.839-.33-1.277q-.357-.893-1.036-1.571t-1.571-1.036q-.518-.196-1.277-.33t-1.839-.179-1.723-.054-1.884 0-1.366.009zM27.429 16q0 4.089-.089 5.661-.179 3.714-2.214 5.75t-5.75 2.214q-1.571.089-5.661.089t-5.661-.089q-3.714-.179-5.75-2.214T.09 21.661Q.001 20.09.001 16t.089-5.661q.179-3.714 2.214-5.75t5.75-2.214q1.571-.089 5.661-.089t5.661.089q3.714.179 5.75 2.214t2.214 5.75q.089 1.571.089 5.661z"/></symbol><symbol id="linkedin-square" viewBox="0 0 24 28"><title>linkedin-square</title><path fill="currentColor" d="M3.703 22.094h3.609V11.25H3.703v10.844zM7.547 7.906q-.016-.812-.562-1.344t-1.453-.531-1.477.531-.57 1.344q0 .797.555 1.336t1.445.539h.016q.922 0 1.484-.539t.562-1.336zm9.141 14.188h3.609v-6.219q0-2.406-1.141-3.641T16.14 11q-2.125 0-3.266 1.828h.031V11.25H9.296q.047 1.031 0 10.844h3.609v-6.062q0-.594.109-.875.234-.547.703-.93t1.156-.383q1.813 0 1.813 2.453v5.797zM24 6.5v15q0 1.859-1.32 3.18T19.5 26h-15q-1.859 0-3.18-1.32T0 21.5v-15q0-1.859 1.32-3.18T4.5 2h15q1.859 0 3.18 1.32T24 6.5z"/></symbol><symbol id="pause" viewBox="0 0 24 28"><title>pause</title><path fill="currentColor" d="M24 3v22c0 .547-.453 1-1 1h-8c-.547 0-1-.453-1-1V3c0-.547.453-1 1-1h8c.547 0 1 .453 1 1zM10 3v22c0 .547-.453 1-1 1H1c-.547 0-1-.453-1-1V3c0-.547.453-1 1-1h8c.547 0 1 .453 1 1z"/></symbol><symbol id="play" viewBox="0 0 22 28"><title>play</title><path fill="currentColor" d="M21.625 14.484.875 26.015c-.484.266-.875.031-.875-.516v-23c0-.547.391-.781.875-.516l20.75 11.531c.484.266.484.703 0 .969z"/></symbol><symbol id="twitter-square" viewBox="0 0 24 28"><title>twitter-square</title><path fill="currentColor" d="M20 9.531q-.875.391-1.891.531 1.062-.625 1.453-1.828-1.016.594-2.094.797Q16.515 8 15.077 8q-1.359 0-2.32.961t-.961 2.32q0 .453.078.75-2.016-.109-3.781-1.016t-3-2.422q-.453.781-.453 1.656 0 1.781 1.422 2.734-.734-.016-1.563-.406v.031q0 1.172.781 2.086t1.922 1.133q-.453.125-.797.125-.203 0-.609-.063.328.984 1.164 1.625t1.898.656q-1.813 1.406-4.078 1.406-.406 0-.781-.047 2.312 1.469 5.031 1.469 1.75 0 3.281-.555t2.625-1.484 1.883-2.141 1.172-2.531.383-2.633q0-.281-.016-.422.984-.703 1.641-1.703zM24 6.5v15q0 1.859-1.32 3.18T19.5 26h-15q-1.859 0-3.18-1.32T0 21.5v-15q0-1.859 1.32-3.18T4.5 2h15q1.859 0 3.18 1.32T24 6.5z"/></symbol></svg></div>
+</body>
+
+</html>
