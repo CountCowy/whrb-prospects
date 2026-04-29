@@ -325,11 +325,19 @@ def build_tag_set(
 # Cambridge proper — Harvard Square is 02138; Central/Porter/Kendall fill out.
 _CAMBRIDGE_ZIPS = frozenset({"02138", "02139", "02140", "02141", "02142"})
 
-# Boston proper (neighborhoods): Back Bay / South End / Fenway / JP / Allston /
+# Boston proper (neighborhoods): Beacon Hill / Downtown / North End / Financial
+# District / Chinatown / Back Bay / South End / Fenway / JP / Allston /
 # Brighton / Longwood. Note 02115 / 02215 and Roxbury / Mission Hill sit in
-# Boston even though they're sometimes grouped with Brookline.
+# Boston even though they're sometimes grouped with Brookline. The downtown
+# 02108-02114 block was added in T6 (review pass) to map King's Chapel
+# (02108) + Church of the Advent (02114) — the church_concerts venues that
+# previously fell through to ``affiliation:unknown``.
 _BOSTON_ZIPS = frozenset(
     {
+        # Downtown core: Beacon Hill / Government Center / North End / Financial /
+        # Chinatown / West End.
+        "02108", "02109", "02110", "02111", "02113", "02114",
+        # Back Bay / South End / Fenway / JP / Allston-Brighton / Longwood.
         "02115", "02116", "02118", "02130", "02134", "02135", "02215",
     }
 )
