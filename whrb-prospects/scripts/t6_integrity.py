@@ -379,7 +379,7 @@ def main() -> int:
         rows.append(
             _passing(
                 "T06",
-                f"music_school_departments: all 6 institution groups emit correct affiliation",
+                "music_school_departments: all 6 institution groups emit correct affiliation",
                 "C2",
             )
         )
@@ -490,7 +490,7 @@ def main() -> int:
     }
     # Build the union of (axis, value) pairs the parsers emitted.
     emitted_pairs: set[tuple[str, str]] = set()
-    for source_key, rs in all_emit_results.items():
+    for _source_key, rs in all_emit_results.items():
         for r in rs:
             for axis, values in (r.get("tags") or {}).items():
                 for v in values:
@@ -615,8 +615,8 @@ def main() -> int:
             rows.append(
                 _skip_manual(
                     "T09.svc",
-                    f"source_config has all 6 new rows but rows_last_run=0 "
-                    f"for every one — run pipeline live first",
+                    "source_config has all 6 new rows but rows_last_run=0 "
+                    "for every one — run pipeline live first",
                     "C9",
                 )
             )
@@ -666,7 +666,7 @@ def main() -> int:
         }
         hits = 0
         per_name: list[str] = []
-        for name, where in spot_names:
+        for name, _where in spot_names:
             try:
                 res = (
                     sb.table("prospects")

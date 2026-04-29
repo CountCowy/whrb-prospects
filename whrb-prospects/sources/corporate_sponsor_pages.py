@@ -205,19 +205,20 @@ def _parse(slug: str, html: str) -> list[tuple[str, str]]:
             ):
                 continue
             # Skip plain-text rows that look like dollar amounts or
-            # tier brackets ("$10,000+", "Lead Sponsor", etc).
+            # tier brackets ("$10,000+", "Lead Sponsor", etc). The short-
+            # text guard preserves real names that happen to share a
+            # token (e.g. "Linde Family Foundation" trips on "+" when
+            # mis-spaced); genuine bracket headers are typically < 30
+            # chars and the bracket vocabulary catches them, while real
+            # firm names sit above the threshold.
             stripped = text.lower()
-            if any(t in stripped for t in (
+            bracket_tokens = (
                 "$", "level", "circle", "society", "tier",
                 "sponsor:", "donor:", "supporter:", "anonymous",
                 "+", "+ above", "or more", "or above",
-            )):
-                # Allow real names that happen to have these tokens
-                # only when they're short — e.g. "Linde Family
-                # Foundation" trips on "+" if mis-spaced; most
-                # genuine bracket headers are < 20 chars.
-                if len(text) < 30:
-                    continue
+            )
+            if len(text) < 30 and any(t in stripped for t in bracket_tokens):
+                continue
             raw.append((text, ""))
     return common.dedup_keep_first(raw)
 
