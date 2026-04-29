@@ -23,7 +23,7 @@
 #   - Manifest `timestamp` within STALE_AFTER_SECS (900s = 15 min).
 #   - Manifest `files_covered` is a superset of the current UI diff.
 #   - Every routes[].screenshot exists on disk with PNG magic bytes,
-#     size ≥ 50 KB, mtime within ±60s of timestamp, and sha256 matching
+#     size ≥ 20 KB, mtime within ±60s of timestamp, and sha256 matching
 #     the manifest value.
 #   - `observations` array has one entry per `routes[]` item, each with
 #     ≥ 3 non-empty notes (inspection-enforcement).
@@ -202,7 +202,7 @@ check_screenshot_integrity() {
 
     local size
     size="$(wc -c <"$s_path" | tr -d ' ')"
-    (( size >= 50000 )) || deny "Screenshot under 50 KB (likely empty/broken): $s_path. Re-run /verify-ui."
+    (( size >= 20000 )) || deny "Screenshot under 20 KB (likely empty/broken): $s_path. Re-run /verify-ui."
 
     local actual
     actual="$(shasum -a 256 "$s_path" | cut -d' ' -f1)"

@@ -14,8 +14,10 @@
 //   --routes <csv>  Restrict to the given comma-separated routes.
 //
 // Integrity contract:
-//   - Every PNG is written with at least 50 KB of pixel data (naturally
-//     true for a 1440×900 headed screenshot).
+//   - Every PNG is written with at least 20 KB of pixel data. A 1440×900
+//     viewport of mostly-empty content (e.g. a notifications inbox empty
+//     state) compresses to ~35 KB, so the floor is set well below that
+//     while still catching truly blank/broken captures (<10 KB).
 //   - The manifest's routes[i].sha256 is computed from the on-disk bytes;
 //     the pre-push hook recomputes + compares.
 //   - Observations are deliberately left empty — the skill's step 5 Edit
