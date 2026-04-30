@@ -27,7 +27,7 @@ and generates 5 test IDs per source per the plan §9.6 template:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True)

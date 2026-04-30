@@ -58,11 +58,9 @@ os.environ["WHRB_T7_OFFLINE"] = "1"
 # the C1 test enforces conformance independently.
 os.environ.setdefault("WHRB_VOCAB_STRICT", "true")
 
-from enrich.dedupe import _norm_name  # noqa: E402
-from sources._t7_common import FIXTURE_ROOT  # noqa: E402
-from util.tags import _SEED_VOCAB  # noqa: E402
-
-from scripts.t7_source_manifest import T7_SOURCE_MANIFEST, T7SourceSpec  # noqa: E402
+from enrich.dedupe import _norm_name
+from scripts.t7_source_manifest import T7_SOURCE_MANIFEST, T7SourceSpec
+from util.tags import _SEED_VOCAB
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
@@ -176,7 +174,7 @@ def _test_c2(spec: T7SourceSpec, rows: list[dict]) -> TkResult:
         if not rows:
             return _passing(
                 f"T7.{spec.source_key}.C2",
-                f"enrichment-only: parses fixture and emits 0 rows (intended)",
+                "enrichment-only: parses fixture and emits 0 rows (intended)",
                 "C2",
             )
         return _failing(
@@ -205,7 +203,7 @@ def _test_c2(spec: T7SourceSpec, rows: list[dict]) -> TkResult:
     if failures:
         return _failing(
             f"T7.{spec.source_key}.C2",
-            f"fixture-in/tags-out: " + "; ".join(failures),
+            "fixture-in/tags-out: " + "; ".join(failures),
             "C2",
         )
     return _passing(
@@ -338,7 +336,7 @@ def _test_c1(spec: T7SourceSpec, rows: list[dict], vocab: dict[str, set[str]]) -
         )
     return _passing(
         f"T7.{spec.source_key}.C1",
-        f"every emitted (axis, value) in vocab",
+        "every emitted (axis, value) in vocab",
         "C1",
     )
 

@@ -54,17 +54,17 @@ sys.path.insert(0, str(WHRB))
 load_dotenv(WHRB / ".env")
 
 from db.supabase_sync import business_key as compute_business_key
-from sources._t7_common import (
-    HTTP_TIMEOUT_SECONDS,
-    RATE_LIMIT_SECONDS,
-    USER_AGENT,
-    FIXTURE_ROOT,
-    per_host_sleep,
-)
 from scripts.t7_source_manifest import (
     T7_SOURCE_MANIFEST,
     T7SourceSpec,
     dedupe_partner_pairs,
+)
+from sources._t7_common import (
+    FIXTURE_ROOT,
+    HTTP_TIMEOUT_SECONDS,
+    RATE_LIMIT_SECONDS,
+    USER_AGENT,
+    per_host_sleep,
 )
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")

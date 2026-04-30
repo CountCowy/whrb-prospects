@@ -28,14 +28,14 @@ load_dotenv(WHRB / ".env")
 # Force offline mode so every T7 module reads from its committed fixture.
 os.environ["WHRB_T7_OFFLINE"] = "1"
 
-from db.supabase_sync import seed_source_config, sync  # noqa: E402
-from enrich.dedupe import dedupe  # noqa: E402
-from scripts.t7_source_manifest import T7_SOURCE_MANIFEST  # noqa: E402
+from db.supabase_sync import seed_source_config, sync
+from enrich.dedupe import dedupe
+from scripts.t7_source_manifest import T7_SOURCE_MANIFEST
 
 
 def main() -> int:
     seed_source_config()
-    print(f"=== T7 offline ingest (via existing sync path) ===")
+    print("=== T7 offline ingest (via existing sync path) ===")
 
     all_rows: list[dict] = []
     per_source_counts: dict[str, int] = {}

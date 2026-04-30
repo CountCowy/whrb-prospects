@@ -218,7 +218,7 @@ def build_row(
                     affiliation = [affiliation, zip_aff]
             else:
                 if zip_aff not in affiliation:
-                    affiliation = list(affiliation) + [zip_aff]
+                    affiliation = [*list(affiliation), zip_aff]
 
     tags = build_tag_set(
         sector=sector,
