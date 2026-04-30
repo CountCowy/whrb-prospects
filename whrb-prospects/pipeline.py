@@ -30,20 +30,42 @@ from config import (
 )
 from enrich import apollo_free, contact_scraper, dedupe, email_validate, hunter_free
 from sources import (
+    ams_schools,
+    analyze_boston_extras,
     arts_associations,
     artsboston_calendar,
+    ashi_ne,
     bbb,
     best_of_boston,
+    cambridge_permits,
     chambers,
     church_concerts,
     city_licenses,
     competitor_stations,
     corporate_sponsor_pages,
     harvard_orgs,
+    ma_alr,
+    ma_arborists,
+    ma_cultural_council,
+    ma_dese_nonpublic,
+    ma_dpu_movers,
     ma_hic,
+    ma_landscape_pros,
+    mapc_creative_economy,
+    mass_save_hpin,
+    massbio,
+    masscreative,
+    masstlc,
+    meet_boston,
     music_school_departments,
+    mvma_vets,
+    nefa_grantees,
+    neiba,
     osm_overpass,
+    phcc,
     program_books,
+    sba_7a,
+    sec_adv,
     yelp_fusion,
 )
 from util import cannabis_block, checkpoint, event_log
@@ -235,6 +257,29 @@ def collect(with_hic: bool, with_bbb: bool, enabled: set[str] | None = None) -> 
         rows += _safe_cached(
             "music_school_departments", music_school_departments.run_all
         )
+    # Stage T7 — open-data + regional expansion + trade associations (gleaming-dawn §9.4).
+    if _on("sec_adv"):                rows += _safe_cached("sec_adv",                sec_adv.run_all)
+    if _on("ma_alr"):                 rows += _safe_cached("ma_alr",                 ma_alr.run_all)
+    if _on("ma_dese_nonpublic"):      rows += _safe_cached("ma_dese_nonpublic",      ma_dese_nonpublic.run_all)
+    if _on("analyze_boston_extras"):  rows += _safe_cached("analyze_boston_extras",  analyze_boston_extras.run_all)
+    if _on("cambridge_permits"):      rows += _safe_cached("cambridge_permits",      cambridge_permits.run_all)
+    if _on("ma_dpu_movers"):          rows += _safe_cached("ma_dpu_movers",          ma_dpu_movers.run_all)
+    if _on("sba_7a"):                 rows += _safe_cached("sba_7a",                 sba_7a.run_all)
+    if _on("mapc_creative_economy"):  rows += _safe_cached("mapc_creative_economy",  mapc_creative_economy.run_all)
+    if _on("ma_cultural_council"):    rows += _safe_cached("ma_cultural_council",    ma_cultural_council.run_all)
+    if _on("nefa_grantees"):          rows += _safe_cached("nefa_grantees",          nefa_grantees.run_all)
+    if _on("masscreative"):           rows += _safe_cached("masscreative",           masscreative.run_all)
+    if _on("mvma_vets"):              rows += _safe_cached("mvma_vets",              mvma_vets.run_all)
+    if _on("ma_arborists"):           rows += _safe_cached("ma_arborists",           ma_arborists.run_all)
+    if _on("ma_landscape_pros"):      rows += _safe_cached("ma_landscape_pros",      ma_landscape_pros.run_all)
+    if _on("phcc"):                   rows += _safe_cached("phcc",                   phcc.run_all)
+    if _on("ashi_ne"):                rows += _safe_cached("ashi_ne",                ashi_ne.run_all)
+    if _on("neiba"):                  rows += _safe_cached("neiba",                  neiba.run_all)
+    if _on("ams_schools"):            rows += _safe_cached("ams_schools",            ams_schools.run_all)
+    if _on("massbio"):                rows += _safe_cached("massbio",                massbio.run_all)
+    if _on("masstlc"):                rows += _safe_cached("masstlc",                masstlc.run_all)
+    if _on("meet_boston"):            rows += _safe_cached("meet_boston",            meet_boston.run_all)
+    if _on("mass_save_hpin"):         rows += _safe_cached("mass_save_hpin",         mass_save_hpin.run_all)
     return rows
 
 
