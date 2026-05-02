@@ -12,10 +12,6 @@ Required environment variables:
   RUN_ID                  -- the pipeline_runs row id (from adopt step)
   PIPELINE_STATUS         -- the GitHub Actions step outcome of the
                              pipeline run (success / failure / cancelled)
-
-Optional:
-  FORCE_FAIL              -- 'true' forces the row to status='failed'
-                             regardless of pipeline outcome (debug aid)
 """
 from __future__ import annotations
 
@@ -43,8 +39,7 @@ def main() -> int:
         os.environ["SUPABASE_SERVICE_ROLE_KEY"],
     )
     outcome = os.environ.get("PIPELINE_STATUS") or "failure"
-    force_fail = (os.environ.get("FORCE_FAIL") or "").lower() == "true"
-    status = "success" if (outcome == "success" and not force_fail) else "failed"
+    status = "success" if outcome == "success" else "failed"
 
     rows_upserted: int | None = None
     err: str | None = None
@@ -59,9 +54,8 @@ def main() -> int:
                 rows_upserted = int(rows_tok)
             if err_tok.strip():
                 err = err_tok.strip()[:400]
-            # pipeline-reported status wins unless force_fail is set
-            if not force_fail:
-                status = status_tok
+            # pipeline-reported status wins
+            status = status_tok
         tail = text[-800:] if text else ""
     except FileNotFoundError:
         pass

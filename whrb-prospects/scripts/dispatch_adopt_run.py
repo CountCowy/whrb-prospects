@@ -95,11 +95,7 @@ def main() -> int:
             .single()
             .execute()
         )
-        raw = (fetched.data or {}).get("args") or ""
-        # Defensive: strip the --stage10c-fixture sentinel if it slipped
-        # through migration 006_pipeline_dispatch_skip_fixtures.
-        tokens = [t for t in raw.split() if t and t != "--stage10c-fixture"]
-        args_out = " ".join(tokens)
+        args_out = ((fetched.data or {}).get("args") or "").strip()
 
     print(f"[pipeline_runs] run_id={run_id} github_run_id={gh_run_id} args={args_out!r}")
     with open(os.environ["GITHUB_OUTPUT"], "a") as f:

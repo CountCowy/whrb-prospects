@@ -6,23 +6,11 @@ on:
   # "Trigger new run" button path).
   repository_dispatch:
     types: [pipeline_run]
-  # Twice-monthly scheduled run (plan §2 decision 5 + §21.2 item 6). Stage 10
-  # verifies end-to-end with a temporary `*/5 * * * *` window during the probe
-  # and reverts to the production cadence before stage exit.
+  # Twice-monthly production cadence — 08:00 UTC on the 1st and 15th.
   schedule:
-    # Production cadence — 08:00 UTC on the 1st and 15th (plan §2 decision 5).
-    # The `*/5 * * * *` verification probe from Stage 10 T08 was reverted
-    # here (T10) after one scheduled fire (pipeline_runs a263ef9e) was
-    # observed creating a row with args='--scheduled', triggered_by=null.
     - cron: '0 8 1,15 * *'
-  # Manual trigger from the Actions UI (troubleshooting + T04 forced-failure).
+  # Manual trigger from the Actions UI for troubleshooting.
   workflow_dispatch:
-    inputs:
-      force_fail:
-        description: 'Force the pipeline step to fail by pointing it at an invalid SUPABASE_URL'
-        required: false
-        default: false
-        type: boolean
 
 concurrency:
   group: pipeline-run
@@ -89,31 +77,26 @@ jobs:
         id: pipeline
         continue-on-error: true
         env:
-          # When force_fail is true on a workflow_dispatch, point the pipeline at
-          # an invalid URL so `08_supabase_sync` exhausts retries and the run
-          # exits non-zero. All other secrets remain real so the post-step can
-          # still update the pipeline_runs row.
-          SUPABASE_URL: ${{ (github.event_name == 'workflow_dispatch' && inputs.force_fail == true) && 'https://invalid.example' || secrets.SUPABASE_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ (github.event_name == 'workflow_dispatch' && inputs.force_fail == true) && 'invalid' || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           WHRB_PIPELINE_RUN_ID: ${{ steps.runrow.outputs.run_id }}
-          # Stage 10c: admin-selected flags from /admin/runs (empty for
-          # schedule / workflow_dispatch paths; defaults to --with-hic below).
+          # Admin-selected flags from /admin/runs on repository_dispatch.
+          # Empty for schedule / workflow_dispatch (those default to --with-hic).
           PIPELINE_ARGS_RAW: ${{ steps.runrow.outputs.args }}
           EVENT_NAME: ${{ github.event_name }}
           PYTHONUNBUFFERED: '1'
         run: |
           set -o pipefail
           mkdir -p cache
-          # Stage 10c: honor admin-selected args on repository_dispatch.
           # Every token in PIPELINE_ARGS_RAW is server-side whitelist-validated
-          # so word-splitting is safe. Empty args → legacy `--with-hic`.
+          # in /api/pipeline/run so word-splitting is safe.
           if [ "$EVENT_NAME" = "repository_dispatch" ] && [ -n "$PIPELINE_ARGS_RAW" ]; then
             echo "[run-pipeline] invoking: python pipeline.py $PIPELINE_ARGS_RAW"
             # shellcheck disable=SC2086  # intentional word-split on validated argv
             python pipeline.py $PIPELINE_ARGS_RAW 2>&1 | tee cache/pipeline.log
           else
-            echo "[run-pipeline] invoking: python pipeline.py --with-hic (legacy)"
+            echo "[run-pipeline] invoking: python pipeline.py --with-hic"
             python pipeline.py --with-hic 2>&1 | tee cache/pipeline.log
           fi
 
@@ -124,7 +107,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RUN_ID: ${{ steps.runrow.outputs.run_id }}
           PIPELINE_STATUS: ${{ steps.pipeline.outcome }}
-          FORCE_FAIL: ${{ inputs.force_fail }}
         run: python scripts/dispatch_finalize_run.py
 
       - name: Upload pipeline logs
