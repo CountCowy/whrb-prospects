@@ -9,3 +9,9 @@ output/*.csv
 .DS_Store
 .idea/
 .vscode/
+
+# pytest-cov / coverage.py local output
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
