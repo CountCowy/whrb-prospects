@@ -85,6 +85,28 @@ EXPECTED_STIMULUS_CATEGORIES: tuple[str, ...] = (
     "ccc_fetch_stale_fatal",
 )
 
+
+def _is_expected_stimulus(category: str) -> bool:
+    """Return True if ``category`` matches the whitelist.
+
+    Includes any per-source ``*_fetch_failed`` event — these are
+    specialized variants of the already-whitelisted ``source_failed``
+    (each Harvard / church_concerts / arts_associations /
+    corporate_sponsor_pages module emits its own category for
+    debuggability, but they all represent the same condition: external
+    site unreachable via DNS / 403 / SSL / timeout). Treating them as
+    expected stimuli matches the rationale documented above for
+    ``source_failed`` and ``scrape_http`` (transient pipeline scrape
+    failures, not Stage 7 correctness signals).
+    """
+    if not category:
+        return False
+    if category in EXPECTED_STIMULUS_CATEGORIES:
+        return True
+    if category.endswith("_fetch_failed"):
+        return True
+    return False
+
 # The 15 lockable field names as defined in plan §16.3 item 9.
 LOCKABLE_FIELDS: tuple[str, ...] = (
     "tier",
@@ -230,7 +252,7 @@ def _sanity_errors_since(client, since_iso: str) -> tuple[int, list[str]]:
     rows = res.data or []
     unexpected = [
         r for r in rows
-        if (r.get("category") or "") not in EXPECTED_STIMULUS_CATEGORIES
+        if not _is_expected_stimulus(r.get("category") or "")
     ]
     samples = [f"{r['created_at']} {r.get('category')}" for r in unexpected[:3]]
     return len(unexpected), samples
@@ -255,7 +277,8 @@ def main() -> int:
         raise SystemExit(
             f"event_log has {err_count} unexpected error/fatal rows since "
             f"{stage6_exit_iso} "
-            f"(whitelist={list(EXPECTED_STIMULUS_CATEGORIES)}). "
+            f"(whitelist={list(EXPECTED_STIMULUS_CATEGORIES)} "
+            f"plus any *_fetch_failed). "
             f"Samples: {err_samples}. Investigate before planting."
         )
 

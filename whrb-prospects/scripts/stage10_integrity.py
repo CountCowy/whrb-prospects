@@ -62,6 +62,22 @@ T11_WHITELIST = {
 }
 
 
+def _is_expected_stimulus(category: str | None) -> bool:
+    """Return True if ``category`` is whitelisted.
+
+    Includes any per-source ``*_fetch_failed`` event — these are
+    specialized variants of ``source_failed`` (e.g.
+    ``harvard_orgs_fetch_failed``, ``church_concerts_fetch_failed``).
+    """
+    if not category:
+        return False
+    if category in T11_WHITELIST:
+        return True
+    if category.endswith("_fetch_failed"):
+        return True
+    return False
+
+
 class Result:
     """Tk result: ok (True/False) + detail string; `skip=True` renders SKIP."""
 
@@ -324,17 +340,19 @@ def t11_zero_error_budget(client, since_iso: str) -> Result:
         .execute()
     )
     rows = res.data or []
-    unexpected = [r for r in rows if r.get("category") not in T11_WHITELIST]
+    unexpected = [r for r in rows if not _is_expected_stimulus(r.get("category"))]
     if unexpected:
         sample = unexpected[:3]
         return Result(
             False,
             f"unexpected error rows={len(unexpected)}/{len(rows)} "
-            f"(whitelist={sorted(T11_WHITELIST)}); samples={sample}",
+            f"(whitelist={sorted(T11_WHITELIST)} plus any *_fetch_failed); "
+            f"samples={sample}",
         )
     return Result(
         True,
-        f"error rows={len(rows)}, all in whitelist={sorted(T11_WHITELIST)}",
+        f"error rows={len(rows)}, all in whitelist={sorted(T11_WHITELIST)} "
+        f"plus any *_fetch_failed",
     )
 
 
