@@ -205,8 +205,9 @@ def seasonality_for(category: str | None) -> str:
 # expected steady state.
 _ZERO_ROW_EXPECTED_SOURCES: frozenset[str] = frozenset(
     {
-        "best_of_boston",  # site returns 403; module is a stub
-        "sba_7a",          # T7 enrichment-only; no direct prospects
+        "best_of_boston",         # site returns 403; module is a stub
+        "sba_7a",                 # T7 enrichment-only; no direct prospects
+        "mapc_creative_economy",  # T7 enrichment-only (pivoted 2026-05-01); no direct prospects
     }
 )
 

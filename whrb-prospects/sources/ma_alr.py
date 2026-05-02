@@ -126,9 +126,15 @@ def _discover_and_download_xlsx() -> bytes | None:
                 else:
                     target = "https://www.mass.gov/" + href
 
-                # Step 3: trigger download by setting location.
+                # Step 3: trigger download by setting location. Pass the URL
+                # as a function argument rather than f-stringing into a JS
+                # literal — guards against quote characters in the href
+                # breaking the JS expression.
                 with page.expect_download(timeout=20000) as dl_info:
-                    page.evaluate(f"window.location.href = '{target}'")
+                    page.evaluate(
+                        "(url) => { window.location.href = url; }",
+                        target,
+                    )
                 download = dl_info.value
                 tmp_path = download.path()
                 if tmp_path is None:

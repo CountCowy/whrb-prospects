@@ -113,8 +113,14 @@ def _discover_and_download_csv() -> bytes | None:
                 )
                 if not href:
                     return None
+                # Pass the URL as an argument to the JS callback rather
+                # than f-stringing into a literal — guards against quote
+                # characters in the href breaking the JS expression.
                 with page.expect_download(timeout=20000) as dl_info:
-                    page.evaluate(f"window.location.href = '{href}'")
+                    page.evaluate(
+                        "(url) => { window.location.href = url; }",
+                        href,
+                    )
                 download = dl_info.value
                 tmp_path = download.path()
                 if tmp_path is None:
