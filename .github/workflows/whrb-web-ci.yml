@@ -5,11 +5,20 @@ on:
     paths:
       - 'whrb-web/**'
       - '.github/workflows/whrb-web-ci.yml'
+      # The e2e job plants fixtures via these scripts before driving
+      # Playwright. Re-run when they change so plant-script breakage
+      # doesn't slip past the gate.
+      - 'whrb-prospects/scripts/stage*.py'
+      - 'whrb-prospects/requirements.lock'
+      - 'whrb-prospects/.python-version'
   push:
     branches: [main]
     paths:
       - 'whrb-web/**'
       - '.github/workflows/whrb-web-ci.yml'
+      - 'whrb-prospects/scripts/stage*.py'
+      - 'whrb-prospects/requirements.lock'
+      - 'whrb-prospects/.python-version'
 
 concurrency:
   group: whrb-web-ci-${{ github.ref }}
@@ -126,12 +135,15 @@ jobs:
       - name: Set up Python for fixture planting
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version-file: whrb-prospects/.python-version
+          cache: pip
+          cache-dependency-path: whrb-prospects/requirements.lock
 
       - name: Install pipeline deps for fixture scripts
         working-directory: whrb-prospects
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
 
       - name: Plant Stage 7 fixtures
         working-directory: whrb-prospects
