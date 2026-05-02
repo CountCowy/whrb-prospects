@@ -17,7 +17,20 @@ from sources import _t7_common as common
 
 SOURCE_KEY = "sba_7a"
 
-LIVE_URL = "https://www.sba.gov/sites/default/files/2024-foia/foia-7a-fy2020.csv"
+# SBA's CKAN-served bulk download. The 7(a) FOIA dataset (FY2020-Present
+# slice) is the only chunk with active loans relevant to the WHRB ZIP set;
+# the FY1991–1999 / 2000–2009 / 2010–2019 slices are historical archives.
+# Dataset UUID: 0ff8e8e9-b967-4f4e-987c-6ac78c575087.
+# Resource UUID (FY2020-Present): d67d3ccb-2002-4134-a288-481b51cd3479.
+# The /download alias (no filename suffix) is the stable URL — the
+# filename SBA serves changes each quarter (e.g. ``foia-7a-fy2020-present-asof-260331.csv``)
+# but the resource UUID is permanent. Verified live 2026-05-01:
+# 200 + ``text/csv`` + ~150 MB body.
+LIVE_URL = (
+    "https://data.sba.gov/dataset/"
+    "0ff8e8e9-b967-4f4e-987c-6ac78c575087/resource/"
+    "d67d3ccb-2002-4134-a288-481b51cd3479/download"
+)
 
 
 def _build_zip_index(text: str) -> dict[str, int]:
