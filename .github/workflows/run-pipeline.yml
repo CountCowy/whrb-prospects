@@ -52,8 +52,28 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.lock
 
-      - name: Install Playwright browsers (Chromium)
+      - name: Resolve Playwright version
+        id: pw
+        run: |
+          version=$(python -c "import playwright; print(playwright.__version__)")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-py-${{ steps.pw.outputs.version }}
+          restore-keys: |
+            playwright-${{ runner.os }}-py-
+
+      - name: Install Playwright Chromium (with deps)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: python -m playwright install --with-deps chromium
+
+      - name: Install Playwright system deps only
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: python -m playwright install-deps chromium
 
       - name: Adopt or create pipeline_runs row
         id: runrow
