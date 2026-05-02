@@ -83,3 +83,32 @@ addopts = "-q"
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+
+[tool.coverage.run]
+# `source = ["."]` rather than an explicit dir/file list: when coverage
+# is given a list of modules/files, it pre-imports them at startup to
+# mark their files for measurement, which causes `pipeline.py` to load
+# pandas/numpy before pytest collection runs — and numpy 2.x raises
+# "cannot load module more than once per process" when the test suite's
+# `test_pipeline_helpers.py` later does `import pipeline`. The omit list
+# below is the regression-floor's actual filter; if you ever want a
+# tighter `source` list, audit which files trigger imports first.
+source = ["."]
+omit = [
+    "tests/*",
+    "scripts/*",
+    "cache/*",
+    "output/*",
+    "data/*",
+    ".venv/*",
+    "smoke_bench.py",
+]
+
+[tool.coverage.report]
+# Regression floor — current production-code coverage (excluding tests
+# and one-shot scripts) hovers around 30%. CI fails if it dips below
+# this. Ratchet up as new tests land; do not loosen without a
+# deliberate justification.
+fail_under = 28
+show_missing = true
+skip_covered = false

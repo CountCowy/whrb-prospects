@@ -30,7 +30,9 @@ charset-normalizer==3.4.7
     #   pdfminer-six
     #   requests
 click==8.3.2
-    # via pyiceberg
+    # via
+    #   pyiceberg
+    #   x-wr-timezone
 cryptography==46.0.7
     # via
     #   pdfminer-six
@@ -45,6 +47,8 @@ dnspython==2.8.0
     #   email-validator
 email-validator==2.3.0
     # via -r requirements.txt
+et-xmlfile==2.0.0
+    # via openpyxl
 filelock==3.29.0
     # via tldextract
 fsspec==2026.3.0
@@ -69,6 +73,11 @@ httpx[http2]==0.28.1
     #   supabase-functions
 hyperframe==6.1.0
     # via h2
+icalendar==6.1.0
+    # via
+    #   -r requirements.txt
+    #   recurring-ical-events
+    #   x-wr-timezone
 idna==3.11
     # via
     #   anyio
@@ -90,6 +99,8 @@ multidict==6.7.1
     # via yarl
 numpy==2.4.4
     # via pandas
+openpyxl==3.1.5
+    # via -r requirements.txt
 packaging==26.1
     # via deprecation
 pandas==3.0.2
@@ -137,7 +148,9 @@ pyroaring==1.0.4
     # via pyiceberg
 python-dateutil==2.9.0.post0
     # via
+    #   icalendar
     #   pandas
+    #   recurring-ical-events
     #   strictyaml
 python-dotenv==1.2.2
     # via -r requirements.txt
@@ -145,6 +158,8 @@ rapidfuzz==3.14.5
     # via -r requirements.txt
 realtime==2.28.3
     # via supabase
+recurring-ical-events==3.4.0
+    # via -r requirements.txt
 requests==2.33.1
     # via
     #   -r requirements.txt
@@ -193,6 +208,11 @@ typing-extensions==4.15.0
     #   typing-inspection
 typing-inspection==0.4.2
     # via pydantic
+tzdata==2026.2
+    # via
+    #   icalendar
+    #   recurring-ical-events
+    #   x-wr-timezone
 url-normalize==2.2.1
     # via requests-cache
 urllib3==2.6.3
@@ -201,6 +221,8 @@ urllib3==2.6.3
     #   requests-cache
 websockets==15.0.1
     # via realtime
+x-wr-timezone==2.0.1
+    # via recurring-ical-events
 yarl==1.23.0
     # via
     #   postgrest

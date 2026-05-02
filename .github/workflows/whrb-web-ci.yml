@@ -5,11 +5,28 @@ on:
     paths:
       - 'whrb-web/**'
       - '.github/workflows/whrb-web-ci.yml'
+      # The e2e job plants fixtures via these scripts before driving
+      # Playwright. Re-run when they change so plant-script breakage
+      # doesn't slip past the gate. Covers both `stage*` and `t*`
+      # plants/cleanups so the next time a T-stage plant gets wired
+      # into the e2e flow, this filter doesn't have to be revisited.
+      - 'whrb-prospects/scripts/stage*_plant.py'
+      - 'whrb-prospects/scripts/stage*_cleanup.py'
+      - 'whrb-prospects/scripts/t*_plant.py'
+      - 'whrb-prospects/scripts/t*_cleanup.py'
+      - 'whrb-prospects/requirements.lock'
+      - 'whrb-prospects/.python-version'
   push:
     branches: [main]
     paths:
       - 'whrb-web/**'
       - '.github/workflows/whrb-web-ci.yml'
+      - 'whrb-prospects/scripts/stage*_plant.py'
+      - 'whrb-prospects/scripts/stage*_cleanup.py'
+      - 'whrb-prospects/scripts/t*_plant.py'
+      - 'whrb-prospects/scripts/t*_cleanup.py'
+      - 'whrb-prospects/requirements.lock'
+      - 'whrb-prospects/.python-version'
 
 concurrency:
   group: whrb-web-ci-${{ github.ref }}
@@ -22,11 +39,11 @@ jobs:
       run:
         working-directory: whrb-web
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: whrb-web/.nvmrc
           cache: pnpm
@@ -52,6 +69,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: check
     timeout-minutes: 20
+    # All e2e jobs across branches plant fixtures into the same dev Supabase
+    # project (kolfijjavwruwzctmnlx) and assert against shared rows. Two PRs
+    # running simultaneously would corrupt each other. Serialize globally,
+    # don't cancel — every PR needs its own run, just not at the same time.
+    # Stage-specific plant scripts will migrate to UUID-suffixed fixtures
+    # over time; once they all do, this mutex can be removed.
+    concurrency:
+      group: whrb-web-e2e-shared-supabase
+      cancel-in-progress: false
     # `wait-for-vercel-preview` polls the commit statuses / deployments API on
     # the PR HEAD to resolve the Vercel preview URL. The default GITHUB_TOKEN
     # does not grant those scopes in all repo configurations, so declare them
@@ -66,11 +92,11 @@ jobs:
       run:
         working-directory: whrb-web
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: whrb-web/.nvmrc
           cache: pnpm
@@ -85,7 +111,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
@@ -115,14 +141,17 @@ jobs:
       # cleanup-first is required. Uses the dev Supabase project's service
       # role (same secrets as Playwright).
       - name: Set up Python for fixture planting
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version-file: whrb-prospects/.python-version
+          cache: pip
+          cache-dependency-path: whrb-prospects/requirements.lock
 
       - name: Install pipeline deps for fixture scripts
         working-directory: whrb-prospects
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
 
       - name: Plant Stage 7 fixtures
         working-directory: whrb-prospects
@@ -154,7 +183,7 @@ jobs:
 
       - name: Upload Playwright HTML report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: whrb-web/playwright-report/
@@ -162,7 +191,7 @@ jobs:
 
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-test-results-${{ github.run_id }}-${{ github.run_attempt }}
           path: whrb-web/test-results/

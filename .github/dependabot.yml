@@ -1,0 +1,83 @@
+# Dependabot config — three ecosystems live in this repo:
+#
+# 1. pip (whrb-prospects) — Python pipeline. Manifest is requirements.txt
+#    + requirements-dev.txt; lockfiles are regenerated via pip-compile.
+#    Dependabot updates the manifest; lockfile regen happens in PR review.
+#
+# 2. npm (whrb-web) — Next.js app. pnpm-lock.yaml is updated automatically.
+#
+# 3. github-actions — bumps action versions in .github/workflows/. This
+#    is the channel that would have flagged the Node 20 deprecation.
+#
+# Weekly cadence chosen over daily to avoid PR spam; Monday morning
+# America/New_York means PRs land while the week is fresh.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /whrb-prospects
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+      # supabase-py pins httpx + bundles postgrest/realtime/gotrue/storage3
+      # — group their majors so the upgrade reviews as one PR rather than
+      # fighting per-package version incompatibilities.
+      supabase-stack-major:
+        patterns:
+          - "supabase"
+          - "supabase-functions"
+          - "postgrest"
+          - "realtime"
+          - "storage3"
+          - "gotrue"
+          - "httpx"
+        update-types:
+          - major
+
+  - package-ecosystem: npm
+    directory: /whrb-web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+      # Radix UI + Next.js + React + Node typings travel together —
+      # group their major bumps so the upgrade happens as one reviewable
+      # PR, not many. @types/node included because Next.js majors
+      # typically push the supported Node major forward in lockstep.
+      react-stack-major:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "next"
+          - "@types/react"
+          - "@types/react-dom"
+          - "@types/node"
+        update-types:
+          - major
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: America/New_York
+    groups:
+      actions-minor-and-patch:
+        update-types:
+          - minor
+          - patch

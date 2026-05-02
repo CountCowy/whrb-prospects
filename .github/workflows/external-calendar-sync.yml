@@ -17,7 +17,10 @@ name: external-calendar-sync
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    # Every 30 minutes. Schedule reps don't refresh Google Calendar
+    # views faster than this in practice, so the half-hourly cadence
+    # halves runner-minute spend without any user-visible staleness.
+    - cron: '*/30 * * * *'
   workflow_dispatch:
     inputs:
       calendar_id:
@@ -48,9 +51,9 @@ jobs:
       run:
         working-directory: whrb-prospects
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: whrb-prospects/.python-version
           cache: pip
@@ -62,12 +65,6 @@ jobs:
         # on a runner that holds DB credentials. Regenerate the lockfile
         # via `pip-compile` if a new dep is needed; do not loosen this.
         run: pip install --no-deps -r requirements.lock
-
-      - name: Install ICS deps (pinned, not yet in lockfile)
-        # icalendar + recurring-ical-events are pinned in requirements.txt
-        # via the `==` constraints applied for this job. Once pip-compile
-        # is rerun to fold them into requirements.lock, this step can go.
-        run: pip install 'icalendar==6.1.0' 'recurring-ical-events==3.4.0'
 
       - name: Run sync_external_calendars
         # Inputs from repository_dispatch / workflow_dispatch are passed
