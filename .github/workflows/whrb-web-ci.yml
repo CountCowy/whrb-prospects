@@ -52,6 +52,15 @@ jobs:
     runs-on: ubuntu-latest
     needs: check
     timeout-minutes: 20
+    # All e2e jobs across branches plant fixtures into the same dev Supabase
+    # project (kolfijjavwruwzctmnlx) and assert against shared rows. Two PRs
+    # running simultaneously would corrupt each other. Serialize globally,
+    # don't cancel — every PR needs its own run, just not at the same time.
+    # Stage-specific plant scripts will migrate to UUID-suffixed fixtures
+    # over time; once they all do, this mutex can be removed.
+    concurrency:
+      group: whrb-web-e2e-shared-supabase
+      cancel-in-progress: false
     # `wait-for-vercel-preview` polls the commit statuses / deployments API on
     # the PR HEAD to resolve the Vercel preview URL. The default GITHUB_TOKEN
     # does not grant those scopes in all repo configurations, so declare them
