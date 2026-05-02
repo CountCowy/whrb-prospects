@@ -22,11 +22,11 @@ jobs:
       run:
         working-directory: whrb-web
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: whrb-web/.nvmrc
           cache: pnpm
@@ -66,11 +66,11 @@ jobs:
       run:
         working-directory: whrb-web
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
         with:
           version: 10
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version-file: whrb-web/.nvmrc
           cache: pnpm
@@ -85,7 +85,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: playwright-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
@@ -115,7 +115,7 @@ jobs:
       # cleanup-first is required. Uses the dev Supabase project's service
       # role (same secrets as Playwright).
       - name: Set up Python for fixture planting
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload Playwright HTML report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-report-${{ github.run_id }}-${{ github.run_attempt }}
           path: whrb-web/playwright-report/
@@ -162,7 +162,7 @@ jobs:
 
       - name: Upload Playwright traces on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: playwright-test-results-${{ github.run_id }}-${{ github.run_attempt }}
           path: whrb-web/test-results/

@@ -51,9 +51,9 @@ jobs:
       run:
         working-directory: whrb-prospects
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version-file: whrb-prospects/.python-version
           cache: pip
