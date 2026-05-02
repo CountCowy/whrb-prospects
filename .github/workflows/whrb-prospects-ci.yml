@@ -38,10 +38,19 @@ jobs:
         run: ruff check .
       - name: Mypy
         run: mypy
-      - name: Pytest
+      - name: Pytest with coverage gate
         # No network, no live Supabase — the autouse stub_event_log fixture
-        # replaces util.event_log with an in-memory recorder.
-        run: pytest tests/
+        # replaces util.event_log with an in-memory recorder. Coverage
+        # thresholds + omit list live in pyproject.toml [tool.coverage.*].
+        run: pytest tests/ --cov --cov-report=term
+
+      - name: pip-audit (lockfile vulnerability scan)
+        # Surfaces CVEs in pinned deps. Fails the job on findings; if a
+        # finding has no fix yet, add `--ignore-vuln <ID>` here with a
+        # comment linking to the advisory.
+        run: |
+          pip install pip-audit
+          pip-audit --strict --requirement requirements.lock --requirement requirements-dev.lock
 
   multi_email_integrity:
     name: Multi-email integrity (010)

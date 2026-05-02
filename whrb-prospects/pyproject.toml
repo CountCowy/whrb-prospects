@@ -83,3 +83,24 @@ addopts = "-q"
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+
+[tool.coverage.run]
+source = ["."]
+omit = [
+    "tests/*",
+    "scripts/*",
+    "cache/*",
+    "output/*",
+    "data/*",
+    ".venv/*",
+    "smoke_bench.py",
+]
+
+[tool.coverage.report]
+# Regression floor — current production-code coverage (excluding tests
+# and one-shot scripts) hovers around 30%. CI fails if it dips below
+# this. Ratchet up as new tests land; do not loosen without a
+# deliberate justification.
+fail_under = 28
+show_missing = true
+skip_covered = false
