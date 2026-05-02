@@ -35,7 +35,7 @@ XLSX schema (verified 2026-05-01 on the april-2025 release):
 from __future__ import annotations
 
 import io
-from typing import Iterator
+from collections.abc import Iterator
 
 from sources import _t7_common as common
 
@@ -197,10 +197,7 @@ def _emit_from_xlsx(xlsx_bytes: bytes) -> list[dict]:
         # DPH packs multiple phone numbers into one cell separated by
         # newlines. Take the first.
         phone_raw = raw.get("Telephone") or ""
-        if isinstance(phone_raw, str):
-            phone = phone_raw.split("\n", 1)[0].strip() or None
-        else:
-            phone = None
+        phone = phone_raw.split("\n", 1)[0].strip() or None if isinstance(phone_raw, str) else None
 
         rows.append(
             common.build_row(

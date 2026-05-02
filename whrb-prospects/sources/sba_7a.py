@@ -19,7 +19,7 @@ SOURCE_KEY = "sba_7a"
 
 # SBA's CKAN-served bulk download. The 7(a) FOIA dataset (FY2020-Present
 # slice) is the only chunk with active loans relevant to the WHRB ZIP set;
-# the FY1991–1999 / 2000–2009 / 2010–2019 slices are historical archives.
+# the FY1991-1999 / 2000-2009 / 2010-2019 slices are historical archives.
 # Dataset UUID: 0ff8e8e9-b967-4f4e-987c-6ac78c575087.
 # Resource UUID (FY2020-Present): d67d3ccb-2002-4134-a288-481b51cd3479.
 # The /download alias (no filename suffix) is the stable URL — the

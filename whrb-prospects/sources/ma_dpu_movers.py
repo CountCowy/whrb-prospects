@@ -33,7 +33,6 @@ read either column.
 from __future__ import annotations
 
 import re
-from typing import Iterator
 
 from sources import _t7_common as common
 

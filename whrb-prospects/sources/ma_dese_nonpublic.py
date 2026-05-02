@@ -33,7 +33,7 @@ Backwards-compat CSV path retained for offline fixtures (the old
 from __future__ import annotations
 
 import re
-from typing import Iterator
+from collections.abc import Iterator
 
 from sources import _t7_common as common
 

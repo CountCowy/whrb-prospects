@@ -19,7 +19,7 @@ unless the dedupe partner (``ma_cultural_council``) merges them up.
 
 Pagination: NEFA caps ``items_per_page=120``. We walk forward until we
 either run out of pages or hit our internal page-count safety cap
-(:data:`_MAX_PAGES`). At 5 pages × 120 = 600 grantees, that gives us
+(:data:`_MAX_PAGES`). At 5 pages x 120 = 600 grantees, that gives us
 enough surface area to catch every MA-domiciled grantee whose name
 matches an MCC-funded org without overwhelming the dedupe pipeline.
 
@@ -33,7 +33,7 @@ unreachable when contact-enrichment later finds no website.
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from collections.abc import Iterable
 
 from sources import _t7_common as common
 
@@ -44,7 +44,7 @@ _LANDING_BASE = "https://www.nefa.org/grant-recipients"
 # Backwards-compat constant — kept as documentation artefact.
 LIVE_URL = _LANDING_BASE
 
-_MAX_PAGES = 5  # 5 × 120 = 600 grantee rows max.
+_MAX_PAGES = 5  # 5 x 120 = 600 grantee rows max.
 _ITEMS_PER_PAGE = 120
 
 # Pattern for program-only "ARTIST:" lines so we can split them out of

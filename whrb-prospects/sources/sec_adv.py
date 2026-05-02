@@ -44,7 +44,7 @@ from __future__ import annotations
 import datetime as _dt
 import gzip
 import io
-from typing import Iterator
+from collections.abc import Iterator
 
 import requests
 
@@ -151,7 +151,7 @@ def _iter_firms(xml_bytes: bytes) -> Iterator[dict]:
 
     src = io.BytesIO(xml_bytes)
     # IAPD feeds use ISO-8859-1; lxml auto-detects from the XML decl.
-    for event, elem in etree.iterparse(src, events=("end",), tag="Firm"):
+    for _event, elem in etree.iterparse(src, events=("end",), tag="Firm"):
         info = elem.find("Info")
         addr = elem.find("MainAddr")
         if info is None or addr is None:
