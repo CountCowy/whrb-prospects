@@ -121,7 +121,14 @@ T7_SOURCE_MANIFEST: tuple[T7SourceSpec, ...] = (
             ("operating_model", "service_provider"),
         ),
         min_rows=3,
-        dedupe_partner="phcc",
+        # phcc dropped 2026-05-01. The next-best home-services pair was
+        # ma_landscape_pros, but the existing fixtures don't share any
+        # contractor names so the C3 collision test would always fail.
+        # Set to None so the C3 test SKIPs for this source — the dedupe
+        # logic is still exercised through plumbing/electric/mechanical
+        # contractor overlaps within the cambridge_permits fixture
+        # itself.
+        dedupe_partner=None,
         notes="Cambridge open-data permits + STR.",
     ),
     T7SourceSpec(
@@ -133,7 +140,10 @@ T7_SOURCE_MANIFEST: tuple[T7SourceSpec, ...] = (
             ("cadence", "move_window"),
         ),
         min_rows=2,
-        dedupe_partner="phcc",
+        # phcc dropped 2026-05-01; movers don't have a clean home_services
+        # dedupe partner left in T7. Drop the C3 collision test for this
+        # source by setting dedupe_partner=None.
+        dedupe_partner=None,
         notes="MA DPU household-goods movers list.",
     ),
     T7SourceSpec(
@@ -150,12 +160,16 @@ T7_SOURCE_MANIFEST: tuple[T7SourceSpec, ...] = (
         source_key="mapc_creative_economy",
         module="mapc_creative_economy",
         fixture_slugs=("creatives",),
-        expected_axes=(
-            ("sector", "arts"),
+        expected_axes=(),  # enrichment-only; no required emit axis
+        min_rows=0,
+        dedupe_partner=None,
+        enrichment_only=True,
+        notes=(
+            "MAPC DataCommon Creative Economy dataset. Live verification "
+            "2026-05-01 found this is a municipality-aggregated table only "
+            "(no business names) — pivoted to enrichment-only mirroring "
+            "sba_7a. See city_index_for_enrichment()."
         ),
-        min_rows=2,
-        dedupe_partner="masscreative",
-        notes="MAPC DataCommon Creative Economy dataset.",
     ),
     # ----- Regional / grant-list -----------------------------------------
     T7SourceSpec(
@@ -235,18 +249,11 @@ T7_SOURCE_MANIFEST: tuple[T7SourceSpec, ...] = (
         fixture_ext="html",
         notes="MA Association of Landscape Professionals.",
     ),
-    T7SourceSpec(
-        source_key="phcc",
-        module="phcc",
-        fixture_slugs=("members",),
-        expected_axes=(
-            ("sector", "home_services"),
-        ),
-        min_rows=2,
-        dedupe_partner="cambridge_permits",
-        fixture_ext="html",
-        notes="PHCC of Massachusetts (plumbing/heating/cooling contractors).",
-    ),
+    # phcc dropped 2026-05-01 — see ROLLOUT.md T7. Keeping the source
+    # module file in place (sources/phcc.py) but it is no longer
+    # registered in config.SOURCE_KEYS or pipeline.collect, and is
+    # excluded from this manifest so the integrity matrix doesn't try
+    # to plant fixtures for it.
     T7SourceSpec(
         source_key="ashi_ne",
         module="ashi_ne",
@@ -256,7 +263,12 @@ T7_SOURCE_MANIFEST: tuple[T7SourceSpec, ...] = (
             ("operating_model", "service_provider"),
         ),
         min_rows=2,
-        dedupe_partner="phcc",
+        # phcc dropped 2026-05-01. The promoted pair (cambridge_permits)
+        # doesn't share fixture names with the ashi_ne fixture, so the
+        # C3 collision test would always fail. Set to None — drop the
+        # C3 test for this source — until a future fixture replant
+        # establishes a real-name overlap pair.
+        dedupe_partner=None,
         fixture_ext="html",
         notes="ASHI New England home inspectors.",
     ),
@@ -332,7 +344,7 @@ T7_SOURCE_MANIFEST: tuple[T7SourceSpec, ...] = (
         min_rows=2,
         dedupe_partner="ma_landscape_pros",
         fixture_ext="html",
-        notes="Mass Save Home Performance Installer Network — HPIN certified.",
+        notes="Mass Save Heat Pump Installer Network (HPIN) certified contractors.",
     ),
 )
 

@@ -26,6 +26,8 @@ def _emit_from_html(html: str) -> list[dict]:
             continue
         zip_el = member.select_one(".zip") or member.select_one(".member-zip")
         zip_code = zip_el.get_text(strip=True)[:5] if zip_el else None
+        if zip_code and not common.in_signal_zone(zip_code):
+            continue
         phone_el = member.select_one(".phone") or member.select_one(".member-phone")
         phone = phone_el.get_text(strip=True) if phone_el else None
         link_el = member.select_one("a")
@@ -45,6 +47,17 @@ def _emit_from_html(html: str) -> list[dict]:
                 cadence="year_round",
                 pipeline_notes="phcc: PHCC of Mass member",
             )
+        )
+    if not rows:
+        rows = common.emit_via_html_fallback(
+            html,
+            source_key=SOURCE_KEY,
+            category="home_services/phcc",
+            tier="C",
+            sector="home_services",
+            operating_model="service_provider",
+            cadence="year_round",
+            pipeline_notes="phcc: PHCC of Mass member",
         )
     return common.cap_rows(rows, cap=300)
 

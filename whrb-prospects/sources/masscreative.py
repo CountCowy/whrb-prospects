@@ -13,7 +13,12 @@ from sources import _t7_common as common
 
 SOURCE_KEY = "masscreative"
 
-LIVE_URL = "https://www.masscreative.org/members"
+# Verified live 2026-05-01. The original ``masscreative.org`` (no
+# hyphen) is unreachable / connection-refused — the actual domain is
+# ``mass-creative.org`` (with a hyphen). The org's "Our Members" section
+# is rendered inline on ``/masscreative-network`` rather than a separate
+# directory page.
+LIVE_URL = "https://www.mass-creative.org/masscreative-network"
 
 
 def _emit_from_html(html: str) -> list[dict]:
@@ -35,6 +40,8 @@ def _emit_from_html(html: str) -> list[dict]:
         website = link_el.get("href") if link_el else None
         zip_el = art.select_one(".member-zip") or art.select_one(".zip")
         zip_code = zip_el.get_text(strip=True)[:5] if zip_el else None
+        if zip_code and not common.in_signal_zone(zip_code):
+            continue
 
         rows.append(
             common.build_row(
@@ -50,16 +57,35 @@ def _emit_from_html(html: str) -> list[dict]:
                 pipeline_notes="masscreative: member directory",
             )
         )
+    if not rows:
+        rows = common.emit_via_html_fallback(
+            html,
+            source_key=SOURCE_KEY,
+            category="arts/masscreative_member",
+            tier="B",
+            sector=["arts", "nonprofit"],
+            operating_model="institution",
+            cadence="year_round",
+            pipeline_notes="masscreative: member directory",
+        )
     return common.cap_rows(rows, cap=400)
 
 
 def run_all() -> list[dict]:
     html = common.read_fixture(SOURCE_KEY, "members", ext="html")
-    if html is None and not common.offline_enabled():
-        try:
-            html = common.http_get(LIVE_URL)
-        except Exception:
-            html = None
-    if not html:
+    if html is not None:
+        return _emit_from_html(html)
+    if common.offline_enabled():
         return []
-    return _emit_from_html(html)
+    rows: list[dict] = []
+    try:
+        html = common.http_get(LIVE_URL)
+        if html:
+            rows = _emit_from_html(html)
+    except Exception:
+        rows = []
+    if not rows:
+        rendered = common.fetch_html_via_playwright(LIVE_URL)
+        if rendered:
+            rows = _emit_from_html(rendered)
+    return rows

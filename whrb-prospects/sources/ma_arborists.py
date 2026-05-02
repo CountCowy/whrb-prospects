@@ -11,7 +11,12 @@ from sources import _t7_common as common
 
 SOURCE_KEY = "ma_arborists"
 
-LIVE_URL = "https://www.massarbor.org/find-an-arborist"
+# Verified live 2026-05-01: ``/find-an-arborist`` (original guess) is
+# 404. The real public member directory lives at ``/directory``; an
+# alternate consumer-facing path ``/page-18117`` ("Find a Tree Care
+# Company") is the same WildApricot index under a different navigation
+# label.
+LIVE_URL = "https://www.massarbor.org/directory"
 
 
 def _emit_from_html(html: str) -> list[dict]:
@@ -26,6 +31,8 @@ def _emit_from_html(html: str) -> list[dict]:
             continue
         zip_el = member.select_one(".zip") or member.select_one(".member-zip")
         zip_code = zip_el.get_text(strip=True)[:5] if zip_el else None
+        if zip_code and not common.in_signal_zone(zip_code):
+            continue
         phone_el = member.select_one(".phone") or member.select_one(".member-phone")
         phone = phone_el.get_text(strip=True) if phone_el else None
         link_el = member.select_one("a")
@@ -46,16 +53,35 @@ def _emit_from_html(html: str) -> list[dict]:
                 pipeline_notes="ma_arborists: MAA member",
             )
         )
+    if not rows:
+        rows = common.emit_via_html_fallback(
+            html,
+            source_key=SOURCE_KEY,
+            category="home_services/arborist",
+            tier="C",
+            sector="home_services",
+            operating_model="service_provider",
+            cadence=["seasonal_spring", "seasonal_fall"],
+            pipeline_notes="ma_arborists: MAA member",
+        )
     return common.cap_rows(rows, cap=300)
 
 
 def run_all() -> list[dict]:
     html = common.read_fixture(SOURCE_KEY, "members", ext="html")
-    if html is None and not common.offline_enabled():
-        try:
-            html = common.http_get(LIVE_URL)
-        except Exception:
-            html = None
-    if not html:
+    if html is not None:
+        return _emit_from_html(html)
+    if common.offline_enabled():
         return []
-    return _emit_from_html(html)
+    rows: list[dict] = []
+    try:
+        html = common.http_get(LIVE_URL)
+        if html:
+            rows = _emit_from_html(html)
+    except Exception:
+        rows = []
+    if not rows:
+        rendered = common.fetch_html_via_playwright(LIVE_URL)
+        if rendered:
+            rows = _emit_from_html(rendered)
+    return rows

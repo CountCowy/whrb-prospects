@@ -11,7 +11,9 @@ from sources import _t7_common as common
 
 SOURCE_KEY = "mvma_vets"
 
-LIVE_URL = "https://www.massvet.org/find-a-vet"
+# Verified live 2026-05-01: ``/find-a-vet`` (the original guess) returns
+# 404; the real public-facing locator is ``/find-a-veterinarian-directory/``.
+LIVE_URL = "https://www.massvet.org/find-a-veterinarian-directory/"
 
 
 def _emit_from_html(html: str) -> list[dict]:
@@ -48,16 +50,46 @@ def _emit_from_html(html: str) -> list[dict]:
                 pipeline_notes="mvma_vets: MVMA member",
             )
         )
+    # Fallback: per-source CSS selectors are speculative pre-live-validation
+    # (sandbox couldn't reach massvet.org at plant time). Generic ZIP-pivot
+    # parser kicks in if the selectors above match nothing on real HTML.
+    if not rows:
+        rows = common.emit_via_html_fallback(
+            html,
+            source_key=SOURCE_KEY,
+            category="medical/veterinary",
+            tier="B",
+            sector="medical",
+            operating_model="service_provider",
+            cadence="year_round",
+            pipeline_notes="mvma_vets: MVMA member",
+        )
     return common.cap_rows(rows, cap=300)
 
 
 def run_all() -> list[dict]:
+    # 1. Fixture path (offline / regression).
     html = common.read_fixture(SOURCE_KEY, "vets", ext="html")
-    if html is None and not common.offline_enabled():
-        try:
-            html = common.http_get(LIVE_URL)
-        except Exception:
-            html = None
-    if not html:
+    if html is not None:
+        return _emit_from_html(html)
+    if common.offline_enabled():
         return []
-    return _emit_from_html(html)
+
+    # 2. Cheap HTTP fetch — works when the directory is rendered server-side.
+    rows: list[dict] = []
+    try:
+        html = common.http_get(LIVE_URL)
+        if html:
+            rows = _emit_from_html(html)
+    except Exception:
+        rows = []
+
+    # 3. Playwright fallback for JS-rendered listings (Noviams, etc.). MVMA
+    # is on Noviams; the static body is an empty template until JS hydrates
+    # the directory list, so this branch is the one that yields prospects in
+    # production.
+    if not rows:
+        rendered = common.fetch_html_via_playwright(LIVE_URL)
+        if rendered:
+            rows = _emit_from_html(rendered)
+    return rows

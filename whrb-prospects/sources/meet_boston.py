@@ -26,6 +26,8 @@ def _emit_from_html(html: str) -> list[dict]:
             continue
         zip_el = member.select_one(".zip") or member.select_one(".member-zip")
         zip_code = zip_el.get_text(strip=True)[:5] if zip_el else None
+        if zip_code and not common.in_signal_zone(zip_code):
+            continue
         phone_el = member.select_one(".phone") or member.select_one(".member-phone")
         phone = phone_el.get_text(strip=True) if phone_el else None
         link_el = member.select_one("a")
@@ -46,16 +48,35 @@ def _emit_from_html(html: str) -> list[dict]:
                 pipeline_notes="meet_boston: GBCVB member",
             )
         )
+    if not rows:
+        rows = common.emit_via_html_fallback(
+            html,
+            source_key=SOURCE_KEY,
+            category="hospitality/gbcvb_member",
+            tier="B",
+            sector="hospitality",
+            operating_model="venue",
+            cadence="year_round",
+            pipeline_notes="meet_boston: GBCVB member",
+        )
     return common.cap_rows(rows, cap=500)
 
 
 def run_all() -> list[dict]:
     html = common.read_fixture(SOURCE_KEY, "members", ext="html")
-    if html is None and not common.offline_enabled():
-        try:
-            html = common.http_get(LIVE_URL)
-        except Exception:
-            html = None
-    if not html:
+    if html is not None:
+        return _emit_from_html(html)
+    if common.offline_enabled():
         return []
-    return _emit_from_html(html)
+    rows: list[dict] = []
+    try:
+        html = common.http_get(LIVE_URL)
+        if html:
+            rows = _emit_from_html(html)
+    except Exception:
+        rows = []
+    if not rows:
+        rendered = common.fetch_html_via_playwright(LIVE_URL)
+        if rendered:
+            rows = _emit_from_html(rendered)
+    return rows

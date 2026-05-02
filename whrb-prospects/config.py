@@ -224,7 +224,11 @@ SOURCE_KEYS: tuple[str, ...] = (
     "mvma_vets",
     "ma_arborists",
     "ma_landscape_pros",
-    "phcc",
+    # NOTE: ``phcc`` was dropped 2026-05-01 — phccma.org has no public
+    # member directory and the national phccweb.org find-a-contractor
+    # tool 403s WHRB's UA. Plumbing/heating/cooling contractors are still
+    # surfaced via cambridge_permits (plumbing/mechanical) + Boston
+    # entertainment_one_time + ma_hic. See ROLLOUT.md T7 for context.
     "ashi_ne",
     "neiba",
     "ams_schools",

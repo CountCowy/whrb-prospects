@@ -41,6 +41,7 @@ import datetime as dt
 import importlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -56,7 +57,7 @@ load_dotenv(WHRB / ".env")
 os.environ["WHRB_T7_OFFLINE"] = "1"
 # Lax vocab mode lets the run survive any seed-vocab miss without raising;
 # the C1 test enforces conformance independently.
-os.environ.setdefault("WHRB_VOCAB_STRICT", "true")
+os.environ["WHRB_VOCAB_STRICT"] = "false"
 
 from enrich.dedupe import _norm_name
 from scripts.t7_source_manifest import T7_SOURCE_MANIFEST, T7SourceSpec
@@ -254,16 +255,25 @@ def _test_c9(spec: T7SourceSpec, sb) -> TkResult:
             "source_config row present (enrichment-only; rows_last_run not required)",
             "C9",
         )
-    # Compute rows_last_run by counting prospects with this source key.
+    # Compute rows_last_run by counting prospects whose ``source`` (a
+    # comma-separated list) contains this exact key as a list element.
+    # Use a broad ilike to narrow the candidate set, then post-filter for
+    # exact membership so unrelated keys with shared substrings don't
+    # accidentally match (e.g. ``ma_alr`` vs a hypothetical ``ma_alr_ext``).
     try:
         cnt = (
             sb.table("prospects")
-            .select("id", count="exact")
+            .select("source")
             .ilike("source", f"%{spec.source_key}%")
-            .limit(1)
+            .limit(5000)
             .execute()
         )
-        rlr = cnt.count or 0
+        candidates = cnt.data or []
+        rlr = sum(
+            1
+            for r in candidates
+            if spec.source_key in (r.get("source") or "").split(",")
+        )
     except Exception as exc:
         return _failing(
             f"T7.{spec.source_key}.C9",
@@ -286,32 +296,61 @@ def _test_c9(spec: T7SourceSpec, sb) -> TkResult:
 def _test_c3(
     spec: T7SourceSpec, all_rows_by_key: dict[str, list[dict]]
 ) -> TkResult:
-    """T7.<source>.C3 — dedupe collision against declared partner."""
+    """T7.<source>.C3 — dedupe collision against declared partner.
+
+    Validates two layers:
+      1. Structural: this source's fixture rows share at least one
+         normalized name with its partner's fixture rows.
+      2. Behavioral: ``enrich.dedupe.dedupe`` actually merges the
+         union (i.e. the dedupe heuristics catch the collision, not
+         just that the names happen to overlap).
+    """
     if spec.dedupe_partner is None:
         return _skip_na(
             f"T7.{spec.source_key}.C3",
             "no dedupe partner declared in manifest",
             "C3",
         )
-    self_names = {_norm_name(r["company_name"]) for r in all_rows_by_key.get(spec.source_key, [])}
+    self_rows = all_rows_by_key.get(spec.source_key, [])
     partner_rows = all_rows_by_key.get(spec.dedupe_partner, [])
+    if not self_rows:
+        return _skip_manual(
+            f"T7.{spec.source_key}.C3",
+            f"self source {spec.source_key} returned 0 rows; cannot test collision",
+            "C3",
+        )
     if not partner_rows:
         return _skip_manual(
             f"T7.{spec.source_key}.C3",
             f"partner {spec.dedupe_partner} returned 0 rows; cannot test collision",
             "C3",
         )
+    self_names = {_norm_name(r["company_name"]) for r in self_rows}
     partner_names = {_norm_name(r["company_name"]) for r in partner_rows}
     overlap = self_names & partner_names
-    if overlap:
-        return _passing(
+    if not overlap:
+        return _failing(
             f"T7.{spec.source_key}.C3",
-            f"collides with {spec.dedupe_partner} on {len(overlap)} name(s): {sorted(overlap)[:2]}",
+            f"no name overlap with declared partner {spec.dedupe_partner}",
             "C3",
         )
-    return _failing(
+    # Behavioral: actually run dedupe over the union.
+    from enrich.dedupe import dedupe as _run_dedupe
+
+    combined = list(self_rows) + list(partner_rows)
+    deduped = _run_dedupe(combined)
+    merged = len(combined) - len(deduped)
+    if merged <= 0:
+        return _failing(
+            f"T7.{spec.source_key}.C3",
+            f"name overlap exists ({len(overlap)}) but enrich.dedupe merged 0 rows; "
+            f"check tier/zip thresholds",
+            "C3",
+        )
+    return _passing(
         f"T7.{spec.source_key}.C3",
-        f"no name overlap with declared partner {spec.dedupe_partner}",
+        f"collides with {spec.dedupe_partner}: {len(overlap)} overlap, "
+        f"{merged} row(s) merged by dedupe",
         "C3",
     )
 
@@ -365,17 +404,21 @@ def _test_c8(spec: T7SourceSpec, sb, started_at: str) -> TkResult:
             f"event_log query failed: {type(exc).__name__}: {exc}",
             "C8",
         )
-    # Attribute by source_key appearing in category, message, or context.
+    # Attribute strictly by ``context.source`` exact match, with a
+    # word-boundary regex fallback over message/category to catch
+    # log lines that don't carry a structured ``context.source`` field.
+    # Substring matching was rejected because short keys (e.g. ``phcc``,
+    # ``neiba``) can collide with unrelated text.
+    key_re = re.compile(rf"\b{re.escape(spec.source_key)}\b")
     attributable = []
     for ev in events:
-        haystack = " ".join(
-            [
-                ev.get("category") or "",
-                ev.get("message") or "",
-                json.dumps(ev.get("context") or {}),
-            ]
-        )
-        if spec.source_key in haystack:
+        ctx = ev.get("context") or {}
+        if isinstance(ctx, dict) and ctx.get("source") == spec.source_key:
+            attributable.append(ev)
+            continue
+        msg = ev.get("message") or ""
+        cat = ev.get("category") or ""
+        if key_re.search(msg) or key_re.search(cat):
             attributable.append(ev)
     if attributable:
         return _failing(

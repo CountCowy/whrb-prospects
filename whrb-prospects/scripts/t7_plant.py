@@ -46,7 +46,6 @@ from pathlib import Path
 
 import requests
 from dotenv import load_dotenv
-from supabase import create_client
 
 HERE = Path(__file__).resolve().parent
 WHRB = HERE.parent
@@ -99,33 +98,52 @@ def _live_url_for(spec: T7SourceSpec, slug: str) -> str | None:
 
 
 def _fetch_one(url: str) -> tuple[int, str]:
-    per_host_sleep(url, seconds=RATE_LIMIT_SECONDS)
-    r = requests.get(
-        url,
-        headers={"User-Agent": USER_AGENT},
-        timeout=HTTP_TIMEOUT_SECONDS,
-        allow_redirects=True,
-    )
-    return r.status_code, r.text
+    """Fetch URL with retry on 5xx / 429. Returns (status, body) for
+    every other outcome so the caller can distinguish 4xx (preserve
+    stub) from 2xx (overwrite stub) without help.
+    """
+    last_status = 0
+    last_body = ""
+    for attempt in range(3):
+        per_host_sleep(url, seconds=RATE_LIMIT_SECONDS)
+        r = requests.get(
+            url,
+            headers={"User-Agent": USER_AGENT},
+            timeout=HTTP_TIMEOUT_SECONDS,
+            allow_redirects=True,
+        )
+        last_status, last_body = r.status_code, r.text
+        retryable = r.status_code == 429 or 500 <= r.status_code < 600
+        if retryable and attempt < 2:
+            time.sleep(2 * (attempt + 1))  # 2s, 4s
+            continue
+        break
+    return last_status, last_body
 
 
 def _parser_accepts(spec: T7SourceSpec, slug: str, text: str) -> bool:
     """Return True iff the source module would emit at least 1 row from
-    *text*. Used to validate live fetches before overwriting stubs."""
+    *text*. Used to validate live fetches before overwriting stubs.
+
+    Dispatches by signature: modules with a ``_DATASETS`` dict accept
+    ``(slug, text)``; single-slug modules accept ``(text)``. Detecting via
+    attribute presence avoids the prior ``try/except TypeError`` shape,
+    which silently swallowed unrelated TypeErrors raised inside the
+    parser.
+    """
+    if not text or len(text) < 200:
+        # Empty / tiny payloads (error pages, redirects without body) can
+        # never represent a parseable directory.
+        return False
     mod = importlib.import_module(f"sources.{spec.module}")
+    parser = getattr(mod, "_emit_from_csv", None) or getattr(mod, "_emit_from_html", None)
+    if parser is None:
+        return False
     try:
-        if hasattr(mod, "_emit_from_csv"):
-            try:
-                rows = mod._emit_from_csv(slug, text)
-            except TypeError:
-                rows = mod._emit_from_csv(text)
-        elif hasattr(mod, "_emit_from_html"):
-            rows = mod._emit_from_html(text)
-        else:
-            return False
-        return len(rows) >= 1
+        rows = parser(slug, text) if hasattr(mod, "_DATASETS") else parser(text)
     except Exception:
         return False
+    return len(rows) >= 1
 
 
 def _capture_fixtures(
@@ -236,7 +254,7 @@ _PLANT_PROSPECTS: list[dict] = [
         "tier": "C",
         "zip": "02138",
         "category": "home_services/plumbing",
-        "pipeline_notes": "t7 fixture — cambridge_permits↔phcc",
+        "pipeline_notes": "t7 fixture — cambridge_permits↔ma_landscape_pros",
     },
     {
         "company_name": "Cambridge Arts Center",
@@ -271,7 +289,7 @@ _PLANT_PROSPECTS: list[dict] = [
         "tier": "C",
         "zip": "02116",
         "category": "real_estate/home_inspector",
-        "pipeline_notes": "t7 fixture — ashi_ne↔phcc",
+        "pipeline_notes": "t7 fixture — ashi_ne↔cambridge_permits",
     },
     {
         "company_name": "Boston Genomics",
@@ -309,6 +327,10 @@ def _plant_dedupe_prospects(sb) -> list[dict]:
 
 
 def _client():
+    # Import lazily so ``--dry-run`` works in environments without the
+    # ``supabase`` package installed.
+    from supabase import create_client
+
     return create_client(SUPABASE_URL, SERVICE_KEY)
 
 

@@ -10,7 +10,12 @@ from sources import _t7_common as common
 
 SOURCE_KEY = "ams_schools"
 
-LIVE_URL = "https://amshq.org/Find-a-Montessori-School?state=MA"
+# Verified live 2026-05-01. The original ``/Find-a-Montessori-School?state=MA``
+# is a 404 (older AMS URL pattern). The current AMS site uses ``/schools/``
+# as its school-locator landing page — the search UI is JS-driven, but the
+# initial HTML response renders a server-side member list that the parser
+# can extract via the generic ZIP-pivot fallback.
+LIVE_URL = "https://amshq.org/schools/"
 
 
 def _emit_from_html(html: str) -> list[dict]:
@@ -25,6 +30,8 @@ def _emit_from_html(html: str) -> list[dict]:
             continue
         zip_el = school.select_one(".zip") or school.select_one(".school-zip")
         zip_code = zip_el.get_text(strip=True)[:5] if zip_el else None
+        if zip_code and not common.in_signal_zone(zip_code):
+            continue
         phone_el = school.select_one(".phone") or school.select_one(".school-phone")
         phone = phone_el.get_text(strip=True) if phone_el else None
         link_el = school.select_one("a")
@@ -45,16 +52,35 @@ def _emit_from_html(html: str) -> list[dict]:
                 pipeline_notes="ams_schools: American Montessori Society school",
             )
         )
+    if not rows:
+        rows = common.emit_via_html_fallback(
+            html,
+            source_key=SOURCE_KEY,
+            category="education/montessori",
+            tier="A",
+            sector="education",
+            operating_model="institution",
+            cadence=["admissions_window", "term_driven"],
+            pipeline_notes="ams_schools: American Montessori Society school",
+        )
     return common.cap_rows(rows, cap=200)
 
 
 def run_all() -> list[dict]:
     html = common.read_fixture(SOURCE_KEY, "schools", ext="html")
-    if html is None and not common.offline_enabled():
-        try:
-            html = common.http_get(LIVE_URL)
-        except Exception:
-            html = None
-    if not html:
+    if html is not None:
+        return _emit_from_html(html)
+    if common.offline_enabled():
         return []
-    return _emit_from_html(html)
+    rows: list[dict] = []
+    try:
+        html = common.http_get(LIVE_URL)
+        if html:
+            rows = _emit_from_html(html)
+    except Exception:
+        rows = []
+    if not rows:
+        rendered = common.fetch_html_via_playwright(LIVE_URL)
+        if rendered:
+            rows = _emit_from_html(rendered)
+    return rows
