@@ -124,6 +124,10 @@ jobs:
       # one doesn't block the others, but the workflow shouldn't silently
       # report green if any of them broke. Fail loud here so the run shows
       # red in the Actions UI and any monitoring picks it up.
+      #
+      # Match `!= success` rather than `= failure` so cancelled steps
+      # also count as anomalies — the aggregator's whole point is to
+      # surface anything that didn't complete cleanly.
       - name: Fail the job if any maintenance step failed
         if: always()
         env:
@@ -133,12 +137,12 @@ jobs:
           LIFECYCLE: ${{ steps.lifecycle.outcome }}
         run: |
           failed=()
-          [ "$ROLLUP" = "failure" ] && failed+=("rollup_impressions")
-          [ "$ARCHIVE_VOCAB" = "failure" ] && failed+=("archive_deprecated_vocab")
-          [ "$PRUNE" = "failure" ] && failed+=("prune_event_log")
-          [ "$LIFECYCLE" = "failure" ] && failed+=("advance_source_lifecycle")
+          [ "$ROLLUP" != "success" ] && failed+=("rollup_impressions=$ROLLUP")
+          [ "$ARCHIVE_VOCAB" != "success" ] && failed+=("archive_deprecated_vocab=$ARCHIVE_VOCAB")
+          [ "$PRUNE" != "success" ] && failed+=("prune_event_log=$PRUNE")
+          [ "$LIFECYCLE" != "success" ] && failed+=("advance_source_lifecycle=$LIFECYCLE")
           if [ ${#failed[@]} -gt 0 ]; then
-            echo "::error::Maintenance steps failed: ${failed[*]}"
+            echo "::error::Maintenance steps not green: ${failed[*]}"
             exit 1
           fi
           echo "All maintenance steps passed."

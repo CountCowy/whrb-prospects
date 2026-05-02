@@ -85,7 +85,18 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["."]
+# Explicit production-code surface — the 28% floor gates exactly these
+# dirs/files. New top-level modules need to be added here (or excluded
+# via `omit` if they're scripts/sandbox/etc.) so coverage math doesn't
+# silently drift when the tree grows.
+source = [
+    "config.py",
+    "pipeline.py",
+    "db",
+    "enrich",
+    "sources",
+    "util",
+]
 omit = [
     "tests/*",
     "scripts/*",

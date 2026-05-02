@@ -7,8 +7,13 @@ on:
       - '.github/workflows/whrb-web-ci.yml'
       # The e2e job plants fixtures via these scripts before driving
       # Playwright. Re-run when they change so plant-script breakage
-      # doesn't slip past the gate.
-      - 'whrb-prospects/scripts/stage*.py'
+      # doesn't slip past the gate. Covers both `stage*` and `t*`
+      # plants/cleanups so the next time a T-stage plant gets wired
+      # into the e2e flow, this filter doesn't have to be revisited.
+      - 'whrb-prospects/scripts/stage*_plant.py'
+      - 'whrb-prospects/scripts/stage*_cleanup.py'
+      - 'whrb-prospects/scripts/t*_plant.py'
+      - 'whrb-prospects/scripts/t*_cleanup.py'
       - 'whrb-prospects/requirements.lock'
       - 'whrb-prospects/.python-version'
   push:
@@ -16,7 +21,10 @@ on:
     paths:
       - 'whrb-web/**'
       - '.github/workflows/whrb-web-ci.yml'
-      - 'whrb-prospects/scripts/stage*.py'
+      - 'whrb-prospects/scripts/stage*_plant.py'
+      - 'whrb-prospects/scripts/stage*_cleanup.py'
+      - 'whrb-prospects/scripts/t*_plant.py'
+      - 'whrb-prospects/scripts/t*_cleanup.py'
       - 'whrb-prospects/requirements.lock'
       - 'whrb-prospects/.python-version'
 

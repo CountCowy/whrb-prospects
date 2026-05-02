@@ -38,8 +38,12 @@ def main() -> int:
         os.environ["SUPABASE_URL"],
         os.environ["SUPABASE_SERVICE_ROLE_KEY"],
     )
-    outcome = os.environ.get("PIPELINE_STATUS") or "failure"
-    status = "success" if outcome == "success" else "failed"
+
+    # Default status from the GitHub Actions step outcome; the
+    # pipeline-emitted summary line (parsed below) overrides this when
+    # present, since the pipeline knows more than `step.outcome` does.
+    step_outcome = os.environ.get("PIPELINE_STATUS") or "failure"
+    status = "success" if step_outcome == "success" else "failed"
 
     rows_upserted: int | None = None
     err: str | None = None
@@ -54,8 +58,7 @@ def main() -> int:
                 rows_upserted = int(rows_tok)
             if err_tok.strip():
                 err = err_tok.strip()[:400]
-            # pipeline-reported status wins
-            status = status_tok
+            status = status_tok  # pipeline-reported status wins
         tail = text[-800:] if text else ""
     except FileNotFoundError:
         pass

@@ -26,6 +26,20 @@ updates:
         update-types:
           - minor
           - patch
+      # supabase-py pins httpx + bundles postgrest/realtime/gotrue/storage3
+      # — group their majors so the upgrade reviews as one PR rather than
+      # fighting per-package version incompatibilities.
+      supabase-stack-major:
+        patterns:
+          - "supabase"
+          - "supabase-functions"
+          - "postgrest"
+          - "realtime"
+          - "storage3"
+          - "gotrue"
+          - "httpx"
+        update-types:
+          - major
 
   - package-ecosystem: npm
     directory: /whrb-web
@@ -40,8 +54,10 @@ updates:
         update-types:
           - minor
           - patch
-      # Radix UI + Next.js + React travel together — group their major
-      # bumps so the upgrade happens as one reviewable PR, not many.
+      # Radix UI + Next.js + React + Node typings travel together —
+      # group their major bumps so the upgrade happens as one reviewable
+      # PR, not many. @types/node included because Next.js majors
+      # typically push the supported Node major forward in lockstep.
       react-stack-major:
         patterns:
           - "react"
@@ -49,6 +65,7 @@ updates:
           - "next"
           - "@types/react"
           - "@types/react-dom"
+          - "@types/node"
         update-types:
           - major
 
