@@ -82,74 +82,8 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           EVENT_NAME: ${{ github.event_name }}
           DISPATCH_RUN_ID: ${{ github.event.client_payload.pipeline_run_id }}
-          # Stage 10c: stamp github.run_id onto the pipeline_runs row so the
-          # cancel API can target POST /repos/.../actions/runs/{id}/cancel
-          # when admins cancel a running workflow.
           GITHUB_RUN_ID: ${{ github.run_id }}
-        run: |
-          python - <<'PY'
-          import os, sys, json
-          from datetime import datetime, timezone
-          from supabase import create_client
-          url = os.environ['SUPABASE_URL']
-          key = os.environ['SUPABASE_SERVICE_ROLE_KEY']
-          event = os.environ['EVENT_NAME']
-          gh_run_id = int(os.environ.get('GITHUB_RUN_ID') or 0) or None
-          sb = create_client(url, key)
-          now = datetime.now(tz=timezone.utc).isoformat()
-          run_id = None
-          if event == 'repository_dispatch':
-              run_id = os.environ.get('DISPATCH_RUN_ID') or ''
-              if not run_id:
-                  print('::error::repository_dispatch payload missing pipeline_run_id', file=sys.stderr)
-                  sys.exit(1)
-              # Flip the queued row to running. If the row doesn't exist or is
-              # already running/success/failed, surface the discrepancy and exit.
-              update_patch = {
-                  'status': 'running',
-                  'started_at': now,
-              }
-              if gh_run_id is not None:
-                  update_patch['github_run_id'] = gh_run_id
-              res = sb.table('pipeline_runs').update(update_patch).eq('id', run_id).eq('status', 'queued').execute()
-              if not res.data:
-                  print(f'::warning::no queued row matched id={run_id}; continuing for forensic trace', file=sys.stderr)
-          else:
-              # schedule or workflow_dispatch — insert a fresh `running` row so
-              # the Edge Function (which filters on status='queued') never
-              # re-dispatches and creates a loop.
-              args_str = '--scheduled' if event == 'schedule' else '--manual'
-              insert_row = {
-                  'status': 'running',
-                  'started_at': now,
-                  'triggered_by': None,
-                  'args': args_str,
-              }
-              if gh_run_id is not None:
-                  insert_row['github_run_id'] = gh_run_id
-              res = sb.table('pipeline_runs').insert(insert_row).execute()
-              run_id = (res.data[0] if res.data else {}).get('id')
-              if not run_id:
-                  print('::error::failed to insert pipeline_runs row', file=sys.stderr)
-                  sys.exit(1)
-          # Stage 10c: read back the `args` column for repository_dispatch so
-          # the Run pipeline step below can honor admin-selected flags.
-          # Schedule / workflow_dispatch paths keep the hardcoded --with-hic
-          # invocation (those `args` values are markers like '--scheduled',
-          # not real pipeline.py flags).
-          args_out = ''
-          if event == 'repository_dispatch':
-              fetched = sb.table('pipeline_runs').select('args').eq('id', run_id).single().execute()
-              raw = (fetched.data or {}).get('args') or ''
-              # Defensive: strip the --stage10c-fixture sentinel if it
-              # slipped through the dispatch-skip trigger.
-              tokens = [t for t in raw.split() if t and t != '--stage10c-fixture']
-              args_out = ' '.join(tokens)
-          print(f'[pipeline_runs] run_id={run_id} github_run_id={gh_run_id} args={args_out!r}')
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f'run_id={run_id}\n')
-              f.write(f'args={args_out}\n')
-          PY
+        run: python scripts/dispatch_adopt_run.py
 
       - name: Run pipeline
         id: pipeline
@@ -191,53 +125,7 @@ jobs:
           RUN_ID: ${{ steps.runrow.outputs.run_id }}
           PIPELINE_STATUS: ${{ steps.pipeline.outcome }}
           FORCE_FAIL: ${{ inputs.force_fail }}
-        run: |
-          python - <<'PY'
-          import os, re, sys
-          from datetime import datetime, timezone
-          from supabase import create_client
-          run_id = os.environ.get('RUN_ID') or ''
-          if not run_id:
-              print('no run_id to finalize', file=sys.stderr)
-              sys.exit(0)
-          sb = create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'])
-          outcome = os.environ.get('PIPELINE_STATUS') or 'failure'
-          force_fail = (os.environ.get('FORCE_FAIL') or '').lower() == 'true'
-          status = 'success' if (outcome == 'success' and not force_fail) else 'failed'
-          rows_upserted = None
-          err = None
-          log_path = 'cache/pipeline.log'
-          tail = ''
-          try:
-              with open(log_path, encoding='utf-8', errors='replace') as f:
-                  text = f.read()
-              m = re.findall(r'\[pipeline_summary\] status=(\S+) rows_upserted=(\d*) error=(.*)', text)
-              if m:
-                  status_tok, rows_tok, err_tok = m[-1]
-                  if rows_tok:
-                      rows_upserted = int(rows_tok)
-                  if err_tok.strip():
-                      err = err_tok.strip()[:400]
-                  # pipeline-reported status wins unless force_fail
-                  if not force_fail:
-                      status = status_tok
-              # tail for error context on failure
-              tail = text[-800:] if text else ''
-          except FileNotFoundError:
-              pass
-          if status == 'failed' and not err:
-              err = (tail or 'pipeline exited non-zero; no summary line emitted').strip()[:400]
-          patch = {
-              'status': status,
-              'finished_at': datetime.now(tz=timezone.utc).isoformat(),
-          }
-          if rows_upserted is not None:
-              patch['rows_upserted'] = rows_upserted
-          if err:
-              patch['error'] = err
-          sb.table('pipeline_runs').update(patch).eq('id', run_id).execute()
-          print(f'[pipeline_runs] finalized id={run_id} status={status} rows={rows_upserted}')
-          PY
+        run: python scripts/dispatch_finalize_run.py
 
       - name: Upload pipeline logs
         if: always()
