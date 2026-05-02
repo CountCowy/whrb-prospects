@@ -486,6 +486,25 @@ T13_WHITELISTED_CATEGORIES: tuple[str, ...] = (
 )
 
 
+def _is_expected_stimulus(category: str) -> bool:
+    """Return True if ``category`` is whitelisted.
+
+    Includes any per-source ``*_fetch_failed`` event — these are
+    specialized variants of ``source_failed`` (e.g. ``harvard_orgs_fetch_failed``,
+    ``church_concerts_fetch_failed``) that each module emits for
+    debuggability but represent the same condition: external site
+    unreachable. Treating them as stimuli matches the rationale
+    already documented for ``source_failed`` and ``scrape_http``.
+    """
+    if not category:
+        return False
+    if category in T13_WHITELISTED_CATEGORIES:
+        return True
+    if category.endswith("_fetch_failed"):
+        return True
+    return False
+
+
 def _count_unexpected_errors(client, since: str) -> tuple[int, list[str]]:
     q = (
         client.table("event_log")
@@ -498,7 +517,7 @@ def _count_unexpected_errors(client, since: str) -> tuple[int, list[str]]:
     )
     rows = q.data or []
     unexpected = [
-        r for r in rows if (r.get("category") or "") not in T13_WHITELISTED_CATEGORIES
+        r for r in rows if not _is_expected_stimulus(r.get("category") or "")
     ]
     details = [f"{r['created_at']} {r.get('category')}" for r in unexpected]
     return len(unexpected), details
@@ -510,7 +529,7 @@ def t13_no_new_errors_since_start(client, started: str) -> T:
         "T13 no new unexpected error/fatal events since stage start",
         count == 0,
         f"unexpected_errors_since={count} since={started} "
-        f"whitelist={list(T13_WHITELISTED_CATEGORIES)} "
+        f"whitelist={list(T13_WHITELISTED_CATEGORIES)} plus any *_fetch_failed "
         + (f"samples={details[:3]}" if details else ""),
     )
 

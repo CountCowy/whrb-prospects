@@ -209,6 +209,33 @@ SOURCE_KEYS: tuple[str, ...] = (
     "artsboston_calendar",
     "church_concerts",
     "music_school_departments",
+    # Stage T7 — open-data + regional expansion + trade associations (gleaming-dawn §9.4)
+    "sec_adv",
+    "ma_alr",
+    "ma_dese_nonpublic",
+    "analyze_boston_extras",
+    "cambridge_permits",
+    "ma_dpu_movers",
+    "sba_7a",
+    "mapc_creative_economy",
+    "ma_cultural_council",
+    "nefa_grantees",
+    "masscreative",
+    "mvma_vets",
+    "ma_arborists",
+    "ma_landscape_pros",
+    # NOTE: ``phcc`` was dropped 2026-05-01 — phccma.org has no public
+    # member directory and the national phccweb.org find-a-contractor
+    # tool 403s WHRB's UA. Plumbing/heating/cooling contractors are still
+    # surfaced via cambridge_permits (plumbing/mechanical) + Boston
+    # entertainment_one_time + ma_hic. See ROLLOUT.md T7 for context.
+    "ashi_ne",
+    "neiba",
+    "ams_schools",
+    "massbio",
+    "masstlc",
+    "meet_boston",
+    "mass_save_hpin",
 )
 
 # Sources that `pipeline.collect` should invoke by default (when the DB
