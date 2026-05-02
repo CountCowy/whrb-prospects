@@ -65,6 +65,7 @@ jobs:
           pip install -r requirements.lock
 
       - name: Roll up filter_impressions ≥30d → filter_impression_stats
+        id: rollup
         continue-on-error: true
         env:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
@@ -78,6 +79,7 @@ jobs:
           fi
 
       - name: Archive deprecated tag vocabulary (≥12mo, unused)
+        id: archive_vocab
         continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -85,12 +87,13 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
           if [ "${DRY_RUN}" = "true" ]; then
-            python scripts/archive_deprecated_vocab.py --dry-run || true
+            python scripts/archive_deprecated_vocab.py --dry-run
           else
-            python scripts/archive_deprecated_vocab.py || true
+            python scripts/archive_deprecated_vocab.py
           fi
 
       - name: Prune event_log per retention buckets
+        id: prune
         continue-on-error: true
         env:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
@@ -104,6 +107,7 @@ jobs:
           fi
 
       - name: Advance source lifecycle
+        id: lifecycle
         continue-on-error: true
         env:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
@@ -115,3 +119,26 @@ jobs:
           else
             python scripts/advance_source_lifecycle.py
           fi
+
+      # Aggregator: each script runs with continue-on-error so a flake in
+      # one doesn't block the others, but the workflow shouldn't silently
+      # report green if any of them broke. Fail loud here so the run shows
+      # red in the Actions UI and any monitoring picks it up.
+      - name: Fail the job if any maintenance step failed
+        if: always()
+        env:
+          ROLLUP: ${{ steps.rollup.outcome }}
+          ARCHIVE_VOCAB: ${{ steps.archive_vocab.outcome }}
+          PRUNE: ${{ steps.prune.outcome }}
+          LIFECYCLE: ${{ steps.lifecycle.outcome }}
+        run: |
+          failed=()
+          [ "$ROLLUP" = "failure" ] && failed+=("rollup_impressions")
+          [ "$ARCHIVE_VOCAB" = "failure" ] && failed+=("archive_deprecated_vocab")
+          [ "$PRUNE" = "failure" ] && failed+=("prune_event_log")
+          [ "$LIFECYCLE" = "failure" ] && failed+=("advance_source_lifecycle")
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "::error::Maintenance steps failed: ${failed[*]}"
+            exit 1
+          fi
+          echo "All maintenance steps passed."
