@@ -85,18 +85,15 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-# Explicit production-code surface — the 28% floor gates exactly these
-# dirs/files. New top-level modules need to be added here (or excluded
-# via `omit` if they're scripts/sandbox/etc.) so coverage math doesn't
-# silently drift when the tree grows.
-source = [
-    "config.py",
-    "pipeline.py",
-    "db",
-    "enrich",
-    "sources",
-    "util",
-]
+# `source = ["."]` rather than an explicit dir/file list: when coverage
+# is given a list of modules/files, it pre-imports them at startup to
+# mark their files for measurement, which causes `pipeline.py` to load
+# pandas/numpy before pytest collection runs — and numpy 2.x raises
+# "cannot load module more than once per process" when the test suite's
+# `test_pipeline_helpers.py` later does `import pipeline`. The omit list
+# below is the regression-floor's actual filter; if you ever want a
+# tighter `source` list, audit which files trigger imports first.
+source = ["."]
 omit = [
     "tests/*",
     "scripts/*",
