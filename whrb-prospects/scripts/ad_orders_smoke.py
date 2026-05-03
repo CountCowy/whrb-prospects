@@ -25,7 +25,6 @@ Cleanup runs in `finally` even on failure. Uses a dedicated
 from __future__ import annotations
 
 import os
-import sys
 from decimal import Decimal
 from pathlib import Path
 
@@ -120,7 +119,7 @@ def main() -> int:
         # ----------- S1: generated column ---------------------------------
         expected_comm = (Decimal(total) * Decimal(pct) / Decimal(100)).quantize(Decimal("0.01"))
         if Decimal(comm) == expected_comm:
-            add("S1", "PASS", f"commission_amount = {comm} = {total}×{pct}%/100")
+            add("S1", "PASS", f"commission_amount = {comm} = {total} * {pct}% / 100")
         else:
             add("S1", "FAIL", f"commission_amount={comm} != expected {expected_comm}")
 
@@ -235,7 +234,7 @@ def main() -> int:
             am = cur.fetchone()
             conn.rollback()
         if am:
-            field, old_v, new_v, reason, amender = am
+            field, old_v, new_v, _reason, amender = am
             ok = field == "total_amount" and amender == ADMIN_ID
             status = "PASS" if ok else "FAIL"
             add("S8", status, f"amendment row: field={field} old={old_v} new={new_v} by={amender}")

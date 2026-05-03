@@ -48,7 +48,7 @@ DB_PASSWORD = os.environ.get("SUPABASE_DB_PASSWORD")
 
 
 class TkResult:
-    __slots__ = ("id", "status", "msg")
+    __slots__ = ("id", "msg", "status")
 
     def __init__(self, id_: str, status: str, msg: str):
         self.id = id_
@@ -127,7 +127,7 @@ def _started_at_iso() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Checks AO01–AO13: row-level invariants (service-role)
+# Checks AO01-AO13: row-level invariants (service-role)
 # ---------------------------------------------------------------------------
 
 
