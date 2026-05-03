@@ -56,6 +56,7 @@ files = [
     "db/validators.py",
     "db/nonprofit_bmf.py",
     "enrich/dedupe.py",
+    "sources/_base.py",
     "util",
 ]
 exclude = [

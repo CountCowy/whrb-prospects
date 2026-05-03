@@ -14,7 +14,6 @@ from __future__ import annotations
 import argparse
 import math
 import sys
-from collections.abc import Callable
 from datetime import UTC
 from pathlib import Path
 
@@ -67,6 +66,7 @@ from sources import (
     sec_adv,
     yelp_fusion,
 )
+from sources._base import ProspectRow, RunAll
 from util import cannabis_block, checkpoint, event_log
 
 PHASE_ORDER = [
@@ -212,7 +212,7 @@ _ZERO_ROW_EXPECTED_SOURCES: frozenset[str] = frozenset(
 )
 
 
-def _safe_cached(label: str, fn: Callable[[], list[dict]]) -> list[dict]:
+def _safe_cached(label: str, fn: RunAll) -> list[ProspectRow]:
     cached = checkpoint.load_source(label)
     if cached is not None:
         print(f"[{label}] loaded {len(cached)} rows from cache")

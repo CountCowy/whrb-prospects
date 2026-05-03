@@ -586,17 +586,27 @@ def t18_regression(skip: bool) -> T:
                 f"stderr={r.stderr[:300]}"
             )
 
-    # (b) ROLLOUT cert line.
-    rollout_path = REPO_ROOT / "ROLLOUT.md"
-    if not rollout_path.exists():
-        failures.append("ROLLOUT.md missing")
+    # (b) ROLLOUT cert line. The sign-off lives in the Stage 10c shard
+    # (ROLLOUT/stage-10c.md) post-shard; we glob the whole ROLLOUT/ tree
+    # so this stays robust if the shard is renamed in the future.
+    rollout_dir = REPO_ROOT / "ROLLOUT"
+    legacy_rollout = REPO_ROOT / "ROLLOUT.md"
+    if rollout_dir.is_dir():
+        cert_found = any(
+            "fully green on all 17 Tks" in shard.read_text()
+            for shard in rollout_dir.glob("*.md")
+        )
+    elif legacy_rollout.exists():
+        # Pre-shard layout — kept for back-compat with old branches.
+        cert_found = "fully green on all 17 Tks" in legacy_rollout.read_text()
     else:
-        text = rollout_path.read_text()
-        if "fully green on all 17 Tks" not in text:
-            failures.append(
-                "ROLLOUT.md missing 'fully green on all 17 Tks' Stage 10c "
-                "sign-off line"
-            )
+        cert_found = False
+        failures.append("Neither ROLLOUT/ directory nor ROLLOUT.md found")
+    if not cert_found and not failures:
+        failures.append(
+            "ROLLOUT shards missing 'fully green on all 17 Tks' Stage 10c "
+            "sign-off line"
+        )
 
     # (c) No new T1-emitted errors in Stage-10c-relevant categories.
     snap = json.loads(SNAPSHOT_PATH.read_text())

@@ -38,6 +38,7 @@ import io
 from collections.abc import Iterator
 
 from sources import _t7_common as common
+from sources._base import ProspectRow
 
 SOURCE_KEY = "ma_alr"
 
@@ -178,8 +179,8 @@ def _iter_rows(xlsx_bytes: bytes) -> Iterator[dict]:
         yield dict(zip(header, row))
 
 
-def _emit_from_xlsx(xlsx_bytes: bytes) -> list[dict]:
-    rows: list[dict] = []
+def _emit_from_xlsx(xlsx_bytes: bytes) -> list[ProspectRow]:
+    rows: list[ProspectRow] = []
     for raw in _iter_rows(xlsx_bytes):
         name = raw.get("ALR Name") or ""
         if isinstance(name, str):
@@ -222,7 +223,7 @@ def _emit_from_xlsx(xlsx_bytes: bytes) -> list[dict]:
     return common.cap_rows(rows, cap=500)
 
 
-def _emit_from_csv(text: str) -> list[dict]:
+def _emit_from_csv(text: str) -> list[ProspectRow]:
     """Backwards-compat CSV path used by offline fixtures.
 
     Pre-XLSX-rewrite fixtures at ``tests/fixtures/t7/ma_alr/residences.csv``
@@ -230,7 +231,7 @@ def _emit_from_csv(text: str) -> list[dict]:
     integrity matrix doesn't have to be re-planted before exit-gate
     rerun.
     """
-    rows: list[dict] = []
+    rows: list[ProspectRow] = []
     for raw in common.parse_csv(text):
         name = raw.get("Residence Name") or raw.get("Name") or raw.get("name")
         zip_code = (raw.get("Zip") or raw.get("ZIP") or raw.get("zip") or "")[:5]
@@ -260,7 +261,7 @@ def _emit_from_csv(text: str) -> list[dict]:
     return common.cap_rows(rows, cap=500)
 
 
-def run_all() -> list[dict]:
+def run_all() -> list[ProspectRow]:
     # 1. CSV fixture path — preserves the existing C2 integrity test.
     text = common.read_fixture(SOURCE_KEY, "residences", ext="csv")
     if text is not None:

@@ -8,6 +8,7 @@ from __future__ import annotations
 from bs4 import BeautifulSoup
 
 from sources import _t7_common as common
+from sources._base import ProspectRow
 
 SOURCE_KEY = "ma_arborists"
 
@@ -19,9 +20,9 @@ SOURCE_KEY = "ma_arborists"
 LIVE_URL = "https://www.massarbor.org/directory"
 
 
-def _emit_from_html(html: str) -> list[dict]:
+def _emit_from_html(html: str) -> list[ProspectRow]:
     soup = BeautifulSoup(html, "html.parser")
-    rows: list[dict] = []
+    rows: list[ProspectRow] = []
     for member in soup.select("article.member, .arborist-card, .member-card"):
         name_el = member.select_one(".member-name") or member.select_one("h3")
         if not name_el:
@@ -67,13 +68,13 @@ def _emit_from_html(html: str) -> list[dict]:
     return common.cap_rows(rows, cap=300)
 
 
-def run_all() -> list[dict]:
+def run_all() -> list[ProspectRow]:
     html = common.read_fixture(SOURCE_KEY, "members", ext="html")
     if html is not None:
         return _emit_from_html(html)
     if common.offline_enabled():
         return []
-    rows: list[dict] = []
+    rows: list[ProspectRow] = []
     try:
         html = common.http_get(LIVE_URL)
         if html:
