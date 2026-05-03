@@ -28,6 +28,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const existing = await getAdOrder(id);
   if (!existing) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
+  if (existing.archived_at) {
+    return NextResponse.json(
+      { error: 'Cannot mark commission paid on an archived order. Restore it first.' },
+      { status: 409 },
+    );
+  }
   if (!existing.is_paid) {
     return NextResponse.json(
       { error: 'Cannot mark commission paid: row is not yet client-paid.' },

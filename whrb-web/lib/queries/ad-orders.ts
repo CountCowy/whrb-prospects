@@ -13,6 +13,8 @@ import {
 // Re-export shared types & schemas so existing imports from
 // `@/lib/queries/ad-orders` keep working.
 export {
+  AD_ORDER_SORT_DIRS,
+  AD_ORDER_SORT_FIELDS,
   AD_ORDER_STATUSES,
   AdOrderCreateSchema,
   AdOrderPatchSchema,
@@ -138,9 +140,14 @@ export async function listAdOrders(params: {
   }
 
   if (filters.q && filters.q.trim()) {
-    const term = filters.q.trim().replace(/[%_]/g, '');
-    const orClause = SEARCH_FIELDS.map((f) => `${f}.ilike.%${term}%`).join(',');
-    query = query.or(orClause);
+    // Strip LIKE wildcards (%, _) AND PostgREST or-clause syntax chars
+    // (, . ( ) " ) so a crafted q can't break out of `ilike.%...%` into a
+    // sibling `column.op.value` filter.
+    const term = filters.q.trim().replace(/[%_,().":*]/g, '');
+    if (term) {
+      const orClause = SEARCH_FIELDS.map((f) => `${f}.ilike.%${term}%`).join(',');
+      query = query.or(orClause);
+    }
   }
 
   if (filters.salesperson) query = query.eq('salesperson_id', filters.salesperson);

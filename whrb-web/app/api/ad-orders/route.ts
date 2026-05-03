@@ -4,9 +4,12 @@ import { createClient } from '@/lib/supabase/server';
 import { requireAdmin, getAuthed } from '@/lib/server/authz';
 import { logEvent } from '@/lib/logging/server';
 import {
+  AD_ORDER_SORT_DIRS,
+  AD_ORDER_SORT_FIELDS,
   AdOrderCreateSchema,
+  DEFAULT_SORT,
   listAdOrders,
-  getOrgSettingsService,
+  getOrgSettings,
   type AdOrderListFilters,
   type AdOrderListSort,
 } from '@/lib/queries/ad-orders';
@@ -42,8 +45,16 @@ export async function GET(req: Request) {
     if (v) (filters as Record<string, string>)[k] = v;
   }
 
-  const sortField = (sp.get('sort') ?? 'campaign_start') as AdOrderListSort['field'];
-  const sortDir = (sp.get('dir') ?? 'desc') as AdOrderListSort['dir'];
+  const rawSort = sp.get('sort');
+  const rawDir = sp.get('dir');
+  const sortField: AdOrderListSort['field'] =
+    rawSort && (AD_ORDER_SORT_FIELDS as readonly string[]).includes(rawSort)
+      ? (rawSort as AdOrderListSort['field'])
+      : DEFAULT_SORT.field;
+  const sortDir: AdOrderListSort['dir'] =
+    rawDir && (AD_ORDER_SORT_DIRS as readonly string[]).includes(rawDir)
+      ? (rawDir as AdOrderListSort['dir'])
+      : DEFAULT_SORT.dir;
   const sort: AdOrderListSort = { field: sortField, dir: sortDir };
 
   const page = Math.max(1, Number(sp.get('page') ?? 1));
@@ -100,10 +111,11 @@ export async function POST(req: Request) {
   }
   const body = parsed.data;
 
-  // Default commission_pct from org_settings if not provided.
+  // Default commission_pct from org_settings if not provided. Reads via the
+  // cookie client (RLS allows authed reads) — no need to elevate to service.
   let commissionPct = body.commission_pct;
   if (commissionPct === undefined) {
-    const settings = await getOrgSettingsService();
+    const settings = await getOrgSettings();
     commissionPct = Number(settings.default_commission_pct);
   }
 

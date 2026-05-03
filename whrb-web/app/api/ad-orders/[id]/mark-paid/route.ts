@@ -45,6 +45,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const existing = await getAdOrder(id);
   if (!existing) return NextResponse.json({ error: 'Not found.' }, { status: 404 });
 
+  if (existing.archived_at) {
+    return NextResponse.json(
+      { error: 'Cannot mark paid on an archived order. Restore it first.' },
+      { status: 409 },
+    );
+  }
   if (existing.is_paid) {
     return NextResponse.json({ error: 'Already paid.' }, { status: 409 });
   }
@@ -89,7 +95,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       context: { id, code: error.code, message: error.message },
       userId: user.id,
     });
-    const status = error.code === '42501' ? 403 : 400;
+    const status =
+      error.code === '42501' ? 403 :
+      error.code === '23505' ? 409 :
+      400;
     return NextResponse.json({ error: error.message }, { status });
   }
 

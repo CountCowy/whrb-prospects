@@ -398,6 +398,10 @@ set search_path = public
 as $$
 declare
   f text;
+  -- `commission_amount` is intentionally omitted: it's a STORED generated
+  -- column whose value is fully determined by total_amount + commission_pct.
+  -- Auditing it would emit a duplicate event_log row alongside the
+  -- source-of-truth column change.
   tracked text[] := array[
     'promo_id','prospect_id','company_name','package_doc_url',
     'is_nonprofit_rate','discount_pct',
@@ -407,7 +411,7 @@ declare
     'ad_produced','ad_produced_at','se_engineer_id',
     'invoice_number','invoice_sent_at',
     'is_paid','paid_at','client_check_number',
-    'commission_amount','commission_paid','commission_paid_at',
+    'commission_paid','commission_paid_at',
     'notes','archived_at','archived_by'
   ];
   actor uuid := auth.uid();

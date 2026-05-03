@@ -34,9 +34,18 @@ export type AdOrderListFilters = {
   archived?: 'true' | 'false';
 };
 
+export const AD_ORDER_SORT_FIELDS = [
+  'campaign_start',
+  'campaign_end',
+  'total_amount',
+  'created_at',
+  'promo_id',
+] as const;
+export const AD_ORDER_SORT_DIRS = ['asc', 'desc'] as const;
+
 export type AdOrderListSort = {
-  field: 'campaign_start' | 'campaign_end' | 'total_amount' | 'created_at' | 'promo_id';
-  dir: 'asc' | 'desc';
+  field: (typeof AD_ORDER_SORT_FIELDS)[number];
+  dir: (typeof AD_ORDER_SORT_DIRS)[number];
 };
 
 export const DEFAULT_SORT: AdOrderListSort = { field: 'campaign_start', dir: 'desc' };

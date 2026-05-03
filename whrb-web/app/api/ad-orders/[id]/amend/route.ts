@@ -74,6 +74,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const status =
       error.code === '42501' ? 403 :
       error.code === '23503' ? 404 :
+      error.code === '23505' ? 409 :
       error.code === '22023' ? 400 :
       error.code === '23514' ? 400 :
       400;
