@@ -7,6 +7,7 @@ import {
   BookOpen,
   Calendar,
   ChevronDown,
+  DollarSign,
   FileText,
   Home,
   LayoutGrid,
@@ -61,6 +62,7 @@ const TABS: Tab[] = [
   { href: '/prospects', label: 'All Prospects', icon: LayoutGrid },
   { href: '/my', label: 'My Clients', icon: UserCircle2 },
   { href: '/team', label: 'Team', icon: Users },
+  { href: '/ad-orders', label: 'Ad Orders', icon: DollarSign },
   { href: '/schedule', label: 'Schedule', icon: Calendar },
 ];
 

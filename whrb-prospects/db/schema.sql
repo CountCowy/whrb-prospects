@@ -1392,3 +1392,315 @@ on conflict (normalized_name) do nothing;
 -- =========================================================================
 -- End of 015_peer_stations.sql mirror
 -- =========================================================================
+
+-- =========================================================================
+-- 018_ad_orders.sql mirror — Ad Sales / Production / Payment tracker
+-- =========================================================================
+-- Slot 018 because 016 + 017 are vocab seed inserts (not DDL) and were
+-- not mirrored. Adds three tables (org_settings, ad_orders,
+-- ad_order_amendments), one immutable function (whrb_semester), one
+-- view (ad_orders_status), four triggers on ad_orders, and an
+-- updated_at trigger on org_settings.
+--
+-- See whrb-web/supabase/migrations/018_ad_orders.sql for the full
+-- comment block; this is a verbatim mirror so the pipeline + integrity
+-- scripts can run against the schema without an extra DB roundtrip.
+
+-- 1) org_settings
+create table if not exists public.org_settings (
+  id boolean primary key default true check (id),
+  default_commission_pct numeric(5,2) not null default 15
+    check (default_commission_pct between 0 and 100),
+  default_invoice_net_days integer not null default 30
+    check (default_invoice_net_days between 0 and 365),
+  updated_at timestamptz not null default now(),
+  updated_by uuid references public.profiles(id) on delete set null
+);
+
+insert into public.org_settings (id) values (true) on conflict (id) do nothing;
+
+-- 2) ad_orders
+create table if not exists public.ad_orders (
+  id uuid primary key default gen_random_uuid(),
+  promo_id text not null unique
+    check (promo_id ~ '^[A-Z]{2,4} [0-9]{4}$'),
+  prospect_id uuid references public.prospects(id) on delete restrict,
+  company_name text not null check (length(company_name) between 1 and 300),
+  package_doc_url text
+    check (package_doc_url is null
+           or package_doc_url ~* '^https://(docs|drive)\.google\.com/'),
+  is_nonprofit_rate boolean not null default false,
+  discount_pct numeric(5,2) not null default 0
+    check (discount_pct >= 0 and discount_pct <= 100),
+  payment_contact_name text check (length(payment_contact_name) <= 200),
+  payment_contact_email text
+    check (payment_contact_email is null
+           or payment_contact_email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+  campaign_start date not null,
+  campaign_end   date not null,
+  constraint ad_orders_campaign_range check (campaign_end >= campaign_start),
+  total_amount numeric(12,2) not null check (total_amount >= 0),
+  salesperson_id uuid references public.profiles(id) on delete restrict,
+  commission_pct numeric(5,2) not null default 15
+    check (commission_pct >= 0 and commission_pct <= 100),
+  ad_produced boolean not null default false,
+  ad_produced_at timestamptz,
+  se_engineer_id uuid references public.profiles(id) on delete restrict,
+  invoice_number text check (length(invoice_number) <= 50),
+  invoice_sent_at date,
+  is_paid boolean not null default false,
+  paid_at timestamptz,
+  client_check_number text check (length(client_check_number) <= 50),
+  commission_amount numeric(12,2)
+    generated always as (round(total_amount * commission_pct / 100.0, 2)) stored,
+  commission_paid boolean not null default false,
+  commission_paid_at timestamptz,
+  notes text check (length(notes) <= 5000),
+  archived_at timestamptz,
+  archived_by uuid references public.profiles(id) on delete set null,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint ad_orders_paid_requires_invoice
+    check (is_paid = false or invoice_sent_at is not null),
+  constraint ad_orders_commission_requires_paid
+    check (commission_paid = false or is_paid = true),
+  constraint ad_orders_paid_at_consistent
+    check ((is_paid = false and paid_at is null)
+        or (is_paid = true  and paid_at is not null)),
+  constraint ad_orders_commpaid_at_consistent
+    check ((commission_paid = false and commission_paid_at is null)
+        or (commission_paid = true  and commission_paid_at is not null)),
+  constraint ad_orders_produced_at_consistent
+    check ((ad_produced = false and ad_produced_at is null)
+        or (ad_produced = true  and ad_produced_at is not null))
+);
+
+-- 3) ad_order_amendments
+create table if not exists public.ad_order_amendments (
+  id uuid primary key default gen_random_uuid(),
+  ad_order_id uuid not null references public.ad_orders(id) on delete restrict,
+  field text not null check (length(field) between 1 and 64),
+  old_value jsonb not null,
+  new_value jsonb not null,
+  reason text not null check (length(reason) between 5 and 1000),
+  amended_by uuid not null references public.profiles(id) on delete restrict,
+  amended_at timestamptz not null default now()
+);
+
+-- 4) Indexes
+create index if not exists idx_ad_orders_salesperson  on public.ad_orders (salesperson_id);
+create index if not exists idx_ad_orders_se_engineer  on public.ad_orders (se_engineer_id) where se_engineer_id is not null;
+create index if not exists idx_ad_orders_prospect     on public.ad_orders (prospect_id) where prospect_id is not null;
+create index if not exists idx_ad_orders_campaign     on public.ad_orders (campaign_start, campaign_end);
+create index if not exists idx_ad_orders_unpaid       on public.ad_orders (campaign_start)
+  where is_paid = false and archived_at is null;
+create index if not exists idx_ad_orders_comm_unpaid  on public.ad_orders (salesperson_id)
+  where is_paid = true and commission_paid = false and archived_at is null;
+create unique index if not exists uq_ad_orders_invoice_number
+  on public.ad_orders (invoice_number) where invoice_number is not null;
+create index if not exists idx_ad_order_amendments_order
+  on public.ad_order_amendments (ad_order_id, amended_at desc);
+
+-- 5) whrb_semester(date)
+create or replace function public.whrb_semester(d date)
+returns text language sql immutable as $$
+  select case
+    when extract(month from d) between 1 and 5 then 'SP' || extract(year from d)::text
+    when extract(month from d) between 6 and 7 then 'SU' || extract(year from d)::text
+    else 'FA' || extract(year from d)::text
+  end;
+$$;
+
+create index if not exists idx_ad_orders_semester
+  on public.ad_orders ((public.whrb_semester(campaign_start)));
+
+-- 6) ad_orders_status view
+create or replace view public.ad_orders_status with (security_invoker = true) as
+select id,
+  case
+    when archived_at is not null      then 'archived'
+    when commission_paid              then 'closed'
+    when is_paid                      then 'awaiting_commission'
+    when invoice_sent_at is not null  then 'awaiting_payment'
+    when ad_produced                  then 'awaiting_invoice'
+    else                                   'pending_production'
+  end as status
+from public.ad_orders;
+
+-- 7) Triggers (functions defined in canonical 018_ad_orders.sql; see there
+--    for the full body. The schema.sql mirror only re-creates the trigger
+--    bindings so the integrity script can rely on their existence.)
+drop trigger if exists t_ad_orders_touch on public.ad_orders;
+create trigger t_ad_orders_touch
+  before update on public.ad_orders
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists t_ad_orders_update_guard on public.ad_orders;
+create trigger t_ad_orders_update_guard
+  before update on public.ad_orders
+  for each row execute function public.enforce_ad_order_update_guard();
+
+drop trigger if exists t_ad_orders_paid_lockdown on public.ad_orders;
+create trigger t_ad_orders_paid_lockdown
+  before update on public.ad_orders
+  for each row execute function public.enforce_ad_order_paid_lockdown();
+
+drop trigger if exists t_ad_orders_audit on public.ad_orders;
+create trigger t_ad_orders_audit
+  after update on public.ad_orders
+  for each row execute function public.audit_ad_order_change();
+
+drop trigger if exists t_org_settings_touch on public.org_settings;
+create trigger t_org_settings_touch
+  before update on public.org_settings
+  for each row execute function public.set_updated_at();
+
+-- 8) RLS (verbatim from canonical migration)
+alter table public.org_settings enable row level security;
+drop policy if exists p_orgsettings_read on public.org_settings;
+create policy p_orgsettings_read on public.org_settings
+  for select using (auth.uid() is not null);
+drop policy if exists p_orgsettings_update on public.org_settings;
+create policy p_orgsettings_update on public.org_settings
+  for update using (
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
+drop policy if exists p_orgsettings_no_insert on public.org_settings;
+create policy p_orgsettings_no_insert on public.org_settings
+  for insert with check (false);
+drop policy if exists p_orgsettings_no_delete on public.org_settings;
+create policy p_orgsettings_no_delete on public.org_settings
+  for delete using (false);
+
+alter table public.ad_orders enable row level security;
+drop policy if exists p_ad_orders_read on public.ad_orders;
+create policy p_ad_orders_read on public.ad_orders
+  for select using (auth.uid() is not null);
+drop policy if exists p_ad_orders_insert on public.ad_orders;
+create policy p_ad_orders_insert on public.ad_orders
+  for insert with check (
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+  );
+drop policy if exists p_ad_orders_update on public.ad_orders;
+create policy p_ad_orders_update on public.ad_orders
+  for update using (
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+    or salesperson_id = auth.uid()
+    or se_engineer_id = auth.uid()
+  );
+drop policy if exists p_ad_orders_no_delete on public.ad_orders;
+create policy p_ad_orders_no_delete on public.ad_orders
+  for delete using (false);
+
+alter table public.ad_order_amendments enable row level security;
+drop policy if exists p_ad_order_amend_read on public.ad_order_amendments;
+create policy p_ad_order_amend_read on public.ad_order_amendments
+  for select using (auth.uid() is not null);
+drop policy if exists p_ad_order_amend_insert on public.ad_order_amendments;
+create policy p_ad_order_amend_insert on public.ad_order_amendments
+  for insert with check (
+    exists (select 1 from public.profiles where id = auth.uid() and role = 'admin')
+    and amended_by = auth.uid()
+  );
+drop policy if exists p_ad_order_amend_no_update on public.ad_order_amendments;
+create policy p_ad_order_amend_no_update on public.ad_order_amendments
+  for update using (false);
+drop policy if exists p_ad_order_amend_no_delete on public.ad_order_amendments;
+create policy p_ad_order_amend_no_delete on public.ad_order_amendments
+  for delete using (false);
+
+-- 9) ad_order_amend RPC (security definer; admin-only; sets the
+--    app.amend_in_progress GUC to bypass the paid-lockdown trigger).
+create or replace function public.ad_order_amend(
+  p_ad_order_id uuid,
+  p_field text,
+  p_new_value_text text,
+  p_reason text
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid := auth.uid();
+  is_admin boolean;
+  old_value jsonb;
+begin
+  if actor is null then
+    raise exception 'ad_order_amend requires an authenticated user' using errcode = '42501';
+  end if;
+  select exists(select 1 from public.profiles where id = actor and role = 'admin')
+    into is_admin;
+  if not is_admin then
+    raise exception 'ad_order_amend requires admin role' using errcode = '42501';
+  end if;
+  if length(coalesce(p_reason, '')) < 5 then
+    raise exception 'ad_order_amend: reason must be at least 5 characters' using errcode = '22023';
+  end if;
+  execute format('select to_jsonb(t.%I) from public.ad_orders t where t.id = $1', p_field)
+    into old_value using p_ad_order_id;
+  if old_value is null then
+    raise exception 'ad_order_amend: ad_order % not found', p_ad_order_id using errcode = '23503';
+  end if;
+  perform set_config('app.amend_in_progress', 'on', true);
+  case p_field
+    when 'promo_id' then
+      execute 'update public.ad_orders set promo_id = upper(regexp_replace(trim($1), ''\s+'', '' '', ''g'')) where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'company_name' then
+      execute 'update public.ad_orders set company_name = $1 where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'package_doc_url' then
+      execute 'update public.ad_orders set package_doc_url = nullif($1, '''') where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'payment_contact_name' then
+      execute 'update public.ad_orders set payment_contact_name = nullif($1, '''') where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'payment_contact_email' then
+      execute 'update public.ad_orders set payment_contact_email = nullif($1, '''') where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'invoice_number' then
+      execute 'update public.ad_orders set invoice_number = nullif($1, '''') where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'client_check_number' then
+      execute 'update public.ad_orders set client_check_number = nullif($1, '''') where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'notes' then
+      execute 'update public.ad_orders set notes = nullif($1, '''') where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'prospect_id' then
+      execute 'update public.ad_orders set prospect_id = nullif($1, '''')::uuid where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'salesperson_id' then
+      execute 'update public.ad_orders set salesperson_id = nullif($1, '''')::uuid where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'se_engineer_id' then
+      execute 'update public.ad_orders set se_engineer_id = nullif($1, '''')::uuid where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'total_amount', 'discount_pct', 'commission_pct' then
+      execute format('update public.ad_orders set %I = $1::numeric where id = $2', p_field)
+        using p_new_value_text, p_ad_order_id;
+    when 'campaign_start', 'campaign_end', 'invoice_sent_at' then
+      execute format('update public.ad_orders set %I = nullif($1, '''')::date where id = $2', p_field)
+        using p_new_value_text, p_ad_order_id;
+    when 'ad_produced_at' then
+      execute 'update public.ad_orders set ad_produced_at = nullif($1, '''')::timestamptz where id = $2'
+        using p_new_value_text, p_ad_order_id;
+    when 'is_nonprofit_rate', 'ad_produced' then
+      execute format('update public.ad_orders set %I = $1::boolean where id = $2', p_field)
+        using p_new_value_text, p_ad_order_id;
+    else
+      raise exception 'ad_order_amend: field % is not amendable', p_field using errcode = '22023';
+  end case;
+  perform set_config('app.amend_in_progress', 'off', true);
+  insert into public.ad_order_amendments
+    (ad_order_id, field, old_value, new_value, reason, amended_by)
+  values
+    (p_ad_order_id, p_field, old_value, to_jsonb(p_new_value_text), p_reason, actor);
+end;
+$$;
+
+-- =========================================================================
+-- End of 018_ad_orders.sql mirror
+-- =========================================================================
