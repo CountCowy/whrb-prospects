@@ -3,6 +3,13 @@
 # after editing this file.
 pytest>=8.0
 pytest-cov>=4.1
+# Post-T7 coverage lift dependencies. responses mocks `requests`-based
+# HTTP for hunter_free / apollo_free tests; pytest-asyncio drives
+# contact_scraper.py's async paths; pytest-mock is the cleaner sibling
+# of bare unittest.mock for fixtures.
+responses>=0.25
+pytest-mock>=3.12
+pytest-asyncio>=0.23
 mypy>=1.10
 ruff>=0.5
 pip-tools>=7.4
