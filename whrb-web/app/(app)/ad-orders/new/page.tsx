@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 
 import { getAuthed } from '@/lib/server/authz';
 import { getOrgSettings } from '@/lib/queries/ad-orders';
+import { listProfiles } from '@/lib/queries/profiles';
 import { AdOrderForm } from '@/components/ad-orders/AdOrderForm';
 
 export default async function NewAdOrderPage() {
@@ -9,7 +10,7 @@ export default async function NewAdOrderPage() {
   if (authz.kind === 'unauth') redirect('/login?next=/ad-orders/new');
   if (authz.user.role !== 'admin') redirect('/ad-orders');
 
-  const settings = await getOrgSettings();
+  const [settings, profiles] = await Promise.all([getOrgSettings(), listProfiles()]);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6">
@@ -23,6 +24,7 @@ export default async function NewAdOrderPage() {
       <AdOrderForm
         mode="create"
         defaultCommissionPct={Number(settings.default_commission_pct)}
+        profiles={profiles}
       />
     </div>
   );

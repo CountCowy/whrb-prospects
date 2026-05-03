@@ -9,18 +9,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { AdOrderRow } from '@/lib/queries/ad-orders';
+import type { Profile } from '@/lib/queries/profiles';
 
 type Props =
   | {
       mode: 'create';
       defaultCommissionPct: number;
+      profiles: Profile[];
     }
   | {
       mode: 'edit';
       row: AdOrderRow;
       isAdmin: boolean;
       isLocked: boolean;
+      profiles: Profile[];
     };
+
+function profileLabel(p: Profile): string {
+  const name = p.display_name?.trim();
+  return name ? `${name} (${p.email})` : p.email;
+}
 
 type FieldState = {
   promo_id: string;
@@ -344,24 +352,38 @@ export function AdOrderForm(props: Props) {
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div>
-          <Label htmlFor="salesperson_id">Salesperson (profile UUID)</Label>
-          <Input
+          <Label htmlFor="salesperson_id">Salesperson</Label>
+          <select
             id="salesperson_id"
-            placeholder="uuid"
             value={s.salesperson_id}
             disabled={disabledFor('salesperson_id')}
             onChange={(e) => set('salesperson_id', e.target.value)}
-          />
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">— unassigned —</option>
+            {props.profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {profileLabel(p)}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
-          <Label htmlFor="se_engineer_id">SE engineer (profile UUID)</Label>
-          <Input
+          <Label htmlFor="se_engineer_id">SE engineer</Label>
+          <select
             id="se_engineer_id"
-            placeholder="uuid"
             value={s.se_engineer_id}
             disabled={disabledFor('se_engineer_id')}
             onChange={(e) => set('se_engineer_id', e.target.value)}
-          />
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">— unassigned —</option>
+            {props.profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {profileLabel(p)}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <Label htmlFor="commission_pct">Commission %</Label>

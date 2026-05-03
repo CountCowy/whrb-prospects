@@ -16,6 +16,7 @@ import type {
   AdOrderAmendment,
   AdOrderRow,
 } from '@/lib/queries/ad-orders';
+import type { Profile } from '@/lib/queries/profiles';
 
 type Viewer = {
   id: string;
@@ -30,9 +31,10 @@ type Props = {
   amendments: AdOrderAmendment[];
   activity: AdOrderActivity[];
   viewer: Viewer;
+  profiles: Profile[];
 };
 
-export function AdOrderDetailPane({ row, amendments, activity, viewer }: Props) {
+export function AdOrderDetailPane({ row, amendments, activity, viewer, profiles }: Props) {
   const router = useRouter();
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [archiveError, setArchiveError] = useState<string | null>(null);
@@ -120,7 +122,7 @@ export function AdOrderDetailPane({ row, amendments, activity, viewer }: Props) 
             />
           )}
           {isLocked && (
-            <AmendDialog adOrderId={row.id} promoId={row.promo_id} />
+            <AmendDialog adOrderId={row.id} promoId={row.promo_id} profiles={profiles} />
           )}
           <Button variant="outline" onClick={archive} disabled={archiveBusy}>
             {archiveBusy ? 'Archiving…' : 'Archive'}
@@ -159,6 +161,7 @@ export function AdOrderDetailPane({ row, amendments, activity, viewer }: Props) 
             row={row}
             isAdmin={viewer.isAdmin}
             isLocked={isLocked}
+            profiles={profiles}
           />
         </TabsContent>
 

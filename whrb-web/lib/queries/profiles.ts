@@ -44,6 +44,18 @@ export async function listProfilesWithCounts(): Promise<ProfileWithCounts[]> {
   }));
 }
 
+/** Lightweight list for picker UIs — id/email/display_name/role only, no counts. */
+export async function listProfiles(): Promise<Profile[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, display_name, role, created_at')
+    .order('display_name', { ascending: true, nullsFirst: false })
+    .order('email', { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Profile[];
+}
+
 export async function getProfile(id: string): Promise<Profile | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('profiles').select('*').eq('id', id).maybeSingle();
