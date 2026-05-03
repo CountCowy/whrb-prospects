@@ -265,7 +265,12 @@ def build_row(
     if zip_code:
         row["zip"] = str(zip_code).strip()[:5]
     if phone:
-        row["phone"] = phone
+        # Use the canonical CSV column name. Earlier T7 batches wrote
+        # ``row["phone"]`` here, which the CSV writer (CSV_COLUMNS in
+        # pipeline.py) and ``db.supabase_sync.SCRAPED_FIELDS`` both
+        # silently dropped — every T7 source's phone field was lost on
+        # write. Fixed during the post-T7 tech-debt sweep.
+        row["company_phone"] = phone
     if website:
         row["website"] = website
     if pipeline_notes:

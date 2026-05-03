@@ -42,6 +42,7 @@ from typing import TypedDict
 from bs4 import BeautifulSoup
 
 from sources import _sponsor_pages_common as common
+from sources._base import ProspectRow
 from util import event_log
 from util.tags import build_tag_set
 
@@ -366,7 +367,7 @@ _PARSERS = {
 # ----------------------------------------------------------------------------
 
 
-def _build_row(slug: str, entry: dict) -> dict:
+def _build_row(slug: str, entry: dict) -> ProspectRow:
     name = entry["name"]
     website = entry.get("website") or ""
     kind = entry.get("kind", "student_org")
@@ -397,7 +398,7 @@ def _build_row(slug: str, entry: dict) -> dict:
         affiliation=["harvard_affiliated", "cambridge_based"],
         cadence="term_driven",
     )
-    row = {
+    row: ProspectRow = {
         "source": SOURCE_KEY,
         "tier": "B",  # Conservative; dedupe + program-book overlap can promote.
         "company_name": name,
@@ -408,17 +409,17 @@ def _build_row(slug: str, entry: dict) -> dict:
     return row
 
 
-def _emit_from_html(slug: str, html: str) -> list[dict]:
+def _emit_from_html(slug: str, html: str) -> list[ProspectRow]:
     feed = _FEEDS[slug]
     parser = _PARSERS[feed["parse"]]
     parsed = parser(html)
-    out: list[dict] = []
+    out: list[ProspectRow] = []
     for entry in parsed:
         out.append(_build_row(slug, entry))
     return out
 
 
-def _scrape_one(slug: str) -> list[dict]:
+def _scrape_one(slug: str) -> list[ProspectRow]:
     feed = _FEEDS[slug]
     fixture = common.read_fixture(SOURCE_KEY, slug)
     if fixture is not None:
@@ -436,7 +437,7 @@ def _scrape_one(slug: str) -> list[dict]:
     return _emit_from_html(slug, html)
 
 
-def run_all() -> list[dict]:
+def run_all() -> list[ProspectRow]:
     """Pipeline entry: scrape every Harvard feed.
 
     The Harvard scrape emits a high volume of rows (~450 student orgs +
@@ -445,7 +446,7 @@ def run_all() -> list[dict]:
     main dedupe phase to merge with collisions from city_licenses /
     program_books / etc.
     """
-    out: list[dict] = []
+    out: list[ProspectRow] = []
     for slug in _FEEDS:
         rows = _scrape_one(slug)
         out.extend(rows)
