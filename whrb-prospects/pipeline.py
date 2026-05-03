@@ -596,203 +596,232 @@ def main(argv: list[str]) -> None:
 
     # Round-7: every run gets a pipeline_runs row. CLI path uses triggered_by=null.
     run_id = None if args.no_supabase else _start_pipeline_run(argv)
-    event_log.info(
-        "run_start",
-        "pipeline run started",
-        context={"argv": argv, "no_supabase": args.no_supabase},
-    )
 
-    # Start with the default allowlist so a failed source_config bootstrap
-    # doesn't accidentally re-enable known-broken scrapers (best_of_boston).
-    enabled_sources: set[str] | None = set(ENABLED_SOURCES_DEFAULT)
-    if not args.no_supabase:
-        try:
-            from db import supabase_sync
-            supabase_sync.seed_source_config()
-            enabled_sources = supabase_sync.read_enabled_sources()
-            print(f"[source_config] enabled scrapers: {sorted(enabled_sources)}")
-        except Exception as e:
-            print(f"[source_config] skipped due to error: {type(e).__name__}: {e}")
-            event_log.error(
-                "source_config_bootstrap_failed",
-                f"source_config bootstrap failed: {type(e).__name__}: {e}",
-                context={"exception": type(e).__name__},
-            )
-            enabled_sources = set(ENABLED_SOURCES_DEFAULT)
-
-    if args.fresh:
-        checkpoint.clear_all()
-
-    resume_name, rows = (None, None)
-    if not args.fresh:
-        resume_name, rows = checkpoint.load_latest(PHASE_ORDER)
-    resume_idx = PHASE_ORDER.index(resume_name) if resume_name else -1
-    if resume_name:
-        print(f"[checkpoint] resuming from {resume_name} ({len(rows)} rows)")
-
-    # Phase 01 — collect raw rows from every source
-    if resume_idx < 0:
-        rows = collect(
-            with_hic=args.with_hic,
-            with_bbb=args.with_bbb,
-            enabled=enabled_sources,
+    # Wrap the run body in try/finally so any unhandled exception (including
+    # KeyboardInterrupt from Ctrl+C) still finalizes the pipeline_runs row,
+    # instead of leaving it stuck at status='running' forever.
+    status: str = "failed"
+    rows_upserted: int | None = None
+    finalize_error: str | None = "interrupted before run_finish"
+    try:
+        event_log.info(
+            "run_start",
+            "pipeline run started",
+            context={"argv": argv, "no_supabase": args.no_supabase},
         )
-        print(f"collected {len(rows)} raw rows")
-        checkpoint.save_phase("01_collected", rows)
 
-    # Phase 02 — zip filter + cannabis block + dedupe
-    if resume_idx < 1:
-        rows = filter_zips(rows)
-        # Cannabis filter runs BEFORE dedupe so a blocked licensee can't
-        # merge into a legitimate row on address/phone collision (plan §4.5).
-        pre_n = len(rows)
-        try:
-            rows = cannabis_block.filter_rows(rows)
-        except cannabis_block.CannabisBlockStale:
-            # Fail-closed: every layer down + cache stale > 72h. The
-            # event_log already carries an ccc_fetch_stale_fatal entry.
-            raise
-        dropped = pre_n - len(rows)
-        if dropped:
-            print(f"[cannabis_block] dropped {dropped} row(s)")
-        rows = dedupe.dedupe(rows)
-        checkpoint.save_phase("02_filtered_deduped", rows)
-
-    # Phase 03 — website contact scraping (the long one)
-    if resume_idx < 2:
-        print("-- website contact scraping --")
-        contact_scraper.enrich_rows(rows)
-        checkpoint.save_phase("03_contact_scraped", rows)
-
-    # Phase 04 — hunter free tier
-    if resume_idx < 3:
-        print("-- hunter.io free tier --")
-        hunter_free.enrich_rows(rows, budget=25)
-        checkpoint.save_phase("04_hunter", rows)
-
-    # Phase 05 — apollo free tier
-    if resume_idx < 4:
-        print("-- apollo free tier --")
-        apollo_free.enrich_rows(rows, budget=100)
-        checkpoint.save_phase("05_apollo", rows)
-
-    # Phase 06 — ma sos officer lookup (Playwright; skipped under --dry)
-    if resume_idx < 5 and not args.dry:
-        print("-- ma sos officer lookup --")
-        from sources import ma_sos
-        ma_sos.enrich_rows(rows, limit=25)
-        checkpoint.save_phase("06_ma_sos", rows)
-
-    # Phase 07 — email validation
-    if resume_idx < 6:
-        print("-- email validation --")
-        email_validate.clean_rows(rows)
-        checkpoint.save_phase("07_validated", rows)
-
-    # Phase 07a — IRS BMF nonprofit enrichment
-    if resume_idx < 7:
-        print("-- nonprofit BMF enrichment --")
-        from db import nonprofit_bmf
-        try:
-            nonprofit_bmf.enrich_rows(rows)
-        except Exception as e:
-            print(f"[nonprofit_bmf] FAILED: {type(e).__name__}: {e}")
-            event_log.error(
-                "bmf_enrichment_failed",
-                f"BMF enrichment failed: {type(e).__name__}: {e}",
-                context={"exception": type(e).__name__, "detail": str(e)[:500]},
-            )
-        checkpoint.save_phase("07a_nonprofit", rows)
-
-    # Scoring + CSV write are cheap; always run so every invocation writes CSV.
-    for r in rows:
-        r["priority_score"] = score(r)
-        r["seasonality_window"] = seasonality_for(r.get("category"))
-        # Expand row['tags'] into per-axis CSV columns (plan §4.4).
-        _serialize_tags_to_csv(r)
-
-    df = pd.DataFrame(rows)
-    for c in CSV_COLUMNS:
-        if c not in df.columns:
-            df[c] = None
-    df = df[CSV_COLUMNS].sort_values("priority_score", ascending=False)
-
-    OUTPUT.parent.mkdir(exist_ok=True)
-    df.to_csv(OUTPUT, index=False)
-    print(f"wrote {len(df)} rows -> {OUTPUT}")
-
-    # Phase 08 — Supabase sync. Wrapped so a sync failure never loses the CSV.
-    sync_summary: dict | None = None
-    sync_error: str | None = None
-    tag_sync_summary: dict | None = None
-    tag_sync_error: str | None = None
-    if not args.no_supabase:
-        try:
-            from db import supabase_sync
-            print("-- supabase sync --")
-            sync_summary = supabase_sync.sync(df.to_dict(orient="records"))
-            print(f"[supabase_sync] {sync_summary}")
-            checkpoint.save_phase("08_supabase_sync", rows)
-        except Exception as e:
-            sync_error = f"{type(e).__name__}: {e}"
-            print(f"[supabase_sync] FAILED: {sync_error}")
-            event_log.error(
-                "supabase_sync_aborted",
-                f"sync phase aborted: {sync_error}",
-                context={"exception": type(e).__name__, "detail": str(e)[:500]},
-            )
-
-        # Phase 08_b — tag sync. Always attempted when prospect-sync succeeds;
-        # a partial failure caches the emit set for admin retry (plan §4.5).
-        if not sync_error:
-            _mark_tag_sync_status(run_id, "pending")
+        # Start with the default allowlist so a failed source_config bootstrap
+        # doesn't accidentally re-enable known-broken scrapers (best_of_boston).
+        enabled_sources: set[str] | None = set(ENABLED_SOURCES_DEFAULT)
+        if not args.no_supabase:
             try:
-                from db import supabase_sync as _ss
-                print("-- tag sync --")
-                tag_sync_summary = _ss.tag_sync(rows)
-                print(f"[tag_sync] {tag_sync_summary}")
-                checkpoint.save_phase("08_b_tag_sync", rows)
-                _mark_tag_sync_status(run_id, "ok")
-                _clear_last_tag_emit_cache()
+                from db import supabase_sync
+                supabase_sync.seed_source_config()
+                enabled_sources = supabase_sync.read_enabled_sources()
+                print(f"[source_config] enabled scrapers: {sorted(enabled_sources)}")
             except Exception as e:
-                tag_sync_error = f"{type(e).__name__}: {e}"
-                print(f"[tag_sync] FAILED: {tag_sync_error}")
-                _write_last_tag_emit_cache(rows)
+                print(f"[source_config] skipped due to error: {type(e).__name__}: {e}")
                 event_log.error(
-                    "tag_sync",
-                    f"tag_sync phase aborted: {tag_sync_error}",
+                    "source_config_bootstrap_failed",
+                    f"source_config bootstrap failed: {type(e).__name__}: {e}",
+                    context={"exception": type(e).__name__},
+                )
+                enabled_sources = set(ENABLED_SOURCES_DEFAULT)
+
+        if args.fresh:
+            checkpoint.clear_all()
+
+        resume_name, rows = (None, None)
+        if not args.fresh:
+            resume_name, rows = checkpoint.load_latest(PHASE_ORDER)
+        resume_idx = PHASE_ORDER.index(resume_name) if resume_name else -1
+        if resume_name:
+            print(f"[checkpoint] resuming from {resume_name} ({len(rows)} rows)")
+
+        # Phase 01 — collect raw rows from every source
+        if resume_idx < 0:
+            rows = collect(
+                with_hic=args.with_hic,
+                with_bbb=args.with_bbb,
+                enabled=enabled_sources,
+            )
+            print(f"collected {len(rows)} raw rows")
+            checkpoint.save_phase("01_collected", rows)
+
+        # Phase 02 — zip filter + cannabis block + dedupe
+        if resume_idx < 1:
+            rows = filter_zips(rows)
+            # Cannabis filter runs BEFORE dedupe so a blocked licensee can't
+            # merge into a legitimate row on address/phone collision (plan §4.5).
+            pre_n = len(rows)
+            try:
+                rows = cannabis_block.filter_rows(rows)
+            except cannabis_block.CannabisBlockStale:
+                # Fail-closed: every layer down + cache stale > 72h. The
+                # event_log already carries an ccc_fetch_stale_fatal entry.
+                raise
+            dropped = pre_n - len(rows)
+            if dropped:
+                print(f"[cannabis_block] dropped {dropped} row(s)")
+            rows = dedupe.dedupe(rows)
+            checkpoint.save_phase("02_filtered_deduped", rows)
+
+        # Phase 03 — website contact scraping (the long one)
+        if resume_idx < 2:
+            print("-- website contact scraping --")
+            contact_scraper.enrich_rows(rows)
+            checkpoint.save_phase("03_contact_scraped", rows)
+
+        # Phase 04 — hunter free tier
+        if resume_idx < 3:
+            print("-- hunter.io free tier --")
+            hunter_free.enrich_rows(rows, budget=25)
+            checkpoint.save_phase("04_hunter", rows)
+
+        # Phase 05 — apollo free tier
+        if resume_idx < 4:
+            print("-- apollo free tier --")
+            apollo_free.enrich_rows(rows, budget=100)
+            checkpoint.save_phase("05_apollo", rows)
+
+        # Phase 06 — ma sos officer lookup (Playwright; skipped under --dry)
+        if resume_idx < 5 and not args.dry:
+            print("-- ma sos officer lookup --")
+            from sources import ma_sos
+            ma_sos.enrich_rows(rows, limit=25)
+            checkpoint.save_phase("06_ma_sos", rows)
+
+        # Phase 07 — email validation
+        if resume_idx < 6:
+            print("-- email validation --")
+            email_validate.clean_rows(rows)
+            checkpoint.save_phase("07_validated", rows)
+
+        # Phase 07a — IRS BMF nonprofit enrichment
+        if resume_idx < 7:
+            print("-- nonprofit BMF enrichment --")
+            from db import nonprofit_bmf
+            try:
+                nonprofit_bmf.enrich_rows(rows)
+            except Exception as e:
+                print(f"[nonprofit_bmf] FAILED: {type(e).__name__}: {e}")
+                event_log.error(
+                    "bmf_enrichment_failed",
+                    f"BMF enrichment failed: {type(e).__name__}: {e}",
                     context={"exception": type(e).__name__, "detail": str(e)[:500]},
                 )
-                _mark_tag_sync_status(run_id, "failed")
+            checkpoint.save_phase("07a_nonprofit", rows)
 
-    # run_finish event + pipeline_runs row update
-    rows_upserted = None
-    if sync_summary:
-        rows_upserted = sync_summary.get("inserted", 0) + sync_summary.get("updated", 0)
-    status = "success"
-    if sync_error or (sync_summary and sync_summary.get("failed", 0) > 0):
+        # Scoring + CSV write are cheap; always run so every invocation writes CSV.
+        for r in rows:
+            r["priority_score"] = score(r)
+            r["seasonality_window"] = seasonality_for(r.get("category"))
+            # Expand row['tags'] into per-axis CSV columns (plan §4.4).
+            _serialize_tags_to_csv(r)
+
+        df = pd.DataFrame(rows)
+        for c in CSV_COLUMNS:
+            if c not in df.columns:
+                df[c] = None
+        df = df[CSV_COLUMNS].sort_values("priority_score", ascending=False)
+
+        OUTPUT.parent.mkdir(exist_ok=True)
+        df.to_csv(OUTPUT, index=False)
+        print(f"wrote {len(df)} rows -> {OUTPUT}")
+
+        # Phase 08 — Supabase sync. Wrapped so a sync failure never loses the CSV.
+        sync_summary: dict | None = None
+        sync_error: str | None = None
+        tag_sync_summary: dict | None = None
+        tag_sync_error: str | None = None
+        if not args.no_supabase:
+            try:
+                from db import supabase_sync
+                print("-- supabase sync --")
+                sync_summary = supabase_sync.sync(df.to_dict(orient="records"))
+                print(f"[supabase_sync] {sync_summary}")
+                checkpoint.save_phase("08_supabase_sync", rows)
+            except Exception as e:
+                sync_error = f"{type(e).__name__}: {e}"
+                print(f"[supabase_sync] FAILED: {sync_error}")
+                event_log.error(
+                    "supabase_sync_aborted",
+                    f"sync phase aborted: {sync_error}",
+                    context={"exception": type(e).__name__, "detail": str(e)[:500]},
+                )
+
+            # Phase 08_b — tag sync. Always attempted when prospect-sync succeeds;
+            # a partial failure caches the emit set for admin retry (plan §4.5).
+            if not sync_error:
+                _mark_tag_sync_status(run_id, "pending")
+                try:
+                    from db import supabase_sync as _ss
+                    print("-- tag sync --")
+                    tag_sync_summary = _ss.tag_sync(rows)
+                    print(f"[tag_sync] {tag_sync_summary}")
+                    checkpoint.save_phase("08_b_tag_sync", rows)
+                    _mark_tag_sync_status(run_id, "ok")
+                    _clear_last_tag_emit_cache()
+                except Exception as e:
+                    tag_sync_error = f"{type(e).__name__}: {e}"
+                    print(f"[tag_sync] FAILED: {tag_sync_error}")
+                    _write_last_tag_emit_cache(rows)
+                    event_log.error(
+                        "tag_sync",
+                        f"tag_sync phase aborted: {tag_sync_error}",
+                        context={"exception": type(e).__name__, "detail": str(e)[:500]},
+                    )
+                    _mark_tag_sync_status(run_id, "failed")
+
+        # run_finish event + pipeline_runs row update (run_finish event here;
+        # the actual UPDATE happens in the finally block so a crash later still
+        # closes the row).
+        if sync_summary:
+            rows_upserted = sync_summary.get("inserted", 0) + sync_summary.get("updated", 0)
+        status = "success"
+        if sync_error or (sync_summary and sync_summary.get("failed", 0) > 0):
+            status = "failed"
+        if tag_sync_error or (tag_sync_summary and tag_sync_summary.get("failed", 0) > 0):
+            status = "failed"
+        finalize_error = sync_error
+        event_log.info(
+            "run_finish",
+            f"pipeline run finished ({status})",
+            context={
+                "rows_written": len(df),
+                "sync_summary": sync_summary,
+                "tag_sync_summary": tag_sync_summary,
+                "status": status,
+                "sync_error": sync_error,
+                "tag_sync_error": tag_sync_error,
+            },
+        )
+    except BaseException as e:
+        # Catches Exception, KeyboardInterrupt, SystemExit. Re-raised below so
+        # the workflow's "Fail the job" step still trips and the CLI still
+        # exits non-zero — we only intervene to record the failure.
         status = "failed"
-    if tag_sync_error or (tag_sync_summary and tag_sync_summary.get("failed", 0) > 0):
-        status = "failed"
-    event_log.info(
-        "run_finish",
-        f"pipeline run finished ({status})",
-        context={
-            "rows_written": len(df),
-            "sync_summary": sync_summary,
-            "tag_sync_summary": tag_sync_summary,
-            "status": status,
-            "sync_error": sync_error,
-            "tag_sync_error": tag_sync_error,
-        },
-    )
-    event_log.flush()
-    _finish_pipeline_run(
-        run_id,
-        status=status,
-        rows_upserted=rows_upserted,
-        error=sync_error,
-    )
+        finalize_error = f"{type(e).__name__}: {e}"[:4000]
+        try:
+            event_log.error(
+                "run_aborted",
+                f"pipeline run aborted: {finalize_error}",
+                context={"exception": type(e).__name__},
+            )
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            event_log.flush()
+        except Exception:
+            pass
+        _finish_pipeline_run(
+            run_id,
+            status=status,
+            rows_upserted=rows_upserted,
+            error=finalize_error,
+        )
 
 
 if __name__ == "__main__":

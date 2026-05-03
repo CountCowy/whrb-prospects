@@ -72,12 +72,18 @@ CANONICAL_SEEDS = {"Boston Ballet", "Museum of Fine Arts", "Massachusetts Bay Tr
 # - admin_cancel_run_failed: Stage 10c post-merge T02 PAT-scope incident
 #   (two error events documented in the Stage 10c sign-off; the PAT was
 #   subsequently fixed so no new events are generated).
+# - run_aborted: emitted by the finalize-on-crash hook added in
+#   60d1223 ("fix(pipeline): finalize pipeline_runs row on crash /
+#   Ctrl+C"). Surfaces whenever a pipeline run is killed before its
+#   normal exit path can mark the row done — expected stimulus, not a
+#   Stage 7 correctness signal.
 EXPECTED_STIMULUS_CATEGORIES: tuple[str, ...] = (
     "admin_user_invite_failed",
     "source_failed",
     "scrape_http",
     "pipeline_run_failed",
     "admin_cancel_run_failed",
+    "run_aborted",
     # Stage T2 (post-10c epic) — cannabis-block live-fetch failures
     # surface here when the CCC primary + secondary endpoints are both
     # unreachable. They are not Stage 7 correctness signals; the T2
