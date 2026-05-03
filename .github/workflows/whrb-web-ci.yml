@@ -59,6 +59,13 @@ jobs:
           SUPABASE_URL: https://example.supabase.co
           SUPABASE_ANON_KEY: ci-stub-anon-key
           SUPABASE_SERVICE_ROLE_KEY: ci-stub-service-key
+          # Sentry source-map upload — only runs when the auth token
+          # is present (push-to-main and Vercel deploys). PR builds skip
+          # the upload step automatically because the secret is unset.
+          # ORG / PROJECT can be public; AUTH_TOKEN must be a secret.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
 
   # Stage 6a: Playwright e2e against the Vercel preview deploy.
   # Runs on PRs only (not push-to-main). Waits for Vercel's deployment status

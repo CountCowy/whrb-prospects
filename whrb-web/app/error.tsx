@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { logClient } from '@/lib/logging/client';
 
@@ -11,6 +12,11 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // Dual sink: Supabase event_log (audit trail) + Sentry (stack-grouped
+    // alerting). React render errors don't bubble to `window.error`, so the
+    // explicit captureException is required — Sentry's auto-instrumentation
+    // can't see this code path.
+    Sentry.captureException(error, { tags: { category: 'ui_exception' } });
     void logClient({
       level: 'error',
       category: 'ui_exception',

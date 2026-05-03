@@ -81,6 +81,10 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+# Auto mode: any `async def test_*` is treated as an async test without
+# requiring `@pytest.mark.asyncio` on every function. Enables the
+# contact_scraper.py async coverage tier without per-test boilerplate.
+asyncio_mode = "auto"
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
@@ -106,10 +110,14 @@ omit = [
 ]
 
 [tool.coverage.report]
-# Regression floor — current production-code coverage (excluding tests
-# and one-shot scripts) hovers around 30%. CI fails if it dips below
-# this. Ratchet up as new tests land; do not loosen without a
-# deliberate justification.
+# Regression floor. Pre-T7-tech-debt-sweep this was 28 (whole-package).
+# The post-T7 sweep added Tier-1/2/3 tests on util/+enrich/ that lift
+# combined coverage on those two packages above 70%. The whole-package
+# floor is kept at 28 (sources/ remain HTTP-bound and out of scope);
+# the 70% gate is enforced in CI via `pytest --cov=util --cov=enrich
+# --cov-fail-under=70` as a separate, narrower check.
+# Ratchet up as new tests land; do not loosen without a deliberate
+# justification.
 fail_under = 28
 show_missing = true
 skip_covered = false

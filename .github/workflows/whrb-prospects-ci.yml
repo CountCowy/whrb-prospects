@@ -39,10 +39,22 @@ jobs:
       - name: Mypy
         run: mypy
       - name: Pytest with coverage gate
-        # No network, no live Supabase — the autouse stub_event_log fixture
-        # replaces util.event_log with an in-memory recorder. Coverage
-        # thresholds + omit list live in pyproject.toml [tool.coverage.*].
-        run: pytest tests/ --cov --cov-report=term
+        # Two coverage gates run in series:
+        #   1. Whole-package floor (28%, defined in pyproject.toml under
+        #      [tool.coverage.report]). Catches regressions across all of
+        #      util/, enrich/, db/, sources/, etc.
+        #   2. Narrower 70% gate on util/+enrich/ (post-T7 sweep target).
+        #      Sources/ remain HTTP-bound and out of scope; ratchet this
+        #      floor up by +5 each PR until 80%.
+        # No network, no live Supabase — the autouse stub_event_log
+        # fixture replaces util.event_log with an in-memory recorder.
+        run: |
+          pytest tests/ --cov --cov-report=term
+          pytest tests/ \
+            --cov=util --cov=enrich \
+            --cov-report=term-missing \
+            --cov-fail-under=70 \
+            --no-header --quiet
 
       - name: pip-audit (lockfile vulnerability scan)
         # Surfaces CVEs in pinned deps. Fails the job on findings; if a

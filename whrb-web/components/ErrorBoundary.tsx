@@ -1,5 +1,6 @@
 'use client';
 
+import * as Sentry from '@sentry/nextjs';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import Link from 'next/link';
 import { logClient } from '@/lib/logging/client';
@@ -21,6 +22,13 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
+    // Dual sink — see app/error.tsx for the rationale. componentDidCatch
+    // fires for render errors that React suppresses from window.error, so
+    // Sentry needs an explicit capture call.
+    Sentry.captureException(error, {
+      tags: { category: 'ui_exception' },
+      extra: { componentStack: info.componentStack },
+    });
     void logClient({
       level: 'error',
       category: 'ui_exception',
