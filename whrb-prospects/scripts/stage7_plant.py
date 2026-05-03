@@ -104,12 +104,20 @@ def _is_expected_stimulus(category: str) -> bool:
     expected stimuli matches the rationale documented above for
     ``source_failed`` and ``scrape_http`` (transient pipeline scrape
     failures, not Stage 7 correctness signals).
+
+    Also includes any ``ad_order_*_failed`` event. The ad-orders API
+    route handlers in whrb-web emit these on every recoverable user
+    flow (CHECK violation, 42501 trigger denial, 23505 unique conflict,
+    etc.). They surface real product feedback to the user and are not
+    Stage 7 correctness signals.
     """
     if not category:
         return False
     if category in EXPECTED_STIMULUS_CATEGORIES:
         return True
     if category.endswith("_fetch_failed"):
+        return True
+    if category.startswith("ad_order_") and category.endswith("_failed"):
         return True
     return False
 
