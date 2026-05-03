@@ -43,5 +43,6 @@ Plan: `/Users/countcowy/.claude/plans/soft-crafting-tulip.md`.
 | 29 | Stage T5 — Competitor-station sponsor source (observation mode) (2026-04-28) | [`stage-t5.md`](./stage-t5.md) |
 | 30 | Stage T6 — Harvard + ensemble + corporate-sponsor source batch (2026-04-28) | [`stage-t6.md`](./stage-t6.md) |
 | 31 | Stage T7 — Open-data + regional expansion + trade associations (2026-04-30) | [`stage-t7.md`](./stage-t7.md) |
+| 32 | Post-T7 tech-debt sweep — ROLLOUT shard, source typing, Sentry, coverage 70% (2026-05-01 → 2026-05-02) | [`post-t7-tech-debt-sweep.md`](./post-t7-tech-debt-sweep.md) |
 
 Add new sections as `ROLLOUT/<slug>.md` and append a row above.
