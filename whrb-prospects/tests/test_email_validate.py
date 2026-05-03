@@ -7,6 +7,7 @@ would silently break if the implementation is refactored.
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from unittest.mock import patch
 
 import pytest
@@ -15,7 +16,7 @@ from enrich import email_validate
 
 
 @pytest.fixture(autouse=True)
-def reset_mx_cache() -> None:
+def reset_mx_cache() -> Iterator[None]:
     """Clear the module-level MX cache between tests.
 
     `_has_mx` memoises lookups for the lifetime of the process, so without

@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
  *
  * * Upload source maps to make stack traces readable (gated on
  *   `SENTRY_AUTH_TOKEN` — unset locally, set in CI/Vercel).
- * * Tunnel events through `/monitoring` so ad-blockers don't drop them.
+ * * Tunnel events through `/api/monitoring` so ad-blockers don't drop them.
  *
  * Every option below is no-op when the corresponding env var is unset —
  * unconfigured local builds (no Sentry secrets) work unchanged.
@@ -26,6 +26,10 @@ export default withSentryConfig(nextConfig, {
   // Upload a wider net of source maps for prettier stack traces.
   widenClientFileUpload: true,
 
-  // Route Sentry requests through our own server, sidestepping ad-blockers.
-  tunnelRoute: '/monitoring',
+  // Tunnel Sentry through our own server to sidestep ad-blockers. Lives
+  // under /api/* because middleware.ts excludes that prefix from the auth
+  // matcher — a tunnel at the root (e.g. /monitoring) would be redirected
+  // to /login for unauthenticated requests, dropping client-side errors
+  // from the login page itself and any pre-auth crash.
+  tunnelRoute: '/api/monitoring',
 });

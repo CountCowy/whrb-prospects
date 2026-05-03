@@ -24,12 +24,17 @@ import type { AuthedUser } from '@/lib/server/authz';
 
 /** Headers and field names that should never reach Sentry. */
 const SENSITIVE_HEADERS = new Set(['cookie', 'authorization', 'set-cookie', 'x-api-key']);
-const SENSITIVE_FIELD_PATTERN = /pass(word|wd)|secret|token|api[_-]?key/i;
+// Word-bounded so we don't false-positive on `passenger` / `passport` / `tokenizer`.
+const SENSITIVE_FIELD_PATTERN = /\b(pass(word|wd)|secret|token|api[_-]?key)\b/i;
+// URL search-param keys that should be scrubbed from breadcrumb URLs. Same
+// vocabulary as SENSITIVE_FIELD_PATTERN plus auth-flow tokens that arrive
+// as query params (?code=, ?reset_token=, ?invite=).
+const SENSITIVE_QUERY_KEYS = /^(pass(word|wd)|secret|token|api[_-]?key|access_token|id_token|refresh_token|reset_token|invite|code)$/i;
 
 /**
  * Recursively walk a JSON-shaped payload and replace any field whose key
  * matches the sensitive pattern with the literal string `'[Filtered]'`.
- * Returns the (mutated) input.
+ * Mutates `value` in place and returns it.
  */
 function scrubSensitiveFields(value: unknown, depth = 0): unknown {
   if (depth > 6 || value == null) return value;
@@ -52,11 +57,34 @@ function scrubSensitiveFields(value: unknown, depth = 0): unknown {
 }
 
 /**
+ * Strip sensitive search params from a URL string. Returns the input
+ * unchanged if it doesn't parse as a URL (relative paths, opaque hrefs).
+ */
+function scrubUrlParams(href: string): string {
+  try {
+    const url = new URL(href);
+    let mutated = false;
+    for (const key of [...url.searchParams.keys()]) {
+      if (SENSITIVE_QUERY_KEYS.test(key)) {
+        url.searchParams.set(key, '[Filtered]');
+        mutated = true;
+      }
+    }
+    return mutated ? url.toString() : href;
+  } catch {
+    return href;
+  }
+}
+
+/**
  * `beforeSend` hook for the server + edge runtime configs. Performs:
  *
  * 1. Strip sensitive request headers (cookie, authorization, etc.).
- * 2. Strip password-/secret-/token-shaped fields from `request.data`,
- *    `request.query_string`, and `extra` payloads.
+ * 2. Strip password-/secret-/token-shaped fields from `request.data` and
+ *    `extra` payloads.
+ * 3. Strip sensitive query-string params from breadcrumb URLs (Sentry's
+ *    auto-instrumented fetch / navigation breadcrumbs include full URLs;
+ *    a redirect like `/?reset_token=abc` would otherwise leak).
  *
  * Sentry's built-in PII scrubber covers most cases when `sendDefaultPii`
  * is `false`, but explicit scrubbing here means we don't depend on a
@@ -76,8 +104,21 @@ export function sentryBeforeSend(
   if (req?.data !== undefined) {
     req.data = scrubSensitiveFields(req.data) as typeof req.data;
   }
+  if (req?.url) {
+    req.url = scrubUrlParams(req.url);
+  }
   if (event.extra) {
     event.extra = scrubSensitiveFields(event.extra) as typeof event.extra;
+  }
+  if (event.breadcrumbs) {
+    for (const crumb of event.breadcrumbs) {
+      if (crumb.data && typeof crumb.data === 'object') {
+        const data = crumb.data as Record<string, unknown>;
+        if (typeof data.url === 'string') data.url = scrubUrlParams(data.url);
+        if (typeof data.to === 'string') data.to = scrubUrlParams(data.to);
+        if (typeof data.from === 'string') data.from = scrubUrlParams(data.from);
+      }
+    }
   }
   return event;
 }
