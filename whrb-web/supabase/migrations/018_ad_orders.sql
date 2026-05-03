@@ -251,13 +251,23 @@ declare
   is_se boolean;
   f text;
   -- Fields only admins may change. Includes attribution (salesperson,
-  -- engineer, identity) and all money fields.
+  -- engineer, identity) and ALL financial / pricing-modifier fields.
+  -- INSERT is already admin-only, so the "salesperson types the deal"
+  -- workflow happens at create-time; everything money-shaped stays
+  -- admin-controlled afterward. Reps may still edit notes,
+  -- payment_contact_*, package_doc_url, ad_produced/_at (see below).
   admin_only_fields text[] := array[
+    -- payment status
     'is_paid','paid_at',
     'commission_paid','commission_paid_at',
     'commission_pct',
     'invoice_number','invoice_sent_at',
     'client_check_number',
+    -- booked amount + pricing modifiers
+    'total_amount','discount_pct','is_nonprofit_rate',
+    -- campaign window (affects revenue recognition + reminders)
+    'campaign_start','campaign_end',
+    -- archive + attribution + identity
     'archived_at','archived_by',
     'salesperson_id','se_engineer_id',
     'promo_id','prospect_id','company_name',

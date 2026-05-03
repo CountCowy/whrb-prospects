@@ -176,13 +176,20 @@ export function AdOrderForm(props: Props) {
     if (props.mode === 'create') return busy;
     if (busy) return true;
     if (!props.isAdmin) {
-      // Reps may not edit admin-only / money / attribution fields directly.
+      // Reps may not edit any admin-only field. Mirror the column-guard
+      // trigger's admin_only_fields list in 018_ad_orders.sql so users
+      // never see an editable input the server will reject on save.
       const adminOnly: (keyof FieldState)[] = [
         'promo_id',
         'prospect_id',
         'company_name',
-        'commission_pct',
+        'is_nonprofit_rate',
+        'discount_pct',
+        'campaign_start',
+        'campaign_end',
+        'total_amount',
         'salesperson_id',
+        'commission_pct',
         'se_engineer_id',
       ];
       if (adminOnly.includes(field)) return true;
