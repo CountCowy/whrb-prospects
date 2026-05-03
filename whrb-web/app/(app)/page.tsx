@@ -83,17 +83,6 @@ export default async function HomePage() {
       tooltip:
         'Week-to-date count of prospect_tags rows created since Monday 00:00 UTC. Resets on the Monday boundary.',
     },
-    {
-      label: 'Prospects gone quiet',
-      value: stats.goneQuiet,
-      hint: 'Active client + 90d idle',
-      testid: 'tile-delta-gone-quiet',
-      // Click-through filters to the same set the tile counts:
-      // ongoing_contact AND updated_at < now - 90d. Without idle_days
-      // the link would surface every ongoing_contact row, including
-      // the active ones.
-      href: '/prospects?state=ongoing_contact&idle_days=90',
-    },
   ];
 
   return (
