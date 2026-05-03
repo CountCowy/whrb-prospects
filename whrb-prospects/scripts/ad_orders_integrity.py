@@ -461,12 +461,14 @@ def check_ao29_no_errors(pg, since_iso: str) -> TkResult:
     if pg is None:
         return _skip_manual("AO29", "no DB connection")
     with pg.cursor() as cur:
+        # Parameterize the LIKE pattern so the `%` isn't mistaken for a
+        # psycopg2 placeholder marker.
         cur.execute(
             "select count(*) from public.event_log "
             "where level in ('error','fatal') "
-            "  and category like 'ad_order_%' "
+            "  and category like %s "
             "  and created_at >= %s",
-            (since_iso,),
+            ("ad_order_%", since_iso),
         )
         n = cur.fetchone()[0]
     if n:
