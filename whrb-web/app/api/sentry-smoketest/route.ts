@@ -14,18 +14,18 @@ import { NextResponse } from 'next/server';
  * test endpoint becoming a denial-of-service vector. Remove this file in
  * a follow-up commit once the first deploy verification is logged.
  *
- * The route is intentionally double-underscore-prefixed so it sorts away
- * from real routes in directory listings and is obvious-on-grep when it's
- * time to delete.
+ * Named "smoketest" (no leading underscore) because Next.js App Router
+ * treats any folder starting with `_` as a private/non-routed folder.
+ * The "smoketest" suffix is obvious-on-grep when it's time to delete.
  */
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   if (process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV === 'production') {
     return NextResponse.json(
-      { error: 'sentry-test is disabled in production builds.' },
+      { error: 'sentry-smoketest is disabled in production builds.' },
       { status: 404 },
     );
   }
-  throw new Error('Sentry smoke test — intentional throw from /api/__sentry-test');
+  throw new Error('Sentry smoke test — intentional throw from /api/sentry-smoketest');
 }
