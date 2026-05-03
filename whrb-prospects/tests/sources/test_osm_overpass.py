@@ -32,7 +32,7 @@ def test_post_sets_descriptive_user_agent(monkeypatch: pytest.MonkeyPatch) -> No
     """Overpass blocks generic UAs with 406; we must send a descriptive one."""
     captured: dict[str, Any] = {}
 
-    def fake_post(url, **kwargs):  # noqa: ANN001, ANN003
+    def fake_post(url, **kwargs):
         captured["url"] = url
         captured["headers"] = kwargs.get("headers")
         captured["data"] = kwargs.get("data")
