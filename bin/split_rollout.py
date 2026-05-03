@@ -155,7 +155,16 @@ def assert_conservation(
 
 
 def is_already_split(text: str) -> bool:
-    return POINTER_MARKER in text and len(text.splitlines()) < 20
+    """True only when the file matches the exact pointer shape we write.
+
+    Earlier versions used ``len(text.splitlines()) < 20`` as a heuristic,
+    which would silently mis-classify a slightly grown pointer as
+    "already split" and skip a re-run. Pinning to the literal pointer
+    string makes the check explicit: we only short-circuit when this
+    file *is* the pointer, not when it merely contains a phrase that
+    happens to mention shards.
+    """
+    return text.strip() == root_pointer().strip()
 
 
 def cmd_split() -> int:

@@ -46,20 +46,24 @@ follow-up; not in scope here.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Protocol, TypeAlias, TypedDict
+from typing import Protocol, Required, TypeAlias, TypedDict
 
 
 class ProspectRow(TypedDict, total=False):
     """Canonical pre-enrichment shape of a row emitted by a source.
 
     Mirrors the column list in :data:`pipeline.CSV_COLUMNS`. ``total=False``
-    so a source can omit any field it doesn't have signal for. The pipeline's
-    enrichment phases (dedupe, BMF, hunter/apollo, contact_scraper, supabase
-    sync) populate the rest before the final CSV write.
+    so a source can omit any optional field it doesn't have signal for.
+    The pipeline's enrichment phases (dedupe, BMF, hunter/apollo,
+    contact_scraper, supabase sync) populate the rest before the final
+    CSV write.
 
     Field semantics:
 
-    * ``company_name`` is the only field a source must always set.
+    * ``company_name`` / ``source`` / ``tier`` are :data:`Required` —
+      every source's :func:`run_all` must set them on every row.
+      Dedupe keys off ``company_name``, ``source`` round-trips through
+      ``source_config``, and ``tier`` drives prioritisation.
     * ``source`` should be the source's stable key (matches the
       ``source_config`` row and the label passed to ``_safe_cached``).
     * ``tier`` is one of ``A`` / ``B`` / ``C`` per ``config.TIER_*``.
@@ -69,10 +73,10 @@ class ProspectRow(TypedDict, total=False):
       as empty.
     """
 
-    # Identity
-    company_name: str
-    source: str
-    tier: str
+    # Identity — always present on every emitted row.
+    company_name: Required[str]
+    source: Required[str]
+    tier: Required[str]
 
     # Contact / address
     website: str | None
@@ -139,9 +143,3 @@ class ProspectSource(Protocol):
 # Re-exports kept narrow on purpose. Anything else (event_log shapes,
 # checkpoint helpers, normalization) stays where it lives.
 __all__ = ["ProspectRow", "ProspectSource", "RunAll"]
-
-
-# Keep ``Any`` referenced so static analysis doesn't drop the import (we
-# may extend ProspectRow with arbitrary-shaped optional fields in future
-# PRs without forcing churn on this file).
-_: Any = None
