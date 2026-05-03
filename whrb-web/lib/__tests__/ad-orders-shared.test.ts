@@ -136,6 +136,42 @@ describe('money + percent validation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ad_produced / ad_produced_at consistency (mirrors DB CHECK)
+// ---------------------------------------------------------------------------
+
+describe('AdOrderCreateSchema — ad_produced consistency', () => {
+  const base = {
+    promo_id: 'PA 0925',
+    company_name: 'X',
+    campaign_start: '2026-01-01',
+    campaign_end: '2026-01-02',
+    total_amount: 100,
+  } as const;
+
+  it('accepts ad_produced=false with no timestamp', () => {
+    expect(AdOrderCreateSchema.safeParse({ ...base }).success).toBe(true);
+    expect(
+      AdOrderCreateSchema.safeParse({ ...base, ad_produced: false }).success,
+    ).toBe(true);
+  });
+
+  it('rejects ad_produced=true without ad_produced_at', () => {
+    expect(
+      AdOrderCreateSchema.safeParse({ ...base, ad_produced: true }).success,
+    ).toBe(false);
+  });
+
+  it('accepts ad_produced=true with a valid ISO timestamp', () => {
+    const r = AdOrderCreateSchema.safeParse({
+      ...base,
+      ad_produced: true,
+      ad_produced_at: '2026-05-03T12:00:00.000Z',
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Mark paid + amend payload schemas
 // ---------------------------------------------------------------------------
 

@@ -104,11 +104,19 @@ export const AdOrderCreateSchema = z
     commission_pct: percent.optional(),
     se_engineer_id: z.string().uuid().optional(),
     notes: z.string().max(5000).optional(),
+    // Mirrors ad_orders_produced_at_consistent (migration 018):
+    // ad_produced=true requires a non-null ad_produced_at.
+    ad_produced: z.boolean().optional().default(false),
+    ad_produced_at: z.string().datetime().optional(),
   })
   .refine((data) => data.campaign_end >= data.campaign_start, {
     message: 'campaign_end must be on or after campaign_start',
     path: ['campaign_end'],
-  });
+  })
+  .refine(
+    (d) => !d.ad_produced || !!d.ad_produced_at,
+    { message: 'ad_produced_at is required when ad_produced is true', path: ['ad_produced_at'] },
+  );
 
 export type AdOrderCreateInput = z.infer<typeof AdOrderCreateSchema>;
 

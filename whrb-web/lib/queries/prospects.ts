@@ -89,10 +89,8 @@ export type ProspectListFilters = {
   assigned?: 'true' | 'false';
   /**
    * Idle threshold in days. When set, the query restricts to prospects
-   * whose `updated_at` is older than `now() - idle_days`. Used by the
-   * home dashboard "Prospects gone quiet" tile (which combines
-   * `state=ongoing_contact` with `idle_days=90`) so the click-through
-   * lands on the same row set the tile counts.
+   * whose `updated_at` is older than `now() - idle_days`. Surfaced via
+   * the `?idle_days=N` URL param on /prospects.
    */
   idle_days?: string;
 };
@@ -300,16 +298,11 @@ export type HomeStats = {
    *  deleted". Lock/unlock toggles are excluded; they're not "changes
    *  to which tags are on the prospect". */
   tagChangesThisWeek: number;
-  /** T4 delta: prospects in state ongoing_contact whose updated_at is
-   *  older than 90 days. The T4 plan calls this state `active_client`;
-   *  we map it to the schema's `ongoing_contact`. */
-  goneQuiet: number;
 };
 
 export async function getHomeStats(selfUserId: string): Promise<HomeStats> {
   const supabase = await createClient();
   const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const ninetyDaysAgoIso = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
   // Week-to-date boundary in UTC: most recent Monday 00:00 UTC. Reset on
   // the Monday boundary per plan §6.4 #2.
   const now = new Date();
@@ -373,12 +366,6 @@ export async function getHomeStats(selfUserId: string): Promise<HomeStats> {
         'prospect_tag_suppressed',
       ])
       .gte('created_at', weekStartIso),
-    // T4 delta: ongoing_contact + updated_at older than 90d.
-    supabase
-      .from('prospects')
-      .select('id', { count: 'exact', head: true })
-      .eq('state', 'ongoing_contact')
-      .lt('updated_at', ninetyDaysAgoIso),
   ]);
   return {
     total: queries[0].count ?? 0,
@@ -392,7 +379,6 @@ export async function getHomeStats(selfUserId: string): Promise<HomeStats> {
     recent7d: queries[8].count ?? 0,
     newSinceLastRun: queries[9].count ?? 0,
     tagChangesThisWeek: queries[10].count ?? 0,
-    goneQuiet: queries[11].count ?? 0,
   };
 }
 

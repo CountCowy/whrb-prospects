@@ -8,19 +8,39 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { CompanyProspectField } from '@/components/ad-orders/CompanyProspectField';
 import type { AdOrderRow } from '@/lib/queries/ad-orders';
+import type { Profile } from '@/lib/queries/profiles';
+
+export type AdOrderFormPrefill = {
+  prospectId: string;
+  companyName: string;
+  /** Display name for the "Linked to prospect: …" badge in the picker. */
+  prospectName: string;
+};
 
 type Props =
   | {
       mode: 'create';
       defaultCommissionPct: number;
+      profiles: Profile[];
+      /** When the page is opened with `?prospect=<uuid>` from a prospect's
+       *  detail page, prefill company_name + prospect_id so the user
+       *  doesn't have to retype or pick. */
+      prefill?: AdOrderFormPrefill | null;
     }
   | {
       mode: 'edit';
       row: AdOrderRow;
       isAdmin: boolean;
       isLocked: boolean;
+      profiles: Profile[];
     };
+
+function profileLabel(p: Profile): string {
+  const name = p.display_name?.trim();
+  return name ? `${name} (${p.email})` : p.email;
+}
 
 type FieldState = {
   promo_id: string;
@@ -37,6 +57,9 @@ type FieldState = {
   salesperson_id: string;
   commission_pct: string;
   ad_produced: boolean;
+  // Empty string == NULL on the wire. The form keeps these in lock-step
+  // so the DB's ad_orders_produced_at_consistent CHECK never trips.
+  ad_produced_at: string;
   se_engineer_id: string;
   notes: string;
 };
@@ -57,16 +80,20 @@ function initialFromRow(row: AdOrderRow): FieldState {
     salesperson_id: row.salesperson_id ?? '',
     commission_pct: String(row.commission_pct ?? '0'),
     ad_produced: row.ad_produced,
+    ad_produced_at: row.ad_produced_at ?? '',
     se_engineer_id: row.se_engineer_id ?? '',
     notes: row.notes ?? '',
   };
 }
 
-function emptyState(defaultCommissionPct: number): FieldState {
+function emptyState(
+  defaultCommissionPct: number,
+  prefill?: AdOrderFormPrefill | null,
+): FieldState {
   return {
     promo_id: '',
-    prospect_id: '',
-    company_name: '',
+    prospect_id: prefill?.prospectId ?? '',
+    company_name: prefill?.companyName ?? '',
     package_doc_url: '',
     is_nonprofit_rate: false,
     discount_pct: '0',
@@ -78,6 +105,7 @@ function emptyState(defaultCommissionPct: number): FieldState {
     salesperson_id: '',
     commission_pct: String(defaultCommissionPct),
     ad_produced: false,
+    ad_produced_at: '',
     se_engineer_id: '',
     notes: '',
   };
@@ -87,7 +115,7 @@ export function AdOrderForm(props: Props) {
   const router = useRouter();
   const initial =
     props.mode === 'create'
-      ? emptyState(props.defaultCommissionPct)
+      ? emptyState(props.defaultCommissionPct, props.prefill ?? null)
       : initialFromRow(props.row);
   const [s, setS] = useState<FieldState>(initial);
   const [busy, setBusy] = useState(false);
@@ -132,6 +160,10 @@ export function AdOrderForm(props: Props) {
           salesperson_id: s.salesperson_id || undefined,
           se_engineer_id: s.se_engineer_id || undefined,
           notes: s.notes || undefined,
+          // Only send the produced pair when the box is checked. The DB
+          // default is `(false, NULL)` which already satisfies the CHECK.
+          ad_produced: s.ad_produced,
+          ad_produced_at: s.ad_produced ? s.ad_produced_at || new Date().toISOString() : undefined,
         };
         const r = await fetch('/api/ad-orders', {
           method: 'POST',
@@ -233,13 +265,28 @@ export function AdOrderForm(props: Props) {
           </p>
         </div>
         <div>
-          <Label htmlFor="company_name">Company *</Label>
-          <Input
-            id="company_name"
-            value={s.company_name}
-            disabled={disabledFor('company_name')}
-            onChange={(e) => set('company_name', e.target.value)}
-            required
+          <CompanyProspectField
+            companyName={s.company_name}
+            prospectId={s.prospect_id}
+            linkedProspectName={
+              props.mode === 'edit'
+                ? props.row.prospect?.company_name ?? null
+                : props.prefill?.prospectName ?? null
+            }
+            disabled={disabledFor('company_name') || disabledFor('prospect_id')}
+            onChange={({ companyName, prospectId }) => {
+              setS((prev) => ({
+                ...prev,
+                company_name: companyName,
+                prospect_id: prospectId,
+              }));
+              setTouched((prev) => {
+                const next = new Set(prev);
+                next.add('company_name');
+                next.add('prospect_id');
+                return next;
+              });
+            }}
           />
         </div>
       </section>
@@ -344,24 +391,38 @@ export function AdOrderForm(props: Props) {
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div>
-          <Label htmlFor="salesperson_id">Salesperson (profile UUID)</Label>
-          <Input
+          <Label htmlFor="salesperson_id">Salesperson</Label>
+          <select
             id="salesperson_id"
-            placeholder="uuid"
             value={s.salesperson_id}
             disabled={disabledFor('salesperson_id')}
             onChange={(e) => set('salesperson_id', e.target.value)}
-          />
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">— unassigned —</option>
+            {props.profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {profileLabel(p)}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
-          <Label htmlFor="se_engineer_id">SE engineer (profile UUID)</Label>
-          <Input
+          <Label htmlFor="se_engineer_id">SE engineer</Label>
+          <select
             id="se_engineer_id"
-            placeholder="uuid"
             value={s.se_engineer_id}
             disabled={disabledFor('se_engineer_id')}
             onChange={(e) => set('se_engineer_id', e.target.value)}
-          />
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <option value="">— unassigned —</option>
+            {props.profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {profileLabel(p)}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <Label htmlFor="commission_pct">Commission %</Label>
@@ -384,13 +445,32 @@ export function AdOrderForm(props: Props) {
             id="ad_produced"
             checked={s.ad_produced}
             disabled={disabledFor('ad_produced')}
-            onCheckedChange={(c) => set('ad_produced', Boolean(c))}
+            onCheckedChange={(c) => {
+              const checked = Boolean(c);
+              setS((prev) => ({
+                ...prev,
+                ad_produced: checked,
+                // Keep ad_produced_at in lock-step (DB CHECK constraint).
+                // Stamp now() on flip-true; clear on flip-false. Don't
+                // overwrite a pre-existing timestamp on a no-op toggle.
+                ad_produced_at: checked
+                  ? prev.ad_produced_at || new Date().toISOString()
+                  : '',
+              }));
+              setTouched((prev) => {
+                const next = new Set(prev);
+                next.add('ad_produced');
+                next.add('ad_produced_at');
+                return next;
+              });
+            }}
           />
           <span>Ad has been produced</span>
         </label>
         <p className="mt-1 text-xs text-muted-foreground">
-          When checked on save, the timestamp is auto-recorded server-side via the
-          ad_produced_at trigger column.
+          {s.ad_produced && s.ad_produced_at
+            ? `Produced at ${new Date(s.ad_produced_at).toLocaleString()}.`
+            : 'Checking this will record the production timestamp on save.'}
         </p>
       </section>
 

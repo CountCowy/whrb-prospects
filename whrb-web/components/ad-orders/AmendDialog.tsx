@@ -16,13 +16,17 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import type { Profile } from '@/lib/queries/profiles';
 
 type Props = {
   adOrderId: string;
   promoId: string;
+  profiles: Profile[];
 };
 
-const AMENDABLE_FIELDS: Array<{ value: string; label: string; type: 'text' | 'date' | 'number' | 'boolean' | 'uuid' }> = [
+type AmendableType = 'text' | 'date' | 'number' | 'boolean' | 'profile' | 'uuid';
+
+const AMENDABLE_FIELDS: Array<{ value: string; label: string; type: AmendableType }> = [
   { value: 'promo_id',              label: 'Promo ID',                  type: 'text' },
   { value: 'company_name',          label: 'Company name',              type: 'text' },
   { value: 'package_doc_url',       label: 'Package doc URL',           type: 'text' },
@@ -32,8 +36,8 @@ const AMENDABLE_FIELDS: Array<{ value: string; label: string; type: 'text' | 'da
   { value: 'client_check_number',   label: 'Client check #',            type: 'text' },
   { value: 'notes',                 label: 'Notes',                     type: 'text' },
   { value: 'prospect_id',           label: 'Prospect (uuid)',           type: 'uuid' },
-  { value: 'salesperson_id',        label: 'Salesperson (uuid)',        type: 'uuid' },
-  { value: 'se_engineer_id',        label: 'SE engineer (uuid)',        type: 'uuid' },
+  { value: 'salesperson_id',        label: 'Salesperson',               type: 'profile' },
+  { value: 'se_engineer_id',        label: 'SE engineer',               type: 'profile' },
   { value: 'total_amount',          label: 'Total ($)',                 type: 'number' },
   { value: 'discount_pct',          label: 'Discount %',                type: 'number' },
   { value: 'commission_pct',        label: 'Commission %',              type: 'number' },
@@ -44,7 +48,12 @@ const AMENDABLE_FIELDS: Array<{ value: string; label: string; type: 'text' | 'da
   { value: 'ad_produced',           label: 'Ad produced',               type: 'boolean' },
 ];
 
-export function AmendDialog({ adOrderId, promoId }: Props) {
+function profileLabel(p: Profile): string {
+  const name = p.display_name?.trim();
+  return name ? `${name} (${p.email})` : p.email;
+}
+
+export function AmendDialog({ adOrderId, promoId, profiles }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [field, setField] = useState(AMENDABLE_FIELDS[0].value);
@@ -102,7 +111,10 @@ export function AmendDialog({ adOrderId, promoId }: Props) {
             <select
               id="amend_field"
               value={field}
-              onChange={(e) => setField(e.target.value)}
+              onChange={(e) => {
+                setField(e.target.value);
+                setValue('');
+              }}
               className="w-full rounded-md border bg-background px-2 py-1 text-sm"
             >
               {AMENDABLE_FIELDS.map((f) => (
@@ -124,6 +136,20 @@ export function AmendDialog({ adOrderId, promoId }: Props) {
                 <option value="">— pick —</option>
                 <option value="true">true</option>
                 <option value="false">false</option>
+              </select>
+            ) : fdef.type === 'profile' ? (
+              <select
+                id="amend_value"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                className="w-full rounded-md border bg-background px-2 py-1 text-sm"
+              >
+                <option value="" disabled>— pick a person —</option>
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {profileLabel(p)}
+                  </option>
+                ))}
               </select>
             ) : (
               <Input

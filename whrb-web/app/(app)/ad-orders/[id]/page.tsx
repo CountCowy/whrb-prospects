@@ -8,6 +8,7 @@ import {
   listAmendments,
   listActivity,
 } from '@/lib/queries/ad-orders';
+import { listProfiles } from '@/lib/queries/profiles';
 import { AdOrderDetailPane } from '@/components/ad-orders/AdOrderDetailPane';
 
 export default async function AdOrderDetailPage({
@@ -22,9 +23,10 @@ export default async function AdOrderDetailPage({
   const row = await getAdOrder(id);
   if (!row) notFound();
 
-  const [amendments, activity] = await Promise.all([
+  const [amendments, activity, profiles] = await Promise.all([
     listAmendments(id),
     listActivity(id),
+    listProfiles(),
   ]);
 
   const viewer = {
@@ -59,6 +61,7 @@ export default async function AdOrderDetailPage({
         amendments={amendments}
         activity={activity}
         viewer={viewer}
+        profiles={profiles}
       />
     </div>
   );
