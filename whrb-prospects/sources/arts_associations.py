@@ -69,12 +69,18 @@ _FEEDS: dict[str, _Feed] = {
     },
     "cma": {
         "slug": "cma",
-        "url": "https://www.chamber-music.org/directory",
-        "self_domains": ("chamber-music.org",),
+        # Domain change: chamber-music.org now 301-redirects to
+        # chambermusicamerica.org but ships a broken intermediate cert
+        # chain that python-requests rejects (CERTIFICATE_VERIFY_FAILED
+        # in run deebeff6). The directory itself has migrated to the
+        # MemberClicks-hosted members subdomain, which has a healthy
+        # cert. Numeric path is the public landing page for member listings.
+        "url": "https://members.chambermusicamerica.org/membership-directory/1",
+        "self_domains": ("chambermusicamerica.org", "chamber-music.org"),
         "genre": "classical",
         "name_blocklist": (
             "chamber music america", "directory", "membership",
-            "the cma magazine",
+            "the cma magazine", "membership directory",
         ),
     },
     "lao": {

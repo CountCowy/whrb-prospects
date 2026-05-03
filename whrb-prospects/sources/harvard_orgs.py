@@ -71,12 +71,11 @@ class _Feed(TypedDict):
 
 
 _FEEDS: dict[str, _Feed] = {
-    "osl": {
-        "slug": "osl",
-        "url": "https://osl.college.harvard.edu/student-organizations",
-        "parse": "parse_osl",
-        "feed_kind": "student_org",
-    },
+    # `osl` removed: osl.college.harvard.edu returns NXDOMAIN as of run
+    # deebeff6 (Harvard reorganized student-life web properties; the
+    # historical /student-organizations directory has no successor that
+    # is publicly indexable). Re-add the entry only after verifying a
+    # live replacement URL — never leave a TODO that scrapes a dead host.
     "ofa": {
         "slug": "ofa",
         "url": "https://ofa.fas.harvard.edu/",
@@ -117,24 +116,18 @@ _FEEDS: dict[str, _Feed] = {
         "parse": "parse_ensemble_page",
         "feed_kind": "ensemble",
     },
-    "din_and_tonics": {
-        "slug": "din_and_tonics",
-        "url": "https://www.dinandtonics.com/",
-        "parse": "parse_ensemble_page",
-        "feed_kind": "ensemble",
-    },
+    # `din_and_tonics` removed: dinandtonics.com NXDOMAIN as of run
+    # deebeff6. Group's online presence (if any) lives on social media,
+    # not a scrapable site.
     "krokodiloes": {
         "slug": "krokodiloes",
         "url": "https://kroks.com/",
         "parse": "parse_ensemble_page",
         "feed_kind": "ensemble",
     },
-    "harvard_bach_society": {
-        "slug": "harvard_bach_society",
-        "url": "https://harvardbachsociety.org/",
-        "parse": "parse_ensemble_page",
-        "feed_kind": "ensemble",
-    },
+    # `harvard_bach_society` removed: harvardbachsociety.org NXDOMAIN as
+    # of run deebeff6. No live replacement domain has been verified — the
+    # `.weebly.com` mirror also 404s.
     "harvard_radcliffe_orchestra": {
         "slug": "harvard_radcliffe_orchestra",
         "url": "https://www.harvardradcliffeorchestra.org/",

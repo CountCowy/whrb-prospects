@@ -377,7 +377,12 @@ def filter_rows(rows: list[dict]) -> list[dict]:
         except CannabisBlockStale:
             raise
         if blocked:
-            event_log.warn(
+            # `info` rather than `warn`: this is the filter's success
+            # path. Real failures (stale FCC list, lookup errors) raise
+            # CannabisBlockStale and bubble out separately — we don't
+            # want them mixed into the same severity bucket as routine
+            # match-and-skip events that should never page anyone.
+            event_log.info(
                 "cannabis_blocked",
                 f"blocked cannabis row: {r.get('company_name')!r}",
                 context={

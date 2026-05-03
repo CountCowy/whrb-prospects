@@ -122,16 +122,20 @@ _TARGETS: dict[str, _Target] = {
     },
     "huntington": {
         "slug": "huntington",
-        # Plan-specified URL `/support-us/supporters/institution/` returned
-        # 404 at fixture-capture time. The Huntington routes its supporter
-        # listing under `/about/sponsors/` (mirrors the program-books
-        # fetcher in sources/program_books_fetcher.py::HUNTINGTON_SPONSORS_URL).
-        "url": "https://huntingtontheatre.org/about/sponsors/",
+        # Site rebuild (2025) retired `/about/sponsors/` (404 in run
+        # deebeff6). The current canonical sponsor list lives on the
+        # institutional-giving page, structured as tiered headings
+        # (Production Sponsors / Benefactors / Patrons / Supporters /
+        # Members) followed by company names.
+        "url": "https://www.huntingtontheatre.org/support-us/institutional-giving/",
         "self_domains": ("huntingtontheatre.org",),
         "name_blocklist": (
             "huntington theatre", "huntington",
             "institutional supporters", "supporters", "support us",
             "about", "sponsors",
+            "institutional and corporate giving",
+            "corporate sponsor program",
+            "production sponsors", "benefactors", "patrons", "members",
         ),
     },
     "bemf": {

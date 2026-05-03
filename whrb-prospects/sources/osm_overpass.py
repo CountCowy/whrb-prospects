@@ -20,6 +20,18 @@ from util.tags import (
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 
+# Overpass actively blocks generic User-Agent strings (`python-requests/*`,
+# `Mozilla/5.0...` browser-style) with HTTP 406 — confirmed empirically
+# during run deebeff6 incident review. A descriptive, identifying UA
+# (their published etiquette: include a contact URL or email) is required
+# instead. The `+https://...` syntax matches the convention used by major
+# crawlers' robots-of-record entries.
+_OVERPASS_UA = (
+    "WHRBProspectPipeline/1.0 "
+    "(+https://www.whrb.org/sales; sales@whrb.org)"
+)
+_OVERPASS_HEADERS = {"User-Agent": _OVERPASS_UA}
+
 
 def _build_query(tag_filters: Iterable[str], bbox: tuple) -> str:
     s, w, n, e = bbox[0], bbox[1], bbox[2], bbox[3]
@@ -32,7 +44,12 @@ def _build_query(tag_filters: Iterable[str], bbox: tuple) -> str:
 
 @smart_retry(wait_min=5, wait_max=60)
 def _post(query: str) -> dict:
-    r = requests.post(OVERPASS_URL, data={"data": query}, timeout=120)
+    r = requests.post(
+        OVERPASS_URL,
+        data={"data": query},
+        headers=_OVERPASS_HEADERS,
+        timeout=120,
+    )
     raise_for_smart_status(r)
     return r.json()
 
