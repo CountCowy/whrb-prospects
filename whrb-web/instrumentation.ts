@@ -24,5 +24,19 @@ export async function register() {
  * Capture errors thrown inside Server Components, route handlers, server
  * actions, and middleware. Without this export those would land as
  * unhandled rejections — Sentry exposes a single hook to wire them up.
+ *
+ * Wrapped with an explicit `Sentry.flush(2000)` because Vercel's
+ * serverless runtime kills the function process as soon as the response
+ * is sent. Without flushing here, captured events queued by
+ * `Sentry.captureRequestError` never make it to the ingest endpoint.
+ * This was verified empirically against `/api/sentry-debug?action=throw`
+ * before this wrapper was added — explicit captures + flush landed,
+ * implicit `onRequestError` captures did not. The 2-second budget
+ * matches Sentry's documented serverless-flush guidance.
  */
-export const onRequestError = Sentry.captureRequestError;
+export const onRequestError = async (
+  ...args: Parameters<typeof Sentry.captureRequestError>
+): Promise<void> => {
+  Sentry.captureRequestError(...args);
+  await Sentry.flush(2000);
+};
