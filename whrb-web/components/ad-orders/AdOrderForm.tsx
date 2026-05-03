@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { CompanyProspectField } from '@/components/ad-orders/CompanyProspectField';
 import type { AdOrderRow } from '@/lib/queries/ad-orders';
 import type { Profile } from '@/lib/queries/profiles';
 
@@ -241,13 +242,26 @@ export function AdOrderForm(props: Props) {
           </p>
         </div>
         <div>
-          <Label htmlFor="company_name">Company *</Label>
-          <Input
-            id="company_name"
-            value={s.company_name}
-            disabled={disabledFor('company_name')}
-            onChange={(e) => set('company_name', e.target.value)}
-            required
+          <CompanyProspectField
+            companyName={s.company_name}
+            prospectId={s.prospect_id}
+            linkedProspectName={
+              props.mode === 'edit' ? props.row.prospect?.company_name ?? null : null
+            }
+            disabled={disabledFor('company_name') || disabledFor('prospect_id')}
+            onChange={({ companyName, prospectId }) => {
+              setS((prev) => ({
+                ...prev,
+                company_name: companyName,
+                prospect_id: prospectId,
+              }));
+              setTouched((prev) => {
+                const next = new Set(prev);
+                next.add('company_name');
+                next.add('prospect_id');
+                return next;
+              });
+            }}
           />
         </div>
       </section>
