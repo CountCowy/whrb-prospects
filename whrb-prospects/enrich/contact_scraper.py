@@ -18,11 +18,39 @@ from urllib.parse import urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from db.validators import PHONE_SENTINELS
 from util.normalize import normalize_website
 
 UA = "Mozilla/5.0 (whrb-prospects research crawler)"
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-PHONE_RE = re.compile(r"\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b")
+
+# Two-pattern phone extraction. The previous loose regex accepted bare
+# 10-digit runs (``\(?\b\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b`` with optional
+# separators), which scooped up timestamps, IDs, and INT_MAX-style
+# sentinels — most notably ``2147483647``, harvested from four unrelated
+# sites in run deebeff6 and collapsed into a single ``phone:2147483647``
+# business_key. Now:
+#
+# * ``PHONE_RE`` requires at least one separator between the area code,
+#   exchange, and subscriber groups — phones written for human eyes
+#   always carry one, so this rejects the false-positive runs without
+#   losing real matches.
+# * ``PHONE_TEL_HREF_RE`` covers ``href="tel:6175550100"`` markup where
+#   the contiguous form is canonical; the ``tel:`` prefix supplies the
+#   context that we've otherwise dropped.
+PHONE_RE = re.compile(
+    r"\(?\b\d{3}\)?[\s.\-]+\d{3}[\s.\-]+\d{4}\b"
+)
+PHONE_TEL_HREF_RE = re.compile(
+    r"tel:\+?1?[\s\-]?(\d{3}[\s.\-]?\d{3}[\s.\-]?\d{4})\b",
+    re.IGNORECASE,
+)
+# Defense-in-depth: even when a sentinel sneaks through ``PHONE_RE`` (for
+# example if some site formats ``2,147,483,647`` with comma separators),
+# the post-match ``_PHONE_DIGITS`` strip + ``PHONE_SENTINELS`` lookup
+# drops it before it pollutes ``state["phones"]``. ``db/validators.py``
+# owns the canonical sentinel list.
+_PHONE_DIGITS_RE = re.compile(r"\D+")
 NAME_LABEL_RE = re.compile(
     r"(?:owner|founder|president|ceo|proprietor|manager|director)[:\s]+"
     r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})",
@@ -66,6 +94,14 @@ def _extract(html: str, domain: str, state: dict) -> None:
         if domain in low or not re.search(r"(gmail|yahoo|hotmail|outlook)", low):
             found_emails.add(low)
     for m in PHONE_RE.findall(html):
+        last10 = _PHONE_DIGITS_RE.sub("", m)[-10:]
+        if len(last10) != 10 or last10 in PHONE_SENTINELS:
+            continue
+        state["phones"].add(m)
+    for m in PHONE_TEL_HREF_RE.findall(html):
+        last10 = _PHONE_DIGITS_RE.sub("", m)[-10:]
+        if len(last10) != 10 or last10 in PHONE_SENTINELS:
+            continue
         state["phones"].add(m)
     if not state["name"]:
         text = BeautifulSoup(html, "lxml").get_text(" ", strip=True)

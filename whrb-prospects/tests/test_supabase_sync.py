@@ -94,6 +94,27 @@ class TestBusinessKey:
             bk = business_key({"company_name": "X", "company_phone": tf})
             assert bk == f"phone:{tf}"
 
+    def test_int_max_sentinel_falls_through_to_name(self) -> None:
+        # The deebeff6 bug: 2147483647 has a real Dallas NPA (214) so it
+        # passes VALID_NANP_AREA_CODES, but it's INT_MAX masquerading as a
+        # phone — four unrelated companies in that run all collapsed onto
+        # `phone:2147483647`. The PHONE_SENTINELS check inside
+        # business_key now forces the row to fall through to name|zip.
+        bk = business_key({
+            "company_name": "Boston Globe",
+            "company_phone": "2147483647",
+            "zip": "02210",
+        })
+        assert bk == "name:boston globe|02210"
+
+    def test_repdigit_sentinel_falls_through_to_name(self) -> None:
+        bk = business_key({
+            "company_name": "Placeholder Co",
+            "company_phone": "8888888888",
+            "zip": "02138",
+        })
+        assert bk == "name:placeholder co|02138"
+
 
 class TestSplitAltFields:
     def test_splits_alt_prefix(self) -> None:

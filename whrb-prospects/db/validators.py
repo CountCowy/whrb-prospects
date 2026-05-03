@@ -19,6 +19,29 @@ from util import event_log
 EIN_PATTERN = re.compile(r"^\d{2}-\d{7}$")
 _PHONE_NON_DIGITS = re.compile(r"\D+")
 
+# 10-digit "phones" we know are never real — common when scrapers grab a
+# numeric run from a JS variable, schema.org placeholder, or copy-paste
+# template. ``2147483647`` is INT_MAX (32-bit signed) and showed up across
+# four unrelated companies in run ae03c435/deebeff6 because the area code
+# (``214``) is a real NANP code (Dallas), so ``VALID_NANP_AREA_CODES``
+# alone can't catch it. Repdigits and sequential placeholders round it
+# out. Defense-in-depth: ``business_key`` and ``validate_phone`` both
+# consult this set so a sentinel can never become a stable identity.
+PHONE_SENTINELS: frozenset[str] = frozenset({
+    "2147483647",  # INT_MAX
+    "9999999999",
+    "1234567890",
+    "0000000000",
+    "1111111111",
+    "2222222222",
+    "3333333333",
+    "4444444444",
+    "5555555555",
+    "6666666666",
+    "7777777777",
+    "8888888888",
+})
+
 # Currently-assigned NANP area codes (US + Canada + Caribbean NANP members) plus
 # common toll-free prefixes. Used to reject scraper-hallucinated phones whose
 # 10-digit form starts with an impossible NPA (e.g. 114, 177, 527 — the bug
@@ -150,6 +173,13 @@ def validate_phone(value: object, *, business_key: str | None = None) -> str | N
         )
         return None
     last10 = digits[-10:]
+    if last10 in PHONE_SENTINELS:
+        event_log.warn(
+            "phone_sentinel_rejected",
+            f"rejected sentinel phone {last10!r}: {text!r}",
+            context={"phone": text, "business_key": business_key},
+        )
+        return None
     area = last10[:3]
     if area not in VALID_NANP_AREA_CODES:
         event_log.warn(
