@@ -46,6 +46,9 @@ type FieldState = {
   salesperson_id: string;
   commission_pct: string;
   ad_produced: boolean;
+  // Empty string == NULL on the wire. The form keeps these in lock-step
+  // so the DB's ad_orders_produced_at_consistent CHECK never trips.
+  ad_produced_at: string;
   se_engineer_id: string;
   notes: string;
 };
@@ -66,6 +69,7 @@ function initialFromRow(row: AdOrderRow): FieldState {
     salesperson_id: row.salesperson_id ?? '',
     commission_pct: String(row.commission_pct ?? '0'),
     ad_produced: row.ad_produced,
+    ad_produced_at: row.ad_produced_at ?? '',
     se_engineer_id: row.se_engineer_id ?? '',
     notes: row.notes ?? '',
   };
@@ -87,6 +91,7 @@ function emptyState(defaultCommissionPct: number): FieldState {
     salesperson_id: '',
     commission_pct: String(defaultCommissionPct),
     ad_produced: false,
+    ad_produced_at: '',
     se_engineer_id: '',
     notes: '',
   };
@@ -141,6 +146,10 @@ export function AdOrderForm(props: Props) {
           salesperson_id: s.salesperson_id || undefined,
           se_engineer_id: s.se_engineer_id || undefined,
           notes: s.notes || undefined,
+          // Only send the produced pair when the box is checked. The DB
+          // default is `(false, NULL)` which already satisfies the CHECK.
+          ad_produced: s.ad_produced,
+          ad_produced_at: s.ad_produced ? s.ad_produced_at || new Date().toISOString() : undefined,
         };
         const r = await fetch('/api/ad-orders', {
           method: 'POST',
@@ -420,13 +429,32 @@ export function AdOrderForm(props: Props) {
             id="ad_produced"
             checked={s.ad_produced}
             disabled={disabledFor('ad_produced')}
-            onCheckedChange={(c) => set('ad_produced', Boolean(c))}
+            onCheckedChange={(c) => {
+              const checked = Boolean(c);
+              setS((prev) => ({
+                ...prev,
+                ad_produced: checked,
+                // Keep ad_produced_at in lock-step (DB CHECK constraint).
+                // Stamp now() on flip-true; clear on flip-false. Don't
+                // overwrite a pre-existing timestamp on a no-op toggle.
+                ad_produced_at: checked
+                  ? prev.ad_produced_at || new Date().toISOString()
+                  : '',
+              }));
+              setTouched((prev) => {
+                const next = new Set(prev);
+                next.add('ad_produced');
+                next.add('ad_produced_at');
+                return next;
+              });
+            }}
           />
           <span>Ad has been produced</span>
         </label>
         <p className="mt-1 text-xs text-muted-foreground">
-          When checked on save, the timestamp is auto-recorded server-side via the
-          ad_produced_at trigger column.
+          {s.ad_produced && s.ad_produced_at
+            ? `Produced at ${new Date(s.ad_produced_at).toLocaleString()}.`
+            : 'Checking this will record the production timestamp on save.'}
         </p>
       </section>
 

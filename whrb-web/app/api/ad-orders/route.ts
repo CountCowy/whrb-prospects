@@ -135,6 +135,10 @@ export async function POST(req: Request) {
     commission_pct: commissionPct,
     se_engineer_id: body.se_engineer_id ?? null,
     notes: body.notes ?? null,
+    // Schema's refine() guarantees these are consistent: false-with-null
+    // or true-with-timestamp. Either path satisfies the DB CHECK.
+    ad_produced: body.ad_produced ?? false,
+    ad_produced_at: body.ad_produced_at ?? null,
     created_by: user.id,
   };
 
