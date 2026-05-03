@@ -32,9 +32,13 @@ def fake_browser(monkeypatch: pytest.MonkeyPatch) -> None:
             return
 
     class _NullPlaywright:
-        class chromium:  # noqa: N801 — match Playwright's namespace shape
+        # Mirror Playwright's lowercase `chromium` attribute. The
+        # `headless=True` default exists only to match Playwright's
+        # public signature so production callers can pass it through.
+        class chromium:
             @staticmethod
-            def launch(headless: bool = True) -> _NullBrowser:  # noqa: ARG004
+            def launch(headless: bool = True) -> _NullBrowser:
+                del headless
                 return _NullBrowser()
 
     class _NullCtxMgr:
@@ -59,7 +63,7 @@ def test_enrich_rows_aborts_after_consecutive_selector_misses(
     """Three back-to-back selector misses should trigger an early abort."""
     calls: list[str] = []
 
-    def boom(_page, name):  # noqa: ANN001
+    def boom(_page, name):
         calls.append(name)
         raise ma_sos._SelectorMissing("locator timeout")
 
@@ -91,7 +95,7 @@ def test_enrich_rows_resets_consecutive_counter_on_success(
         {"officers": [{"title": "Manager", "name": "John Roe"}]},
     ])
 
-    def stub(_page, name):  # noqa: ANN001
+    def stub(_page, name):
         out = next(sequence)
         if isinstance(out, Exception):
             raise out
@@ -122,7 +126,7 @@ def test_enrich_rows_stops_when_wall_budget_exhausted(
 
     calls: list[str] = []
 
-    def quick(_page, name):  # noqa: ANN001
+    def quick(_page, name):
         calls.append(name)
         return {"officers": [{"title": "President", "name": f"Owner of {name}"}]}
 
