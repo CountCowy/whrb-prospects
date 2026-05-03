@@ -12,11 +12,22 @@ import { CompanyProspectField } from '@/components/ad-orders/CompanyProspectFiel
 import type { AdOrderRow } from '@/lib/queries/ad-orders';
 import type { Profile } from '@/lib/queries/profiles';
 
+export type AdOrderFormPrefill = {
+  prospectId: string;
+  companyName: string;
+  /** Display name for the "Linked to prospect: …" badge in the picker. */
+  prospectName: string;
+};
+
 type Props =
   | {
       mode: 'create';
       defaultCommissionPct: number;
       profiles: Profile[];
+      /** When the page is opened with `?prospect=<uuid>` from a prospect's
+       *  detail page, prefill company_name + prospect_id so the user
+       *  doesn't have to retype or pick. */
+      prefill?: AdOrderFormPrefill | null;
     }
   | {
       mode: 'edit';
@@ -75,11 +86,14 @@ function initialFromRow(row: AdOrderRow): FieldState {
   };
 }
 
-function emptyState(defaultCommissionPct: number): FieldState {
+function emptyState(
+  defaultCommissionPct: number,
+  prefill?: AdOrderFormPrefill | null,
+): FieldState {
   return {
     promo_id: '',
-    prospect_id: '',
-    company_name: '',
+    prospect_id: prefill?.prospectId ?? '',
+    company_name: prefill?.companyName ?? '',
     package_doc_url: '',
     is_nonprofit_rate: false,
     discount_pct: '0',
@@ -101,7 +115,7 @@ export function AdOrderForm(props: Props) {
   const router = useRouter();
   const initial =
     props.mode === 'create'
-      ? emptyState(props.defaultCommissionPct)
+      ? emptyState(props.defaultCommissionPct, props.prefill ?? null)
       : initialFromRow(props.row);
   const [s, setS] = useState<FieldState>(initial);
   const [busy, setBusy] = useState(false);
@@ -255,7 +269,9 @@ export function AdOrderForm(props: Props) {
             companyName={s.company_name}
             prospectId={s.prospect_id}
             linkedProspectName={
-              props.mode === 'edit' ? props.row.prospect?.company_name ?? null : null
+              props.mode === 'edit'
+                ? props.row.prospect?.company_name ?? null
+                : props.prefill?.prospectName ?? null
             }
             disabled={disabledFor('company_name') || disabledFor('prospect_id')}
             onChange={({ companyName, prospectId }) => {

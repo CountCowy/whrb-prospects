@@ -25,7 +25,7 @@ import { TagChips } from '@/components/TagChips';
 import { TagAddDialog } from '@/components/TagAddDialog';
 import { CreateEventDialog } from '@/components/schedule/CreateEventDialog';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon } from 'lucide-react';
+import { Calendar as CalendarIcon, DollarSign as DollarSignIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -205,6 +205,19 @@ export function ProspectDetail({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {isAdmin && (
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  data-testid="prospect-create-ad-order"
+                >
+                  <Link href={`/ad-orders/new?prospect=${prospect.id}`}>
+                    <DollarSignIcon className="mr-1 h-4 w-4" aria-hidden="true" />
+                    Create ad order
+                  </Link>
+                </Button>
+              )}
               <Button
                 type="button"
                 size="sm"
