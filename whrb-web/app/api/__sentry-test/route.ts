@@ -27,5 +27,5 @@ export async function GET() {
       { status: 404 },
     );
   }
-  throw new Error('Sentry smoke test — intentional throw from /__sentry-test');
+  throw new Error('Sentry smoke test — intentional throw from /api/__sentry-test');
 }
