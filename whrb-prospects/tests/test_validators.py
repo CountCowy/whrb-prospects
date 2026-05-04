@@ -166,3 +166,19 @@ class TestPhoneSentinelRejection:
     def test_sentinel_set_contains_known_offenders(self) -> None:
         for sentinel in ("2147483647", "9999999999", "1234567890", "0000000000"):
             assert sentinel in PHONE_SENTINELS
+
+    def test_sentinel_set_covers_all_repdigits(self) -> None:
+        # Programmatic build means a typo in one digit can't drop a sentinel
+        # silently — assert the structural invariant.
+        for d in "0123456789":
+            assert d * 10 in PHONE_SENTINELS
+
+    def test_sentinel_set_covers_int_max_neighbors(self) -> None:
+        # INT_MAX +/- 1 cover off-by-one variants from JS-int casts.
+        # NPA 214 is real, so the NPA gate alone can't catch these.
+        for sentinel in ("2147483646", "2147483647", "2147483648"):
+            assert sentinel in PHONE_SENTINELS
+
+    def test_sentinel_set_covers_monotonic_ramps(self) -> None:
+        for sentinel in ("1234567890", "0123456789", "9876543210", "0987654321"):
+            assert sentinel in PHONE_SENTINELS

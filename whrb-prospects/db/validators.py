@@ -24,22 +24,30 @@ _PHONE_NON_DIGITS = re.compile(r"\D+")
 # template. ``2147483647`` is INT_MAX (32-bit signed) and showed up across
 # four unrelated companies in run ae03c435/deebeff6 because the area code
 # (``214``) is a real NANP code (Dallas), so ``VALID_NANP_AREA_CODES``
-# alone can't catch it. Repdigits and sequential placeholders round it
-# out. Defense-in-depth: ``business_key`` and ``validate_phone`` both
-# consult this set so a sentinel can never become a stable identity.
+# alone can't catch it. Most repdigit + monotonic-ramp entries are
+# *also* caught by the NPA gate (NPA 000, 111, 222, 333, 444, 555, 666,
+# 777, 999, 012, 123, 987, 098 are not assigned), but we keep them in
+# this set as a documented denylist so a future NPA-list addition can't
+# silently reintroduce the regression. The non-redundant entries — the
+# ones the NPA gate alone would let through — are tagged below.
+# Defense-in-depth: ``business_key``, ``validate_phone``, and
+# ``contact_scraper`` all consult this set so a sentinel can never
+# become a stable identity.
 PHONE_SENTINELS: frozenset[str] = frozenset({
-    "2147483647",  # INT_MAX
-    "9999999999",
-    "1234567890",
-    "0000000000",
-    "1111111111",
-    "2222222222",
-    "3333333333",
-    "4444444444",
-    "5555555555",
-    "6666666666",
-    "7777777777",
-    "8888888888",
+    # Repdigit runs (10) — built programmatically.
+    *(d * 10 for d in "0123456789"),
+    # Monotonic ramps — common placeholder values.
+    "1234567890",   # ascending
+    "0123456789",   # ascending with leading 0
+    "9876543210",   # descending
+    "0987654321",   # descending with leading 0
+    # INT_MAX (32-bit signed) and its immediate ±1 neighbors. NPA 214
+    # is real (Dallas), so these are the entries the NPA gate alone
+    # cannot catch. ``2147483647`` was the canonical run-deebeff6
+    # offender; ±1 covers off-by-one variants from JS-int casts.
+    "2147483647",
+    "2147483646",
+    "2147483648",
 })
 
 # Currently-assigned NANP area codes (US + Canada + Caribbean NANP members) plus
