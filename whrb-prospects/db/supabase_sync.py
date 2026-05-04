@@ -131,17 +131,48 @@ PHONE_FIELDS = ("company_phone", "contact_phone")
 BATCH_SIZE = SUPABASE_UPSERT_BATCH_SIZE
 
 _CLIENT = None
+_HTTPX_CLIENT = None
+
+
+def _build_httpx_client():
+    """HTTP/1.1-only ``httpx.Client`` for the supabase pipeline path.
+
+    Run ``a59a1ca4-b3a0-4951-bce5-0b5783c35cf1`` failed because postgrest-py
+    enables HTTP/2 by default; supabase's edge proxy capped a single HTTP/2
+    connection at ``last_stream_id:19999`` and sent a graceful ``GOAWAY``,
+    terminating one in-flight ``UPDATE`` and corrupting the next phase's
+    request (which surfaced as ``APIError: 'JSON could not be generated'``).
+    HTTP/1.1 connections close gracefully via ``Connection: close`` after
+    nginx's per-connection request cap and httpx transparently dials a new
+    one — no GOAWAY semantics to mishandle, no mid-flight
+    ``RemoteProtocolError``. The bulk-update refactor in this same change
+    cuts request volume ~100x; this client config is the safety net so the
+    pipeline isn't one architectural regression away from failing again.
+    """
+    import httpx
+
+    return httpx.Client(
+        http2=False,
+        timeout=httpx.Timeout(120.0),
+        limits=httpx.Limits(
+            max_connections=20,
+            max_keepalive_connections=20,
+            keepalive_expiry=10.0,
+        ),
+    )
 
 
 def _client():
-    global _CLIENT
+    global _CLIENT, _HTTPX_CLIENT
     if _CLIENT is not None:
         return _CLIENT
     from supabase import create_client
+    from supabase.client import ClientOptions
 
     url = os.environ["SUPABASE_URL"]
     key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-    _CLIENT = create_client(url, key)
+    _HTTPX_CLIENT = _build_httpx_client()
+    _CLIENT = create_client(url, key, ClientOptions(httpx_client=_HTTPX_CLIENT))
     return _CLIENT
 
 
@@ -482,7 +513,110 @@ def _insert_batch(client, batch: list[dict]) -> None:
     reraise=True,
 )
 def _patch_one(client, prospect_id: str, patch: dict) -> None:
+    """Per-row PATCH — kept as the fallback for batches that fail bulk UPSERT
+    (e.g. one stale ``id`` in a 50-row batch fails the whole batch's
+    NOT-NULL guard on INSERT, even though every other row would have
+    UPDATE'd cleanly). The hot path is :func:`_bulk_update_batch`.
+    """
     client.table("prospects").update(patch).eq("id", prospect_id).execute()
+
+
+@retry(
+    stop=stop_after_attempt(SUPABASE_RETRY_MAX_ATTEMPTS),
+    wait=wait_exponential(min=SUPABASE_RETRY_MIN_S, max=SUPABASE_RETRY_MAX_S),
+    retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
+    reraise=True,
+)
+def _bulk_update_batch(client, batch: list[dict]) -> None:
+    """Bulk UPSERT keyed on ``id`` — replaces the per-row PATCH loop.
+
+    Each row in *batch* carries an ``id`` plus the columns the row needs to
+    UPDATE. PostgREST emits ``INSERT ... ON CONFLICT (id) DO UPDATE SET …``;
+    the conflict path runs as plain UPDATE for every row whose id already
+    exists (the normal case in this pipeline phase). The INSERT branch is
+    dead code in practice — we only call this for rows we just fetched
+    from ``prospects`` — and the table's ``business_key NOT NULL`` /
+    ``company_name NOT NULL`` constraints guarantee it would fail loudly
+    rather than silently inserting a half-empty row, so the ``upsert``
+    framing is safe even under the rare race-condition.
+
+    Why this exists: run a59a1ca4 hit Supabase's HTTP/2 GOAWAY at
+    ``last_stream_id:19999`` after ~20K per-row PATCHes on one connection.
+    Bulk UPSERT cuts the request count ~100x and works in tandem with the
+    HTTP/1.1 client config in :func:`_build_httpx_client`.
+    """
+    client.table("prospects").upsert(batch, on_conflict="id").execute()
+
+
+def _execute_bulk_updates(
+    client,
+    to_update: list[tuple[str, dict]],
+    failed_so_far: int,
+) -> tuple[int, int]:
+    """Apply ``[(prospect_id, patch), ...]`` updates via bulk UPSERT.
+
+    Returns ``(updated_count, failed_count)`` — failed_count is the
+    incoming ``failed_so_far`` plus any new failures (so the caller can
+    just assign back to ``summary["failed"]`` without bookkeeping).
+
+    Group rows by their patch column signature so each PostgREST UPSERT
+    emits a single shape; on batch failure, fall back to per-row PATCH to
+    isolate the bad row(s) while preserving the original row-granular
+    error logging.
+    """
+    if not to_update:
+        return 0, failed_so_far
+
+    # Group by frozenset of patch keys — most pipelines have 1-2 distinct
+    # shapes (the common shape, plus a few rows with locks).
+    by_shape: dict[frozenset, list[dict]] = {}
+    for prospect_id, patch in to_update:
+        if not patch:
+            # Empty patch → nothing to update; matches old skip behavior.
+            continue
+        cols = frozenset(patch.keys())
+        by_shape.setdefault(cols, []).append({**patch, "id": prospect_id})
+
+    updated = 0
+    failed = failed_so_far
+    for _cols, rows in by_shape.items():
+        for i in range(0, len(rows), BATCH_SIZE):
+            batch = rows[i : i + BATCH_SIZE]
+            try:
+                _bulk_update_batch(client, batch)
+                updated += len(batch)
+                continue
+            except Exception as bulk_exc:
+                # Fall through to per-row PATCH so one stale id doesn't
+                # poison the whole batch.
+                event_log.warn(
+                    "supabase_upsert_bulk_fallback",
+                    f"bulk update batch fell back to per-row PATCH: "
+                    f"{type(bulk_exc).__name__}: {bulk_exc}",
+                    context={
+                        "batch_size": len(batch),
+                        "exception": type(bulk_exc).__name__,
+                        "detail": str(bulk_exc)[:500],
+                    },
+                )
+            for r in batch:
+                pid = r.pop("id")
+                try:
+                    _patch_one(client, pid, r)
+                    updated += 1
+                except Exception as e:
+                    failed += 1
+                    event_log.error(
+                        "supabase_upsert",
+                        f"update failed after retries: {type(e).__name__}: {e}",
+                        context={
+                            "prospect_id": pid,
+                            "exception": type(e).__name__,
+                            "detail": str(e)[:500],
+                            "op": "update",
+                        },
+                    )
+    return updated, failed
 
 
 @retry(
@@ -660,23 +794,18 @@ def sync(rows: Iterable[dict]) -> dict:
                 },
             )
 
-    # ---- Updates (per-row PATCH; cheaper for a small diff, safer for retries) ----
-    for prospect_id, patch in to_update:
-        try:
-            _patch_one(client, prospect_id, patch)
-            summary["updated"] += 1
-        except Exception as e:
-            summary["failed"] += 1
-            event_log.error(
-                "supabase_upsert",
-                f"update failed after retries: {type(e).__name__}: {e}",
-                context={
-                    "prospect_id": prospect_id,
-                    "exception": type(e).__name__,
-                    "detail": str(e)[:500],
-                    "op": "update",
-                },
-            )
+    # ---- Updates (bulk UPSERT keyed on id, grouped by patch shape) -------- #
+    # Run a59a1ca4 hit Supabase's HTTP/2 GOAWAY at ``last_stream_id:19999``
+    # because the previous per-row PATCH path made one HTTP request per
+    # update. Bulk UPSERT collapses ~10K round-trips into a few dozen. We
+    # group by patch column signature so PostgREST can emit a single
+    # ``INSERT … ON CONFLICT (id) DO UPDATE SET col = EXCLUDED.col`` per
+    # group; rows with locked fields (rare, distinct shape) get their own
+    # group. On batch failure we fall back to per-row PATCH so a single
+    # bad row can't sink the whole group.
+    summary["updated"], summary["failed"] = _execute_bulk_updates(
+        client, to_update, summary["failed"]
+    )
 
     # ---- Email inserts (010) ------------------------------------------ #
     # Resolve newly-inserted prospect IDs by business_key, then attach to

@@ -12,6 +12,7 @@ from __future__ import annotations
 import sys
 from typing import Any
 
+import httpx
 import requests
 from tenacity import (
     Retrying,
@@ -29,12 +30,25 @@ class NonRetryableHTTPError(Exception):
     """4xx — permanent failure."""
 
 
+# Mix of ``requests``-side and ``httpx``-side transient errors. The
+# ``requests`` entries cover scrapers (``util.http.smart_retry``); the
+# ``httpx`` entries cover the supabase pipeline path (postgrest-py uses
+# httpx under the hood). ``RemoteProtocolError`` specifically covers the
+# HTTP/2 GOAWAY mid-flight case observed in run a59a1ca4 — we now force
+# HTTP/1.1 in ``db/supabase_sync._build_httpx_client`` so this should
+# rarely fire, but keep it in the retry set as defense-in-depth.
 RETRYABLE_EXCEPTIONS = (
     RetryableHTTPError,
     requests.ConnectionError,
     requests.Timeout,
     requests.ReadTimeout,
     requests.ConnectTimeout,
+    httpx.RemoteProtocolError,
+    httpx.ConnectError,
+    httpx.ReadError,
+    httpx.ReadTimeout,
+    httpx.ConnectTimeout,
+    httpx.PoolTimeout,
 )
 
 
