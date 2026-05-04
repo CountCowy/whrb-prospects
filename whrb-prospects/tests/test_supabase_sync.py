@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import math
+from unittest.mock import MagicMock
 
 from db.supabase_sync import (
     _apply_field_validators,
     _as_str,
+    _build_httpx_client,
     _build_insert,
     _coerce,
+    _execute_bulk_updates,
     _fetch_existing_by_name,
     _patch_existing,
     _pipeline_source_for,
@@ -444,3 +447,144 @@ class TestFetchExistingByName:
         assert ("", "02138") not in with_zip
         assert with_zip == {("real one", "02138"): "name:real one|02138"}
         assert no_zip == {"real one": "name:real one|02138"}
+
+
+class TestBuildHttpxClient:
+    """Run a59a1ca4 failed because postgrest-py defaults ``http2=True`` and
+    Supabase's edge proxy GOAWAY'd on a single connection after ~20K
+    streams. The fix forces HTTP/1.1; these tests lock in that contract.
+    """
+
+    def test_http2_disabled(self) -> None:
+        client = _build_httpx_client()
+        try:
+            # httpx exposes the H2 flag through the transport's connection
+            # pool. The bug was a HTTP/2 ``GOAWAY`` mid-stream — proving
+            # H2 is off proves the bug class can't recur via this client.
+            pool = client._transport._pool
+            assert getattr(pool, "_http2", False) is False, (
+                "Supabase pipeline client must pin HTTP/1.1; HTTP/2's "
+                "per-connection stream cap caused run a59a1ca4."
+            )
+        finally:
+            client.close()
+
+    def test_returns_an_httpx_client(self) -> None:
+        import httpx
+
+        client = _build_httpx_client()
+        try:
+            assert isinstance(client, httpx.Client)
+            assert client.timeout.read == 120.0
+        finally:
+            client.close()
+
+
+class TestExecuteBulkUpdates:
+    """Verify the bulk UPSERT path the sync() function now takes for
+    updates. Run a59a1ca4 made one HTTP request per row update; bulk
+    cuts that ~100x and groups by patch column signature so PostgREST
+    can emit a single ``ON CONFLICT DO UPDATE`` per group.
+    """
+
+    def _stub_client(self) -> tuple[MagicMock, list]:
+        """Return a Supabase client mock that records ``upsert`` calls."""
+        upsert_calls: list = []
+        client = MagicMock()
+        chain = client.table.return_value
+        chain.upsert.return_value.execute.return_value = MagicMock(data=[])
+
+        def record_upsert(payload, **kwargs):
+            upsert_calls.append({"payload": payload, "kwargs": kwargs})
+            return chain.upsert.return_value
+
+        chain.upsert.side_effect = record_upsert
+        return client, upsert_calls
+
+    def test_empty_updates_does_nothing(self) -> None:
+        client, calls = self._stub_client()
+        updated, failed = _execute_bulk_updates(client, [], failed_so_far=0)
+        assert updated == 0
+        assert failed == 0
+        assert calls == []
+
+    def test_single_shape_emits_one_upsert(self) -> None:
+        client, calls = self._stub_client()
+        to_update = [
+            ("uuid-1", {"company_name": "A", "tier": "B"}),
+            ("uuid-2", {"company_name": "B", "tier": "C"}),
+            ("uuid-3", {"company_name": "C", "tier": "A"}),
+        ]
+        updated, failed = _execute_bulk_updates(client, to_update, failed_so_far=0)
+        assert updated == 3
+        assert failed == 0
+        # All three rows share a patch shape → exactly one bulk UPSERT.
+        assert len(calls) == 1
+        call = calls[0]
+        assert call["kwargs"]["on_conflict"] == "id"
+        assert len(call["payload"]) == 3
+        # Each row carries the id alongside the patched columns.
+        ids = {r["id"] for r in call["payload"]}
+        assert ids == {"uuid-1", "uuid-2", "uuid-3"}
+
+    def test_distinct_shapes_split_into_separate_upserts(self) -> None:
+        client, calls = self._stub_client()
+        to_update = [
+            ("uuid-1", {"company_name": "A"}),
+            ("uuid-2", {"company_name": "B"}),
+            # User-locked tier — different shape, must go in its own UPSERT.
+            ("uuid-3", {"company_name": "C", "rating": 5}),
+        ]
+        updated, failed = _execute_bulk_updates(client, to_update, failed_so_far=0)
+        assert updated == 3
+        assert failed == 0
+        # Two distinct patch shapes → two bulk UPSERTs.
+        assert len(calls) == 2
+        sizes = sorted(len(c["payload"]) for c in calls)
+        assert sizes == [1, 2]
+
+    def test_empty_patch_is_skipped(self) -> None:
+        client, calls = self._stub_client()
+        to_update = [
+            ("uuid-1", {"company_name": "A"}),
+            ("uuid-2", {}),  # Empty patch — nothing to update.
+        ]
+        updated, failed = _execute_bulk_updates(client, to_update, failed_so_far=0)
+        assert updated == 1
+        assert failed == 0
+        assert len(calls) == 1
+        assert len(calls[0]["payload"]) == 1
+
+    def test_failed_so_far_passes_through(self) -> None:
+        client, _ = self._stub_client()
+        # Insert phase already counted 3 failures; bulk-update success
+        # must preserve them in the returned total.
+        updated, failed = _execute_bulk_updates(
+            client, [("uuid-1", {"company_name": "A"})], failed_so_far=3
+        )
+        assert updated == 1
+        assert failed == 3
+
+    def test_bulk_failure_falls_back_to_per_row_patch(self, stub_event_log) -> None:
+        # First call (bulk) raises; per-row path uses ``update().eq().execute()``.
+        client = MagicMock()
+        chain = client.table.return_value
+
+        # Bulk path raises on the .upsert(...).execute() call.
+        chain.upsert.return_value.execute.side_effect = RuntimeError("bulk failed")
+
+        # Per-row PATCH path: .update(...).eq(...).execute() succeeds.
+        chain.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+
+        to_update = [
+            ("uuid-1", {"company_name": "A"}),
+            ("uuid-2", {"company_name": "B"}),
+        ]
+        updated, failed = _execute_bulk_updates(client, to_update, failed_so_far=0)
+        # Per-row fallback rescued every row.
+        assert updated == 2
+        assert failed == 0
+        # Fallback was logged at warn level.
+        assert stub_event_log.by_category("supabase_upsert_bulk_fallback")
+        # Per-row update path called once per row.
+        assert chain.update.call_count == 2
