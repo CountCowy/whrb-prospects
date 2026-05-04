@@ -110,12 +110,12 @@ _FEEDS: dict[str, _Feed] = {
         "parse": "parse_ensemble_page",
         "feed_kind": "ensemble",
     },
-    "radcliffe_choral_society": {
-        "slug": "radcliffe_choral_society",
-        "url": "https://radcliffechoralsociety.org/",
-        "parse": "parse_ensemble_page",
-        "feed_kind": "ensemble",
-    },
+    # `radcliffe_choral_society` removed: radcliffechoralsociety.org returns
+    # SSLV3_ALERT_HANDSHAKE_FAILURE (cert chain broken) and HTTP 409 on
+    # plain-HTTP fallback — same operational state as the other dropped
+    # feeds. DNS still resolves (Squarespace IP), so this is a hosting /
+    # billing failure rather than NXDOMAIN; re-add only after the cert
+    # is fixed and a 200 GET is independently verified.
     # `din_and_tonics` removed: dinandtonics.com NXDOMAIN as of run
     # deebeff6. Group's online presence (if any) lives on social media,
     # not a scrapable site.
