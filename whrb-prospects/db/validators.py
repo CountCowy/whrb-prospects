@@ -19,6 +19,37 @@ from util import event_log
 EIN_PATTERN = re.compile(r"^\d{2}-\d{7}$")
 _PHONE_NON_DIGITS = re.compile(r"\D+")
 
+# 10-digit "phones" we know are never real — common when scrapers grab a
+# numeric run from a JS variable, schema.org placeholder, or copy-paste
+# template. ``2147483647`` is INT_MAX (32-bit signed) and showed up across
+# four unrelated companies in run ae03c435/deebeff6 because the area code
+# (``214``) is a real NANP code (Dallas), so ``VALID_NANP_AREA_CODES``
+# alone can't catch it. Most repdigit + monotonic-ramp entries are
+# *also* caught by the NPA gate (NPA 000, 111, 222, 333, 444, 555, 666,
+# 777, 999, 012, 123, 987, 098 are not assigned), but we keep them in
+# this set as a documented denylist so a future NPA-list addition can't
+# silently reintroduce the regression. The non-redundant entries — the
+# ones the NPA gate alone would let through — are tagged below.
+# Defense-in-depth: ``business_key``, ``validate_phone``, and
+# ``contact_scraper`` all consult this set so a sentinel can never
+# become a stable identity.
+PHONE_SENTINELS: frozenset[str] = frozenset({
+    # Repdigit runs (10) — built programmatically.
+    *(d * 10 for d in "0123456789"),
+    # Monotonic ramps — common placeholder values.
+    "1234567890",   # ascending
+    "0123456789",   # ascending with leading 0
+    "9876543210",   # descending
+    "0987654321",   # descending with leading 0
+    # INT_MAX (32-bit signed) and its immediate ±1 neighbors. NPA 214
+    # is real (Dallas), so these are the entries the NPA gate alone
+    # cannot catch. ``2147483647`` was the canonical run-deebeff6
+    # offender; ±1 covers off-by-one variants from JS-int casts.
+    "2147483647",
+    "2147483646",
+    "2147483648",
+})
+
 # Currently-assigned NANP area codes (US + Canada + Caribbean NANP members) plus
 # common toll-free prefixes. Used to reject scraper-hallucinated phones whose
 # 10-digit form starts with an impossible NPA (e.g. 114, 177, 527 — the bug
@@ -150,6 +181,13 @@ def validate_phone(value: object, *, business_key: str | None = None) -> str | N
         )
         return None
     last10 = digits[-10:]
+    if last10 in PHONE_SENTINELS:
+        event_log.warn(
+            "phone_sentinel_rejected",
+            f"rejected sentinel phone {last10!r}: {text!r}",
+            context={"phone": text, "business_key": business_key},
+        )
+        return None
     area = last10[:3]
     if area not in VALID_NANP_AREA_CODES:
         event_log.warn(

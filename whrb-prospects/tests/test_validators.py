@@ -1,7 +1,12 @@
 """Tests for db.validators (EIN + phone sanity checks)."""
 from __future__ import annotations
 
-from db.validators import VALID_NANP_AREA_CODES, validate_ein, validate_phone
+from db.validators import (
+    PHONE_SENTINELS,
+    VALID_NANP_AREA_CODES,
+    validate_ein,
+    validate_phone,
+)
 
 
 class TestValidateEIN:
@@ -131,3 +136,49 @@ class TestNANPAllowlist:
     def test_set_is_immutable(self) -> None:
         # frozenset guards against accidental mutation at import time.
         assert isinstance(VALID_NANP_AREA_CODES, frozenset)
+
+
+class TestPhoneSentinelRejection:
+    def test_int_max_rejected_despite_real_npa(self, stub_event_log) -> None:
+        # 2147483647 starts with NPA 214 (Dallas), which is a real NANP
+        # area code, so the regular allowlist accepts it. The sentinel
+        # check is what kills it. This is exactly the bug behind run
+        # deebeff6's `phone:2147483647` cross-company collisions.
+        assert validate_phone("(214) 748-3647") is None
+        events = stub_event_log.by_category("phone_sentinel_rejected")
+        assert len(events) == 1
+        # context["phone"] preserves the original formatted input;
+        # the message body carries the bare-digit sentinel form.
+        assert events[0]["context"]["phone"] == "(214) 748-3647"
+        assert "'2147483647'" in events[0]["message"]
+        # The NANP-invalid category must NOT also fire — sentinels are
+        # categorically different from NPA misses.
+        assert stub_event_log.by_category("phone_nanp_invalid") == []
+
+    def test_repdigit_sentinel_rejected(self, stub_event_log) -> None:
+        # 5555555555 has area code 555 which is NOT in the allowlist, so
+        # it would be caught by the NANP path even without the sentinel
+        # set. Pick 8888888888 (NPA 888 = legit toll-free) to verify the
+        # sentinel branch runs first.
+        assert validate_phone("888-888-8888") is None
+        assert len(stub_event_log.by_category("phone_sentinel_rejected")) == 1
+
+    def test_sentinel_set_contains_known_offenders(self) -> None:
+        for sentinel in ("2147483647", "9999999999", "1234567890", "0000000000"):
+            assert sentinel in PHONE_SENTINELS
+
+    def test_sentinel_set_covers_all_repdigits(self) -> None:
+        # Programmatic build means a typo in one digit can't drop a sentinel
+        # silently — assert the structural invariant.
+        for d in "0123456789":
+            assert d * 10 in PHONE_SENTINELS
+
+    def test_sentinel_set_covers_int_max_neighbors(self) -> None:
+        # INT_MAX +/- 1 cover off-by-one variants from JS-int casts.
+        # NPA 214 is real, so the NPA gate alone can't catch these.
+        for sentinel in ("2147483646", "2147483647", "2147483648"):
+            assert sentinel in PHONE_SENTINELS
+
+    def test_sentinel_set_covers_monotonic_ramps(self) -> None:
+        for sentinel in ("1234567890", "0123456789", "9876543210", "0987654321"):
+            assert sentinel in PHONE_SENTINELS

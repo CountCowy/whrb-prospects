@@ -76,6 +76,43 @@ class TestExtract:
         # Domain match — keep the address.
         assert "contact@gmail.com" in state["emails"]
 
+    def test_rejects_bare_10_digit_run_in_visible_text(self) -> None:
+        # The classic deebeff6 bug: ``2147483647`` is INT_MAX with a real
+        # NPA prefix (Dallas 214). The pre-PR-B regex captured this and
+        # collapsed four unrelated companies onto a shared business_key.
+        # Visible-text matches must now require a separator between the
+        # area code, exchange, and 4-digit subscriber number.
+        html = "<script>const limit = 2147483647;</script>"
+        state: dict = {"emails": set(), "phones": set(), "name": None}
+        contact_scraper._extract(html, "example.com", state)
+        assert state["phones"] == set()
+
+    def test_rejects_phone_sentinel_with_separators(self) -> None:
+        # Even when separators are present, the sentinel list catches
+        # placeholder values like ``999-999-9999``.
+        html = "<p>Call (999) 999-9999 for support.</p>"
+        state: dict = {"emails": set(), "phones": set(), "name": None}
+        contact_scraper._extract(html, "example.com", state)
+        assert state["phones"] == set()
+
+    def test_extracts_phone_from_tel_href_without_separators(self) -> None:
+        # ``href="tel:..."`` is the one place a contiguous 10-digit string
+        # is canonical — the protocol prefix supplies the missing context
+        # so we still want the match.
+        html = '<a href="tel:6175550100">Call us</a>'
+        state: dict = {"emails": set(), "phones": set(), "name": None}
+        contact_scraper._extract(html, "example.com", state)
+        assert any("6175550100" in p for p in state["phones"])
+
+    def test_skips_sentinel_inside_tel_href(self) -> None:
+        # Defense-in-depth — the tel-href path consults the same sentinel
+        # list so sites with placeholder ``tel:0000000000`` markup don't
+        # poison the run.
+        html = '<a href="tel:0000000000">placeholder</a>'
+        state: dict = {"emails": set(), "phones": set(), "name": None}
+        contact_scraper._extract(html, "example.com", state)
+        assert state["phones"] == set()
+
 
 class TestHasUsableEmail:
     def test_returns_true_for_personal_or_company(self) -> None:

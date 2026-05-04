@@ -43,7 +43,12 @@ from config import (
     SUPABASE_RETRY_MIN_S,
     SUPABASE_UPSERT_BATCH_SIZE,
 )
-from db.validators import VALID_NANP_AREA_CODES, validate_ein, validate_phone
+from db.validators import (
+    PHONE_SENTINELS,
+    VALID_NANP_AREA_CODES,
+    validate_ein,
+    validate_phone,
+)
 from enrich.dedupe import _norm_name, _norm_phone
 from util import event_log
 from util.http import RETRYABLE_EXCEPTIONS
@@ -159,6 +164,11 @@ def business_key(row: dict) -> str | None:
     (e.g. ``1145128678`` with NPA 114) from creating a per-run ``phone:<garbage>``
     key — those rows fall through to the ``name|zip`` path and are caught by
     the cross-run lookup in :func:`sync` instead of accumulating duplicates.
+    The :data:`PHONE_SENTINELS` check covers the residual case where the
+    scraped digits happen to start with a real NPA but are still placeholder
+    values (the canonical example is ``2147483647`` — INT_MAX with a Dallas
+    214 prefix — which collided across four unrelated companies in run
+    deebeff6).
     """
     phone_raw = _as_str(row.get("company_phone")) or _as_str(row.get("contact_phone"))
     phone = _norm_phone(phone_raw)
@@ -166,6 +176,7 @@ def business_key(row: dict) -> str | None:
         phone
         and len(phone) == PHONE_DIGIT_COUNT
         and phone[:3] in VALID_NANP_AREA_CODES
+        and phone not in PHONE_SENTINELS
     ):
         return f"phone:{phone}"
     name = _norm_name(_as_str(row.get("company_name")))
