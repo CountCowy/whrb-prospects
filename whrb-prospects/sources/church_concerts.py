@@ -46,7 +46,7 @@ _VENUES: dict[str, _Venue] = {
     "kings_chapel": {
         "slug": "kings_chapel",
         "display_name": "King's Chapel",
-        "url": "https://www.kings-chapel.org/concerts.html",
+        "url": "https://www.kings-chapel.org/music",
         "self_domains": ("kings-chapel.org",),
         "zip": "02108",
         "name_blocklist": (
@@ -69,7 +69,7 @@ _VENUES: dict[str, _Venue] = {
     "old_south": {
         "slug": "old_south",
         "display_name": "Old South Church",
-        "url": "https://www.oldsouth.org/music-arts",
+        "url": "https://www.oldsouth.org/music",
         "self_domains": ("oldsouth.org",),
         "zip": "02116",
         "name_blocklist": (
@@ -111,8 +111,11 @@ _VENUES: dict[str, _Venue] = {
     "st_pauls_harvard_sq": {
         "slug": "st_pauls_harvard_sq",
         "display_name": "St. Paul's Harvard Square",
-        "url": "https://stpaulparish.org/music",
-        "self_domains": ("stpaulparish.org",),
+        # Domain change in 2024-2025: stpaulparish.org now 301-redirects to
+        # stpaulsharvardsquare.org. The new host is canonical; the old
+        # `/music` path returned 404 in run deebeff6.
+        "url": "https://www.stpaulsharvardsquare.org/music",
+        "self_domains": ("stpaulsharvardsquare.org", "stpaulparish.org"),
         "zip": "02138",
         "name_blocklist": (
             "st paul", "st. paul", "saint paul",
