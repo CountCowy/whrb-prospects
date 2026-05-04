@@ -15,7 +15,13 @@ from __future__ import annotations
 
 import time
 
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import (
+    Page,
+    sync_playwright,
+)
+from playwright.sync_api import (
+    TimeoutError as PlaywrightTimeout,
+)
 
 from util import event_log
 
@@ -45,10 +51,13 @@ def _lookup_on_page(page: Page, company_name: str) -> dict | None:
     try:
         page.goto(SEARCH_URL, timeout=GOTO_TIMEOUT_MS)
         page.fill("#MainContent_txtEntityName", company_name, timeout=FILL_TIMEOUT_MS)
+    except PlaywrightTimeout as e:
+        # Type-based catch — substring matching on ``str(e)`` is fragile to
+        # i18n + future Playwright wording changes (review follow-up). Both
+        # goto and fill raise this on selector / network timeouts, which is
+        # exactly the bail-out signal we want.
+        raise _SelectorMissing(str(e)) from e
     except Exception as e:
-        msg = str(e)
-        if "MainContent_txtEntityName" in msg or "Timeout" in msg:
-            raise _SelectorMissing(msg) from e
         print(f"[ma_sos] {company_name}: {e}")
         return None
 
@@ -102,7 +111,7 @@ def enrich_rows(rows: list[dict], limit: int = 25) -> None:
     if not targeted:
         return
 
-    selector_failures_seen = 0
+    first_miss_logged = False
     consecutive_selector_failures = 0
     started = time.monotonic()
 
@@ -126,9 +135,9 @@ def enrich_rows(rows: list[dict], limit: int = 25) -> None:
                 try:
                     res = _lookup_on_page(page, row["company_name"])
                 except _SelectorMissing as e:
-                    selector_failures_seen += 1
                     consecutive_selector_failures += 1
-                    if selector_failures_seen == 1:
+                    if not first_miss_logged:
+                        first_miss_logged = True
                         event_log.warn(
                             "ma_sos_selector_missing",
                             "ma_sos search input #MainContent_txtEntityName did not render",

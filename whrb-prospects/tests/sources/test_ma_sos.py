@@ -114,6 +114,46 @@ def test_enrich_rows_resets_consecutive_counter_on_success(
     assert len(stub_event_log.by_category("ma_sos_selector_missing")) == 1
 
 
+class _FakePage:
+    """Minimal Page stand-in. Each method consults its keyword to decide
+    whether to raise (configured per test) or return."""
+
+    def __init__(self, goto_raises: Exception | None = None,
+                 fill_raises: Exception | None = None) -> None:
+        self._goto_raises = goto_raises
+        self._fill_raises = fill_raises
+
+    def goto(self, *_args, **_kwargs) -> None:
+        if self._goto_raises is not None:
+            raise self._goto_raises
+
+    def fill(self, *_args, **_kwargs) -> None:
+        if self._fill_raises is not None:
+            raise self._fill_raises
+
+
+def test_lookup_on_page_raises_selector_missing_on_playwright_timeout() -> None:
+    """A Playwright TimeoutError from goto/fill must surface as
+    _SelectorMissing — the type-based catch replaced fragile string
+    matching on ``str(e)`` (review follow-up)."""
+    from playwright.sync_api import TimeoutError as PT
+
+    page = _FakePage(fill_raises=PT("Timeout 5000ms exceeded."))
+    with pytest.raises(ma_sos._SelectorMissing):
+        ma_sos._lookup_on_page(page, "Test Co")  # type: ignore[arg-type]
+
+    page = _FakePage(goto_raises=PT("Timeout 15000ms exceeded."))
+    with pytest.raises(ma_sos._SelectorMissing):
+        ma_sos._lookup_on_page(page, "Test Co")  # type: ignore[arg-type]
+
+
+def test_lookup_on_page_returns_none_on_non_timeout_error() -> None:
+    """Non-timeout exceptions (network reset, page closed, etc.) keep the
+    pre-existing return-None behavior — only timeouts are bail signals."""
+    page = _FakePage(goto_raises=RuntimeError("net::ERR_NAME_NOT_RESOLVED"))
+    assert ma_sos._lookup_on_page(page, "Test Co") is None  # type: ignore[arg-type]
+
+
 def test_enrich_rows_stops_when_wall_budget_exhausted(
     monkeypatch: pytest.MonkeyPatch,
     fake_browser: None,
