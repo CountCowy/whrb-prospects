@@ -535,25 +535,36 @@ class TestBuildHttpxClient:
 
 
 class TestExecuteBulkUpdates:
-    """Verify the bulk UPSERT path the sync() function now takes for
-    updates. Run a59a1ca4 made one HTTP request per row update; bulk
-    cuts that ~100x and groups by patch column signature so PostgREST
-    can emit a single ``ON CONFLICT DO UPDATE`` per group.
+    """Verify the bulk RPC path the sync() function now takes for updates.
+
+    Replaces the broken UPSERT path from PR #55 (which always tripped the
+    NOT NULL constraint on the INSERT plan and fell back to per-row PATCH
+    every batch). The RPC ``bulk_update_prospects`` (migration 019) does
+    pure UPDATE with COALESCE so sparse patches retain unset fields.
     """
 
-    def _stub_client(self) -> tuple[MagicMock, list]:
-        """Return a Supabase client mock that records ``upsert`` calls."""
-        upsert_calls: list = []
+    def _stub_client(self, applied_count=None) -> tuple[MagicMock, list]:
+        """Return a Supabase client mock that records ``rpc`` calls.
+
+        ``applied_count`` controls what the RPC returns; default is
+        len(payload) so successful path tests don't have to specify it.
+        """
+        rpc_calls: list = []
         client = MagicMock()
-        chain = client.table.return_value
-        chain.upsert.return_value.execute.return_value = MagicMock(data=[])
 
-        def record_upsert(payload, **kwargs):
-            upsert_calls.append({"payload": payload, "kwargs": kwargs})
-            return chain.upsert.return_value
+        def record_rpc(name, payload):
+            rpc_calls.append({"name": name, "payload": payload})
+            applied = (
+                applied_count
+                if applied_count is not None
+                else len(payload["updates"])
+            )
+            chain_step = MagicMock()
+            chain_step.execute.return_value = MagicMock(data=applied)
+            return chain_step
 
-        chain.upsert.side_effect = record_upsert
-        return client, upsert_calls
+        client.rpc.side_effect = record_rpc
+        return client, rpc_calls
 
     def test_empty_updates_does_nothing(self) -> None:
         client, calls = self._stub_client()
@@ -562,7 +573,7 @@ class TestExecuteBulkUpdates:
         assert failed == 0
         assert calls == []
 
-    def test_single_shape_emits_one_upsert(self) -> None:
+    def test_single_batch_emits_one_rpc_call(self) -> None:
         client, calls = self._stub_client()
         to_update = [
             ("uuid-1", {"company_name": "A", "tier": "B"}),
@@ -572,30 +583,35 @@ class TestExecuteBulkUpdates:
         updated, failed = _execute_bulk_updates(client, to_update, failed_so_far=0)
         assert updated == 3
         assert failed == 0
-        # All three rows share a patch shape → exactly one bulk UPSERT.
         assert len(calls) == 1
-        call = calls[0]
-        assert call["kwargs"]["on_conflict"] == "id"
-        assert len(call["payload"]) == 3
-        # Each row carries the id alongside the patched columns.
-        ids = {r["id"] for r in call["payload"]}
-        assert ids == {"uuid-1", "uuid-2", "uuid-3"}
+        # Hits the bulk RPC, not raw upsert.
+        assert calls[0]["name"] == "bulk_update_prospects"
+        # Each entry has the {id, patch} shape the SQL function expects.
+        updates = calls[0]["payload"]["updates"]
+        assert len(updates) == 3
+        for u in updates:
+            assert set(u.keys()) == {"id", "patch"}
+            assert "id" not in u["patch"], "id must not leak into the patch sub-dict"
 
-    def test_distinct_shapes_split_into_separate_upserts(self) -> None:
+    def test_mixed_patch_shapes_share_one_rpc_call(self) -> None:
+        # Bulk RPC handles different patch shapes natively (each row's
+        # patch JSONB is independently coalesced server-side). No need
+        # for the previous "group by shape" pre-step.
         client, calls = self._stub_client()
         to_update = [
             ("uuid-1", {"company_name": "A"}),
             ("uuid-2", {"company_name": "B"}),
-            # User-locked tier — different shape, must go in its own UPSERT.
             ("uuid-3", {"company_name": "C", "rating": 5}),
         ]
         updated, failed = _execute_bulk_updates(client, to_update, failed_so_far=0)
         assert updated == 3
         assert failed == 0
-        # Two distinct patch shapes → two bulk UPSERTs.
-        assert len(calls) == 2
-        sizes = sorted(len(c["payload"]) for c in calls)
-        assert sizes == [1, 2]
+        # One RPC call total — distinct from the old behavior which split
+        # into two upserts by shape.
+        assert len(calls) == 1
+        # And uuid-3's patch retains its extra ``rating`` field.
+        u3 = next(u for u in calls[0]["payload"]["updates"] if u["id"] == "uuid-3")
+        assert u3["patch"] == {"company_name": "C", "rating": 5}
 
     def test_empty_patch_is_skipped(self) -> None:
         client, calls = self._stub_client()
@@ -607,7 +623,7 @@ class TestExecuteBulkUpdates:
         assert updated == 1
         assert failed == 0
         assert len(calls) == 1
-        assert len(calls[0]["payload"]) == 1
+        assert len(calls[0]["payload"]["updates"]) == 1
 
     def test_failed_so_far_passes_through(self) -> None:
         client, _ = self._stub_client()
@@ -619,15 +635,29 @@ class TestExecuteBulkUpdates:
         assert updated == 1
         assert failed == 3
 
-    def test_bulk_failure_falls_back_to_per_row_patch(self, stub_event_log) -> None:
-        # First call (bulk) raises; per-row path uses ``update().eq().execute()``.
+    def test_partial_apply_logs_race_event(self, stub_event_log) -> None:
+        # RPC returns fewer updates than the batch size — likely the row
+        # was deleted between the existing-rows fetch and this update.
+        # We log a warn but don't count failures.
+        client, _ = self._stub_client(applied_count=1)
+        to_update = [
+            ("uuid-1", {"company_name": "A"}),
+            ("uuid-2", {"company_name": "B"}),
+        ]
+        updated, failed = _execute_bulk_updates(client, to_update, failed_so_far=0)
+        assert updated == 1
+        assert failed == 0
+        events = stub_event_log.by_category("supabase_bulk_update_race")
+        assert len(events) == 1
+        assert events[0]["context"]["applied"] == 1
+        assert events[0]["context"]["missing"] == 1
+
+    def test_rpc_failure_falls_back_to_per_row_patch(self, stub_event_log) -> None:
+        # RPC itself raises; per-row path picks up the slack.
         client = MagicMock()
+        client.rpc.return_value.execute.side_effect = RuntimeError("rpc failed")
+
         chain = client.table.return_value
-
-        # Bulk path raises on the .upsert(...).execute() call.
-        chain.upsert.return_value.execute.side_effect = RuntimeError("bulk failed")
-
-        # Per-row PATCH path: .update(...).eq(...).execute() succeeds.
         chain.update.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
 
         to_update = [
@@ -635,10 +665,8 @@ class TestExecuteBulkUpdates:
             ("uuid-2", {"company_name": "B"}),
         ]
         updated, failed = _execute_bulk_updates(client, to_update, failed_so_far=0)
-        # Per-row fallback rescued every row.
         assert updated == 2
         assert failed == 0
-        # Fallback was logged at warn level.
-        assert stub_event_log.by_category("supabase_upsert_bulk_fallback")
-        # Per-row update path called once per row.
+        # New category name — distinct from the deleted UPSERT path.
+        assert stub_event_log.by_category("supabase_bulk_update_fallback")
         assert chain.update.call_count == 2

@@ -18,6 +18,7 @@ import json
 import os
 import sys
 import threading
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -94,6 +95,13 @@ def log(
             "message": message[:4000] if message else "",
             "context": ctx,
             "pipeline_run_id": _PIPELINE_RUN_ID,
+            # Stamp the emit time *here* (not at flush time). The DB column
+            # has ``default now()`` which fires once per INSERT statement, so
+            # without this every event in a flush batch (up to FLUSH_EVERY
+            # entries) would share the flush timestamp, collapsing thousands
+            # of distinct events onto a handful of identical timestamps in
+            # /admin/logs and breaking timeline reasoning.
+            "created_at": datetime.now(tz=UTC).isoformat(),
         }
         if url is not None:
             row["url"] = url

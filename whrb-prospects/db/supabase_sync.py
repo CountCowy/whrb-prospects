@@ -526,10 +526,10 @@ def _insert_batch(client, batch: list[dict]) -> None:
     reraise=True,
 )
 def _patch_one(client, prospect_id: str, patch: dict) -> None:
-    """Per-row PATCH — kept as the fallback for batches that fail bulk UPSERT
-    (e.g. one stale ``id`` in a 50-row batch fails the whole batch's
-    NOT-NULL guard on INSERT, even though every other row would have
-    UPDATE'd cleanly). The hot path is :func:`_bulk_update_batch`.
+    """Per-row PATCH — kept as the fallback for batches that fail the bulk
+    RPC (e.g. one stale id in the batch raises a server-side error and we
+    want row-granular failure attribution). The hot path is
+    :func:`_bulk_update_via_rpc`.
     """
     client.table("prospects").update(patch).eq("id", prospect_id).execute()
 
@@ -540,25 +540,41 @@ def _patch_one(client, prospect_id: str, patch: dict) -> None:
     retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS),
     reraise=True,
 )
-def _bulk_update_batch(client, batch: list[dict]) -> None:
-    """Bulk UPSERT keyed on ``id`` — replaces the per-row PATCH loop.
+def _bulk_update_via_rpc(client, batch: list[dict]) -> int:
+    """Server-side bulk UPDATE via the ``bulk_update_prospects`` RPC.
 
-    Each row in *batch* carries an ``id`` plus the columns the row needs to
-    UPDATE. PostgREST emits ``INSERT ... ON CONFLICT (id) DO UPDATE SET …``;
-    the conflict path runs as plain UPDATE for every row whose id already
-    exists (the normal case in this pipeline phase). The INSERT branch is
-    dead code in practice — we only call this for rows we just fetched
-    from ``prospects`` — and the table's ``business_key NOT NULL`` /
-    ``company_name NOT NULL`` constraints guarantee it would fail loudly
-    rather than silently inserting a half-empty row, so the ``upsert``
-    framing is safe even under the rare race-condition.
+    Replaces the previous (broken) ``upsert(on_conflict='id')`` path —
+    PostgreSQL evaluates NOT NULL constraints on the INSERT plan of
+    ``INSERT ... ON CONFLICT DO UPDATE`` *before* conflict resolution,
+    so sparse patches without ``business_key`` always tripped the
+    constraint and fell back to per-row PATCH. The RPC (migration 019)
+    does pure UPDATE with ``COALESCE(patch_field, existing_field)`` per
+    column, which:
 
-    Why this exists: run a59a1ca4 hit Supabase's HTTP/2 GOAWAY at
-    ``last_stream_id:19999`` after ~20K per-row PATCHes on one connection.
-    Bulk UPSERT cuts the request count ~100x and works in tandem with the
-    HTTP/1.1 client config in :func:`_build_httpx_client`.
+      * Handles sparse patches (fields absent from the patch retain
+        their existing value).
+      * Collapses ~10K HTTP round-trips into one per batch.
+      * Stays inside one Postgres transaction per batch.
+
+    Returns the count of rows actually updated (so the caller can detect
+    race-condition mismatches between batch size and server-side
+    application count).
     """
-    client.table("prospects").upsert(batch, on_conflict="id").execute()
+    res = client.rpc(
+        "bulk_update_prospects",
+        {"updates": [{"id": r["id"], "patch": {k: v for k, v in r.items() if k != "id"}} for r in batch]},
+    ).execute()
+    # PostgREST returns the function's return value; for our SQL function
+    # that's an int (count of rows updated). supabase-py wraps it in
+    # ``res.data``.
+    if isinstance(res.data, int):
+        return res.data
+    if isinstance(res.data, list) and res.data:
+        return int(res.data[0])
+    # Defensive fallback — assume all rows applied if the shape is
+    # unexpected. The pipeline still moves forward; the operator can
+    # diff prospect_last_seen_at to detect drift.
+    return len(batch)
 
 
 def _execute_bulk_updates(
@@ -566,69 +582,80 @@ def _execute_bulk_updates(
     to_update: list[tuple[str, dict]],
     failed_so_far: int,
 ) -> tuple[int, int]:
-    """Apply ``[(prospect_id, patch), ...]`` updates via bulk UPSERT.
+    """Apply ``[(prospect_id, patch), ...]`` updates via the bulk RPC.
 
     Returns ``(updated_count, failed_count)`` — failed_count is the
     incoming ``failed_so_far`` plus any new failures (so the caller can
     just assign back to ``summary["failed"]`` without bookkeeping).
 
-    Group rows by their patch column signature so each PostgREST UPSERT
-    emits a single shape; on batch failure, fall back to per-row PATCH to
-    isolate the bad row(s) while preserving the original row-granular
-    error logging.
+    On batch failure, fall back to per-row PATCH to isolate the bad
+    row(s) while preserving the original row-granular error logging.
     """
     if not to_update:
         return 0, failed_so_far
 
-    # Group by frozenset of patch keys — most pipelines have 1-2 distinct
-    # shapes (the common shape, plus a few rows with locks).
-    by_shape: dict[frozenset, list[dict]] = {}
-    for prospect_id, patch in to_update:
-        if not patch:
-            # Empty patch → nothing to update; matches old skip behavior.
-            continue
-        cols = frozenset(patch.keys())
-        by_shape.setdefault(cols, []).append({**patch, "id": prospect_id})
+    # Empty patches are no-ops — matches the previous skip behavior.
+    rows: list[dict] = [
+        {**patch, "id": prospect_id}
+        for prospect_id, patch in to_update
+        if patch
+    ]
 
     updated = 0
     failed = failed_so_far
-    for _cols, rows in by_shape.items():
-        for i in range(0, len(rows), BATCH_SIZE):
-            batch = rows[i : i + BATCH_SIZE]
-            try:
-                _bulk_update_batch(client, batch)
-                updated += len(batch)
-                continue
-            except Exception as bulk_exc:
-                # Fall through to per-row PATCH so one stale id doesn't
-                # poison the whole batch.
+    for i in range(0, len(rows), BATCH_SIZE):
+        batch = rows[i : i + BATCH_SIZE]
+        try:
+            applied = _bulk_update_via_rpc(client, batch)
+            updated += applied
+            if applied < len(batch):
+                # Some rows in the batch matched no row in the DB. This is
+                # the race-condition case we anticipated (prospect deleted
+                # between the existing-rows fetch and this update). Log so
+                # the diff is visible but don't count as a failure — the
+                # next pipeline run will reattempt cleanly.
                 event_log.warn(
-                    "supabase_upsert_bulk_fallback",
-                    f"bulk update batch fell back to per-row PATCH: "
-                    f"{type(bulk_exc).__name__}: {bulk_exc}",
+                    "supabase_bulk_update_race",
+                    f"bulk RPC applied {applied}/{len(batch)} rows; "
+                    "missing ids likely deleted mid-run",
                     context={
                         "batch_size": len(batch),
-                        "exception": type(bulk_exc).__name__,
-                        "detail": str(bulk_exc)[:500],
+                        "applied": applied,
+                        "missing": len(batch) - applied,
                     },
                 )
-            for r in batch:
-                pid = r.pop("id")
-                try:
-                    _patch_one(client, pid, r)
-                    updated += 1
-                except Exception as e:
-                    failed += 1
-                    event_log.error(
-                        "supabase_upsert",
-                        f"update failed after retries: {type(e).__name__}: {e}",
-                        context={
-                            "prospect_id": pid,
-                            "exception": type(e).__name__,
-                            "detail": str(e)[:500],
-                            "op": "update",
-                        },
-                    )
+            continue
+        except Exception as bulk_exc:
+            # RPC raised — fall back to per-row PATCH so one bad row
+            # can't sink the whole batch and we get row-granular logs.
+            event_log.warn(
+                "supabase_bulk_update_fallback",
+                f"bulk RPC fell back to per-row PATCH: "
+                f"{type(bulk_exc).__name__}: {bulk_exc}",
+                context={
+                    "batch_size": len(batch),
+                    "exception": type(bulk_exc).__name__,
+                    "detail": str(bulk_exc)[:500],
+                },
+            )
+        for r in batch:
+            pid = r["id"]
+            patch_only = {k: v for k, v in r.items() if k != "id"}
+            try:
+                _patch_one(client, pid, patch_only)
+                updated += 1
+            except Exception as e:
+                failed += 1
+                event_log.error(
+                    "supabase_upsert",
+                    f"update failed after retries: {type(e).__name__}: {e}",
+                    context={
+                        "prospect_id": pid,
+                        "exception": type(e).__name__,
+                        "detail": str(e)[:500],
+                        "op": "update",
+                    },
+                )
     return updated, failed
 
 
