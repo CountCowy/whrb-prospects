@@ -5,6 +5,7 @@ import math
 from unittest.mock import MagicMock
 
 from db.supabase_sync import (
+    IN_QUERY_CHUNK_SIZE,
     _apply_field_validators,
     _as_str,
     _build_httpx_client,
@@ -447,6 +448,59 @@ class TestFetchExistingByName:
         assert ("", "02138") not in with_zip
         assert with_zip == {("real one", "02138"): "name:real one|02138"}
         assert no_zip == {"real one": "name:real one|02138"}
+
+
+class TestInQueryChunkSize:
+    """``.in_(col, values)`` filter chunk size — must keep URLs short enough
+    to clear Cloudflare's WAF / nginx ``large_client_header_buffers`` on
+    the proxy chain in front of Supabase.
+
+    Run ``dc3cd1ab`` failed because the previous chunk size (500) built
+    ~22 KB tag-sync URLs that Cloudflare rejected from GH-Actions IPs
+    with plain ``b'Bad Request'`` (residential IPs accepted them, which
+    is why local probes succeeded). 100 keeps the URL under 8 KB on the
+    worst-case shape (chunk × prospect_ids + 83 vocab tag_ids).
+    """
+
+    def _synthetic_url_size(self, n_prospect_ids: int, n_tag_ids: int) -> int:
+        """Approximate URL size for a tag-sync precount-shaped query.
+
+        Mirrors the supabase-py URL builder's encoding: each value is
+        URL-encoded (UUIDs → 36 chars, commas → ``%2C``, parens → ``%28``
+        / ``%29``), wrapped in ``col=in.(...)``. Base URL + select clause
+        adds ~120 chars.
+        """
+        base = len("https://kolfijjavwruwzctmnlx.supabase.co/rest/v1/prospect_tags")
+        select = len("?select=prospect_id%2Ctag_id")
+
+        # Each value: 36 chars (UUID). URL-encoded comma is %2C (3 chars).
+        # `col=in.%28...%29` -- `in.` literal + `%28` + values + `%29`.
+        def per_filter(n: int) -> int:
+            return (
+                len("&prospect_id=in.%28")
+                + 36 * n
+                + 3 * (n - 1)
+                + len("%29")
+            )
+
+        return base + select + per_filter(n_prospect_ids) + per_filter(n_tag_ids)
+
+    def test_constant_keeps_url_under_8kb(self) -> None:
+        # Worst case: chunk * prospect_ids + 83 vocab tag_ids in same URL.
+        size = self._synthetic_url_size(IN_QUERY_CHUNK_SIZE, n_tag_ids=83)
+        # 8192 = nginx default ``large_client_header_buffers`` first-line
+        # bucket; values above this triggered the production failure.
+        assert size < 8192, (
+            f"chunk size {IN_QUERY_CHUNK_SIZE} produces ~{size}-byte URLs; "
+            "exceeds nginx 8 KB default and risks Cloudflare 400 'Bad Request' "
+            "from GH-Actions runner IPs (run dc3cd1ab repro)."
+        )
+
+    def test_constant_value_is_conservative(self) -> None:
+        # Belt and suspenders: the value itself sits in a sane window.
+        # Too small => too many round trips; too large => URL-length risk.
+        # 50-200 is the comfortable band given UUID chunk geometry.
+        assert 50 <= IN_QUERY_CHUNK_SIZE <= 200
 
 
 class TestBuildHttpxClient:
