@@ -130,6 +130,19 @@ PHONE_FIELDS = ("company_phone", "contact_phone")
 # Re-exported for backwards compatibility with scripts that imported it directly.
 BATCH_SIZE = SUPABASE_UPSERT_BATCH_SIZE
 
+# Chunk size for ``.in_("col", values)`` filters — keeps the resulting GET
+# URL small enough to clear Cloudflare/nginx URL-length limits on the
+# proxy chain in front of Supabase. Run ``dc3cd1ab`` failed because the
+# tag-sync read queries used 500-element chunks, building ~22 KB URLs
+# (500 UUIDs * 36 chars + 83 vocab UUIDs + filter syntax). Cloudflare's
+# WAF returned plain ``b'Bad Request'`` for those URLs from GH-Actions
+# runner IPs even though residential IPs (where local probes succeeded)
+# accept the same payload. 100 keeps the URL ~7 KB — safely under the
+# 8 KB ``large_client_header_buffers`` default and under typical WAF
+# rules. Used for ``.in_()`` filters only; bulk-write batches use
+# ``BATCH_SIZE`` because POST bodies have far more generous limits.
+IN_QUERY_CHUNK_SIZE = 100
+
 _CLIENT = None
 _HTTPX_CLIENT = None
 
@@ -418,8 +431,8 @@ def _fetch_existing(client, keys: list[str]) -> dict[str, dict]:
     the "skip email enrichment when count > 0" gate.
     """
     out: dict[str, dict] = {}
-    for i in range(0, len(keys), 500):
-        chunk = keys[i : i + 500]
+    for i in range(0, len(keys), IN_QUERY_CHUNK_SIZE):
+        chunk = keys[i : i + IN_QUERY_CHUNK_SIZE]
         res = (
             client.table("prospects")
             .select("id,business_key,user_overrides,contact_email_count")
@@ -919,8 +932,8 @@ def _fetch_prospect_ids_for_keys(
     client, business_keys: list[str]
 ) -> dict[str, str]:
     out: dict[str, str] = {}
-    for i in range(0, len(business_keys), 500):
-        chunk = business_keys[i : i + 500]
+    for i in range(0, len(business_keys), IN_QUERY_CHUNK_SIZE):
+        chunk = business_keys[i : i + IN_QUERY_CHUNK_SIZE]
         res = (
             client.table("prospects")
             .select("id,business_key")
@@ -947,8 +960,8 @@ def _fetch_suppressed_compliance_rows(
     out: set[tuple[str, str]] = set()
     # Chunk the prospect_ids — tag_ids are smaller (bounded by the emit set)
     # but prospect_ids can grow to thousands on a full rerun.
-    for i in range(0, len(prospect_ids), 500):
-        chunk = prospect_ids[i : i + 500]
+    for i in range(0, len(prospect_ids), IN_QUERY_CHUNK_SIZE):
+        chunk = prospect_ids[i : i + IN_QUERY_CHUNK_SIZE]
         res = (
             client.table("prospect_tags")
             .select("prospect_id,tag_id")
@@ -1101,8 +1114,8 @@ def tag_sync(rows: Iterable[dict], *, client=None) -> dict:
     if to_insert:
         ids = list({t["prospect_id"] for t in to_insert})
         tids = list({t["tag_id"] for t in to_insert})
-        for i in range(0, len(ids), 500):
-            chunk = ids[i : i + 500]
+        for i in range(0, len(ids), IN_QUERY_CHUNK_SIZE):
+            chunk = ids[i : i + IN_QUERY_CHUNK_SIZE]
             res = (
                 client.table("prospect_tags")
                 .select("prospect_id,tag_id")
